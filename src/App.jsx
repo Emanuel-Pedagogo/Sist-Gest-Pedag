@@ -1591,6 +1591,22 @@ function App() {
     }
   };
 
+  const handleDeleteAgendaEvent = async () => {
+    if (!editingEvent?.id) return;
+    if (!window.confirm('Tem certeza que deseja excluir este evento?')) return;
+
+    const { error } = await supabase.from('agenda_eventos').delete().eq('id', editingEvent.id);
+
+    if (error) {
+      alert('Erro ao excluir evento: ' + error.message);
+      return;
+    }
+    setAgendaEvents((prev) => prev.filter((ev) => ev.id !== editingEvent.id));
+    setShowEventModal(false);
+    setEditingEvent(null);
+    await loadTodayEvents();
+  };
+
   const handleUploadAnexo = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -4574,7 +4590,24 @@ function App() {
                 )}
               </div>
 
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <div className="modal-actions" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'center' }}>
+                {editingEvent && (
+                  <button
+                    type="button"
+                    onClick={handleDeleteAgendaEvent}
+                    style={{
+                      marginRight: 'auto',
+                      padding: '10px 20px',
+                      border: 'none',
+                      borderRadius: 6,
+                      backgroundColor: '#ff4444',
+                      color: 'white',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Excluir
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => {
