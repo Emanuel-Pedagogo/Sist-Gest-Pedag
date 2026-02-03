@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
 import { supabase } from './supabaseClient';
+import BoletimView from './BoletimView';
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -178,7 +179,7 @@ function App() {
   const selectClass = (turma) => {
     setSelectedClassId(turma.id);
     setSelectedClassName(turma.nome);
-    setCurrentView('students');
+    // Mantém a aba Turmas selecionada; a lista de alunos da turma será exibida na própria view de turmas
   };
 
   const selectStudent = (aluno) => {
@@ -309,14 +310,15 @@ function App() {
       setClassesLoading(false);
     };
 
-    if (currentView === 'classes' && (activeSchoolId || selectedSchoolId)) {
+    // Carregar turmas na view Turmas ou na view Alunos (para o modal de novo aluno ter a lista de turmas)
+    if ((currentView === 'classes' || currentView === 'students') && (activeSchoolId || selectedSchoolId)) {
       fetchClasses();
     }
   }, [currentView, activeSchoolId, selectedSchoolId, selectedYear]);
 
-  // Recarregar turmas quando escola ativa mudar
+  // Recarregar turmas quando escola ativa mudar (Turmas ou Alunos, para o modal ter lista)
   useEffect(() => {
-    if (activeSchoolId && currentView === 'classes') {
+    if (activeSchoolId && (currentView === 'classes' || currentView === 'students')) {
       const fetchClasses = async () => {
         setClassesLoading(true);
         const { data, error } = await supabase
@@ -346,7 +348,7 @@ function App() {
       };
       fetchClasses();
     }
-  }, [activeSchoolId, selectedYear]);
+  }, [activeSchoolId, selectedYear, currentView]);
 
   // Recarregar alunos quando escola ativa mudar
   useEffect(() => {
@@ -421,7 +423,7 @@ function App() {
       setStudentsLoading(false);
     };
 
-    if (currentView === 'students') {
+    if (currentView === 'students' || (currentView === 'classes' && selectedClassId)) {
       fetchStudents();
     }
   }, [currentView, activeSchoolId, selectedSchoolId, selectedClassId, selectedYear]);
@@ -1043,8 +1045,11 @@ function App() {
 
     setSavingStudent(true);
 
-    const etiquetaCor = (studentFormData.etiqueta_cor || '').toLowerCase();
-    
+    // Valores aceitos pela constraint alunos_etiqueta_cor_check no Supabase
+    const ETIQUETAS_VALIDAS = ['azul', 'verde', 'amarelo', 'vermelho', 'roxo'];
+    const etiquetaCorRaw = (studentFormData.etiqueta_cor || '').toLowerCase().trim();
+    const etiquetaCor = ETIQUETAS_VALIDAS.includes(etiquetaCorRaw) ? etiquetaCorRaw : 'azul';
+
     const studentData = {
       nome: studentFormData.nome,
       data_nascimento: studentFormData.data_nascimento,
@@ -1080,29 +1085,36 @@ function App() {
       setAeeFormData({ aee_tem_laudo: false, aee_mediadora: '', aee_plano_individual: '' });
       setSavingStudent(false);
       
-      // Recarregar alunos
-      const schoolId = activeSchoolId || selectedSchoolId;
-      if (schoolId) {
-        const { data: turmas } = await supabase
-          .from('turmas')
-          .select('id')
-          .eq('escola_id', schoolId)
-          .eq('ano_letivo', selectedYear);
-        
-        if (turmas && turmas.length > 0) {
-          const turmaIds = turmas.map((t) => t.id);
-          const { data: newData } = await supabase
-            .from('alunos')
-            .select('*')
-            .in('turma_id', turmaIds);
-          if (newData) setStudents(newData);
-        }
-      } else if (selectedClassId) {
+      // Recarregar alunos: se estiver na lista de uma turma (classes + selectedClassId), recarrega só essa turma
+      if (currentView === 'classes' && selectedClassId) {
         const { data: newData } = await supabase
           .from('alunos')
           .select('*')
           .eq('turma_id', selectedClassId);
         if (newData) setStudents(newData);
+      } else {
+        const schoolId = activeSchoolId || selectedSchoolId;
+        if (schoolId) {
+          const { data: turmas } = await supabase
+            .from('turmas')
+            .select('id')
+            .eq('escola_id', schoolId)
+            .eq('ano_letivo', selectedYear);
+          if (turmas && turmas.length > 0) {
+            const turmaIds = turmas.map((t) => t.id);
+            const { data: newData } = await supabase
+              .from('alunos')
+              .select('*')
+              .in('turma_id', turmaIds);
+            if (newData) setStudents(newData);
+          }
+        } else if (selectedClassId) {
+          const { data: newData } = await supabase
+            .from('alunos')
+            .select('*')
+            .eq('turma_id', selectedClassId);
+          if (newData) setStudents(newData);
+        }
       }
     }
   };
@@ -1784,15 +1796,45 @@ function App() {
     }
   };
 
-  // Filtrar turmas e alunos por busca
-  const filteredClasses = classes.filter((turma) =>
+  // Ordem crescente: Pré I, Pré II, 1º ao 9º ano (para ordenar turmas e alunos por turma)
+  const getTurmaSortOrder = (nome) => {
+    if (!nome) return 999;
+    const n = (nome || '').toLowerCase();
+    if (n.includes('pré i') || n.includes('pre i')) return 0;
+    if (n.includes('pré ii') || n.includes('pre ii')) return 1;
+    for (let ano = 1; ano <= 9; ano++) {
+      if (n.includes(`${ano}º`) || n.includes(ano + 'º')) return ano + 1;
+    }
+    return 999;
+  };
+
+  // Filtrar turmas e alunos por busca (classes pode estar vazio; evita erro ao voltar para lista de turmas)
+  const classesList = classes || [];
+  const filteredClasses = classesList.filter((turma) =>
     turma.nome?.toLowerCase().includes(classSearchTerm.toLowerCase()) ||
     turma.codigo?.toLowerCase().includes(classSearchTerm.toLowerCase())
+  );
+
+  const filteredClassesSorted = [...filteredClasses].sort(
+    (a, b) => getTurmaSortOrder(a.nome) - getTurmaSortOrder(b.nome)
   );
 
   const filteredStudents = students.filter((aluno) =>
     aluno.nome?.toLowerCase().includes(studentSearchTerm.toLowerCase())
   );
+
+  // Ordenar alunos: quando uma turma está selecionada, ordem alfabética por nome; quando "Alunos" (todas), por turma (Pré→9º) e depois alfabética
+  const sortedFilteredStudents = [...filteredStudents].sort((a, b) => {
+    if (selectedClassId) {
+      return (a.nome || '').localeCompare(b.nome || '', 'pt-BR');
+    }
+    const turmaA = classesList.find((c) => String(c.id) === String(a.turma_id));
+    const turmaB = classesList.find((c) => String(c.id) === String(b.turma_id));
+    const orderA = getTurmaSortOrder(turmaA?.nome);
+    const orderB = getTurmaSortOrder(turmaB?.nome);
+    if (orderA !== orderB) return orderA - orderB;
+    return (a.nome || '').localeCompare(b.nome || '', 'pt-BR');
+  });
 
   return (
     <>
@@ -1878,6 +1920,8 @@ function App() {
                 </li>
                 <li
                   onClick={() => {
+                    setSelectedClassId(null);
+                    setSelectedClassName('');
                     navigate('students');
                     setMobileMenuOpen(false);
                   }}
@@ -2162,6 +2206,149 @@ function App() {
             {/* Classes */}
             {currentView === 'classes' && (
               <div id="view-classes" className="view-section">
+                {selectedClassId ? (
+                  <React.Fragment key="alunos-da-turma">
+                    <div
+                      className="breadcrumb"
+                      onClick={() => {
+                        setSelectedClassId(null);
+                        setSelectedClassName('');
+                      }}
+                    >
+                      <i className="fas fa-arrow-left" /> Voltar para lista de turmas
+                    </div>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: 20,
+                        flexWrap: 'wrap',
+                        gap: 15,
+                      }}
+                    >
+                      <h2 style={{ margin: 0 }}>
+                        Alunos - {selectedClassName}
+                      </h2>
+                      <button
+                        className="btn-primary"
+                        style={{ width: 'auto', padding: '10px 20px' }}
+                        onClick={() => {
+                          setEditingStudent(null);
+                          setStudentFormData({
+                            nome: '',
+                            data_nascimento: '',
+                            turma_id: selectedClassId,
+                            etiqueta_cor: 'azul',
+                            matricula: '',
+                            nome_responsavel: '',
+                            contato: '',
+                            aee_deficiencia: '',
+                            aee_cid: '',
+                            motivo_etiqueta: '',
+                          });
+                          setAeeFormData({ aee_tem_laudo: false, aee_mediadora: '', aee_plano_individual: '' });
+                          setShowStudentModal(true);
+                        }}
+                      >
+                        <i className="fas fa-plus" style={{ marginRight: 5 }} />
+                        Novo Aluno
+                      </button>
+                    </div>
+                    <div style={{ marginBottom: 20 }}>
+                      <input
+                        type="text"
+                        placeholder="Buscar aluno por nome..."
+                        value={studentSearchTerm}
+                        onChange={(e) => setStudentSearchTerm(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: 10,
+                          border: '1px solid #ddd',
+                          borderRadius: 6,
+                        }}
+                      />
+                    </div>
+                    <div className="list-container">
+                      {studentsLoading && (
+                        <div className="list-item">
+                          <span>Carregando alunos...</span>
+                        </div>
+                      )}
+                      {studentsError && (
+                        <div className="list-item">
+                          <span>{studentsError}</span>
+                        </div>
+                      )}
+                      {!studentsLoading && !studentsError && sortedFilteredStudents.length === 0 && students.length > 0 && (
+                        <div className="list-item">
+                          <span>Nenhum aluno encontrado com o termo "{studentSearchTerm}".</span>
+                        </div>
+                      )}
+                      {!studentsLoading && !studentsError && students.length === 0 && (
+                        <div className="list-item">
+                          <span>Nenhum aluno nesta turma.</span>
+                        </div>
+                      )}
+                      {!studentsLoading &&
+                        !studentsError &&
+                        sortedFilteredStudents.map((aluno) => {
+                          const badgeClass = getBadgeColorClass(aluno.etiqueta_cor);
+                          return (
+                            <div
+                              key={aluno.id}
+                              className="list-item"
+                              style={{
+                                borderLeft: aluno.etiqueta_cor === 'roxo' ? '4px solid #9c27b0' : undefined,
+                                paddingLeft: aluno.etiqueta_cor === 'roxo' ? '12px' : undefined,
+                              }}
+                            >
+                              <div
+                                style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, cursor: 'pointer' }}
+                                onClick={() => selectStudent(aluno)}
+                              >
+                                {aluno.etiqueta_cor === 'roxo' ? (
+                                  <i className="fas fa-wheelchair" style={{ color: '#9c27b0', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Educação Especial" />
+                                ) : aluno.etiqueta_cor === 'vermelho' ? (
+                                  <i className="fas fa-exclamation-triangle" style={{ color: '#dc3545', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Prioridade" />
+                                ) : aluno.etiqueta_cor === 'amarelo' ? (
+                                  <i className="fas fa-exclamation-circle" style={{ color: '#ffc107', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Atenção" />
+                                ) : aluno.etiqueta_cor === 'verde' ? (
+                                  <i className="fas fa-star" style={{ color: '#28a745', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Avançado" />
+                                ) : (
+                                  <i className="fas fa-user" style={{ color: '#007bff', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Regular" />
+                                )}
+                                <div>
+                                  <strong>{aluno.nome}</strong>
+                                  <div style={{ fontSize: '0.8em', color: 'gray' }}>
+                                    Frequência: {aluno.frequencia != null ? `${aluno.frequencia}%` : 'N/D'} • Nível de leitura: {aluno.nivel_leitura || 'Não informado'}
+                                  </div>
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                                <span className={`badge ${badgeClass}`}>
+                                  {aluno.etiqueta_cor === 'vermelho' ? 'Prioridade' : aluno.etiqueta_cor === 'amarelo' ? 'Atenção' : aluno.etiqueta_cor === 'verde' ? 'Avançado' : aluno.etiqueta_cor === 'roxo' ? 'Educação Especial' : 'Regular'}
+                                </span>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleEditStudent(aluno); }}
+                                  style={{ background: 'var(--accent)', color: 'white', border: 'none', padding: '8px 12px', borderRadius: 6, cursor: 'pointer' }}
+                                >
+                                  <i className="fas fa-edit" />
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteStudent(aluno.id); }}
+                                  style={{ background: 'var(--danger)', color: 'white', border: 'none', padding: '8px 12px', borderRadius: 6, cursor: 'pointer' }}
+                                >
+                                  <i className="fas fa-trash" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </React.Fragment>
+                ) : (
+                  <React.Fragment key="lista-turmas">
                 <div
                   style={{
                     display: 'flex',
@@ -2173,7 +2360,7 @@ function App() {
                   }}
                 >
                   <h2 style={{ margin: 0 }}>
-                    Turmas {activeSchool ? `- ${activeSchool.nome}` : ''}
+                    Turmas {(activeSchool && activeSchool.nome) ? `- ${activeSchool.nome}` : ''}
                   </h2>
                   <button
                     className="btn-primary"
@@ -2230,21 +2417,21 @@ function App() {
                   )}
                   {!classesLoading &&
                     !classesError &&
-                    filteredClasses.length === 0 &&
-                    classes.length > 0 && (
+                    filteredClassesSorted.length === 0 &&
+                    classesList.length > 0 && (
                       <div className="list-item">
                         <span>Nenhuma turma encontrada com o termo "{classSearchTerm}".</span>
                       </div>
                     )}
-                  {!classesLoading && !classesError && classes.length === 0 && (
+                  {!classesLoading && !classesError && classesList.length === 0 && (
                     <div className="list-item">
                       <span>Nenhuma turma encontrada para esta escola.</span>
                     </div>
                   )}
                   {!classesLoading &&
                     !classesError &&
-                    filteredClasses.map((turma) => {
-                      const escola = schools.find((s) => String(s.id) === String(turma.escola_id));
+                    filteredClassesSorted.map((turma) => {
+                      const escola = (schools || []).find((s) => String(s.id) === String(turma.escola_id));
                       const etiquetas = turmaEtiquetasCount[turma.id] || { verde: 0, amarelo: 0, vermelho: 0, azul: 0 };
                       return (
                       <div key={turma.id} className="list-item">
@@ -2330,6 +2517,8 @@ function App() {
                       );
                     })}
                 </div>
+                  </React.Fragment>
+                )}
               </div>
             )}
 
@@ -2427,7 +2616,7 @@ function App() {
                   )}
                   {!studentsLoading &&
                     !studentsError &&
-                    filteredStudents.map((aluno) => {
+                    sortedFilteredStudents.map((aluno) => {
                       const badgeClass = getBadgeColorClass(aluno.etiqueta_cor);
                       return (
                         <div 
@@ -2443,16 +2632,15 @@ function App() {
                             onClick={() => selectStudent(aluno)}
                           >
                             {aluno.etiqueta_cor === 'roxo' ? (
-                              <i className="fas fa-wheelchair" style={{ color: '#9c27b0', fontSize: '1.2em' }} />
+                              <i className="fas fa-wheelchair" style={{ color: '#9c27b0', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Educação Especial" />
+                            ) : aluno.etiqueta_cor === 'vermelho' ? (
+                              <i className="fas fa-exclamation-triangle" style={{ color: '#dc3545', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Prioridade" />
+                            ) : aluno.etiqueta_cor === 'amarelo' ? (
+                              <i className="fas fa-exclamation-circle" style={{ color: '#ffc107', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Atenção" />
+                            ) : aluno.etiqueta_cor === 'verde' ? (
+                              <i className="fas fa-star" style={{ color: '#28a745', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Avançado" />
                             ) : (
-                              <div
-                                style={{
-                                  width: 10,
-                                  height: 10,
-                                  borderRadius: '50%',
-                                  background: 'var(--danger)',
-                                }}
-                              />
+                              <i className="fas fa-user" style={{ color: '#007bff', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Regular" />
                             )}
                             <div>
                               <strong>{aluno.nome}</strong>
@@ -2528,27 +2716,42 @@ function App() {
                     style={{
                       width: 60,
                       height: 60,
-                      background: '#ddd',
+                      background: selectedStudent?.etiqueta_cor === 'roxo' ? '#9c27b0' : '#ddd',
                       borderRadius: '50%',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       fontSize: '1.5em',
-                      color: '#666',
+                      color: selectedStudent?.etiqueta_cor === 'roxo' ? 'white' : '#666',
                     }}
                   >
-                    <i className="fas fa-user" />
+                    {selectedStudent?.etiqueta_cor === 'roxo' ? (
+                      <i className="fas fa-wheelchair" />
+                    ) : (
+                      <i className="fas fa-user" />
+                    )}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <h2 style={{ margin: 0 }}>João da Silva</h2>
-                    <span style={{ color: 'gray' }}>3º Ano A • Matrícula: 20240156</span>
+                    <h2 style={{ margin: 0 }}>{selectedStudent?.nome || 'Nome não informado'}</h2>
+                    <span style={{ color: 'gray' }}>
+                      {classes.find((c) => String(c.id) === String(selectedStudent?.turma_id))?.nome || 'Turma não informada'}
+                      {selectedStudent?.matricula ? ` • Matrícula: ${selectedStudent.matricula}` : ''}
+                    </span>
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <span
-                      className="badge bg-red"
+                      className={`badge ${getBadgeColorClass(selectedStudent?.etiqueta_cor)}`}
                       style={{ fontSize: '1em', padding: '8px 15px' }}
                     >
-                      🔴 Prioridade Máxima
+                      {selectedStudent?.etiqueta_cor === 'vermelho'
+                        ? '🔴 Prioridade'
+                        : selectedStudent?.etiqueta_cor === 'amarelo'
+                        ? '🟡 Atenção'
+                        : selectedStudent?.etiqueta_cor === 'verde'
+                        ? '🟢 Avançado'
+                        : selectedStudent?.etiqueta_cor === 'roxo'
+                        ? '🟣 Educação Especial'
+                        : '🔵 Regular'}
                     </span>
                   </div>
                 </div>
@@ -2561,16 +2764,10 @@ function App() {
                     Resumo
                   </div>
                   <div
-                    className={`tab ${currentTab === 'notas' ? 'active' : ''}`}
-                    onClick={() => switchTab('notas')}
+                    className={`tab ${currentTab === 'boletim' ? 'active' : ''}`}
+                    onClick={() => switchTab('boletim')}
                   >
-                    Notas
-                  </div>
-                  <div
-                    className={`tab ${currentTab === 'frequencia' ? 'active' : ''}`}
-                    onClick={() => switchTab('frequencia')}
-                  >
-                    Frequência
+                    Boletim
                   </div>
                   <div
                     className={`tab ${currentTab === 'ocorrencias' ? 'active' : ''}`}
@@ -2602,6 +2799,16 @@ function App() {
                   </div>
                 </div>
 
+                {/* Tab Boletim */}
+                {currentTab === 'boletim' && selectedStudent?.id && (
+                  <div id="tab-boletim" className="tab-content active">
+                    <BoletimView
+                      alunoId={selectedStudent.id}
+                      nivelEnsino={classes.find((c) => String(c.id) === String(selectedStudent?.turma_id))?.nivel || 'fundamental1'}
+                    />
+                  </div>
+                )}
+
                 {/* Tab Resumo */}
                 {currentTab === 'resumo' && (
                   <div id="tab-resumo" className="tab-content active">
@@ -2630,136 +2837,6 @@ function App() {
                         <small>Fonte: Avaliações Alfabetiza Pará</small>
                       </div>
                     </div>
-                  </div>
-                )}
-
-                {/* Tab Notas */}
-                {currentTab === 'notas' && (
-                  <div id="tab-notas" className="tab-content active">
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        marginBottom: 20,
-                      }}
-                    >
-                      <h3 style={{ margin: 0 }}>Notas</h3>
-                      <button
-                        className="btn-primary"
-                        style={{ width: 'auto', padding: '10px 20px' }}
-                        onClick={() => setShowNoteModal(true)}
-                      >
-                        <i className="fas fa-plus" style={{ marginRight: 5 }} />
-                        Adicionar Nota
-                      </button>
-                    </div>
-                    {notesLoading && (
-                      <div className="list-item" style={{ marginTop: 15 }}>
-                        <span>Carregando notas...</span>
-                      </div>
-                    )}
-                    {notesError && (
-                      <div className="list-item" style={{ marginTop: 15 }}>
-                        <span>{notesError}</span>
-                      </div>
-                    )}
-                    {!notesLoading && !notesError && notes.length === 0 && (
-                      <div className="list-item" style={{ marginTop: 15 }}>
-                        <span>Nenhuma nota registrada.</span>
-                      </div>
-                    )}
-                    {!notesLoading &&
-                      !notesError &&
-                      notes.length > 0 &&
-                      (() => {
-                        const groupedNotes = groupNotesByYear(notes);
-                        const years = Object.keys(groupedNotes).sort((a, b) => b - a);
-                        return (
-                          <div style={{ marginTop: 15 }}>
-                            {years.map((year) => (
-                              <div key={year} style={{ marginBottom: 30 }}>
-                                <h4 style={{ marginBottom: 15, color: 'var(--primary)' }}>
-                                  Ano {year}
-                                </h4>
-                                <div className="cards-grid">
-                                  {groupedNotes[year].map((note) => (
-                                    <div key={note.id} className="card">
-                                      <div style={{ marginBottom: 10 }}>
-                                        <strong style={{ fontSize: '1.1em', color: 'var(--primary)' }}>
-                                          {note.disciplina || 'Sem disciplina'}
-                                        </strong>
-                                      </div>
-                                      <div style={{ fontSize: '0.9em', color: 'var(--text-light)', marginBottom: 10 }}>
-                                        <i className="fas fa-calendar-alt" style={{ marginRight: 5 }} />
-                                        {note.periodo || 'Período não informado'}
-                                      </div>
-                                      <div style={{ fontSize: '1.5em', fontWeight: 'bold', color: 'var(--accent)' }}>
-                                        Nota: {note.nota != null ? note.nota.toFixed(1) : 'N/D'}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      })()}
-                  </div>
-                )}
-
-                {/* Tab Frequência */}
-                {currentTab === 'frequencia' && (
-                  <div id="tab-frequencia" className="tab-content active">
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        marginBottom: 20,
-                      }}
-                    >
-                      <h3 style={{ margin: 0 }}>Histórico de Frequência</h3>
-                      <button
-                        className="btn-primary"
-                        style={{ width: 'auto', padding: '10px 20px' }}
-                        onClick={() => setShowFrequencyModal(true)}
-                      >
-                        <i className="fas fa-plus" style={{ marginRight: 5 }} />
-                        Adicionar Histórico
-                      </button>
-                    </div>
-                    {frequencyLoading && (
-                      <div className="list-item" style={{ marginTop: 15 }}>
-                        <span>Carregando histórico...</span>
-                      </div>
-                    )}
-                    {frequencyError && (
-                      <div className="list-item" style={{ marginTop: 15 }}>
-                        <span>{frequencyError}</span>
-                      </div>
-                    )}
-                    {!frequencyLoading && !frequencyError && frequencyHistory.length === 0 && (
-                      <div className="list-item" style={{ marginTop: 15 }}>
-                        <span>Nenhum histórico de frequência registrado.</span>
-                      </div>
-                    )}
-                    {!frequencyLoading && !frequencyError && frequencyHistory.length > 0 && (
-                      <div className="cards-grid" style={{ marginTop: 15 }}>
-                        {frequencyHistory.map((freq) => (
-                          <div key={freq.id} className="card">
-                            <div style={{ marginBottom: 10 }}>
-                              <strong style={{ fontSize: '1.1em', color: 'var(--primary)' }}>
-                                {freq.mes_referencia || 'Mês não informado'} / {freq.ano}
-                              </strong>
-                            </div>
-                            <div style={{ fontSize: '1.5em', fontWeight: 'bold', color: 'var(--accent)' }}>
-                              {freq.porcentagem != null ? `${freq.porcentagem.toFixed(1)}%` : 'N/D'}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 )}
 
