@@ -276,6 +276,17 @@ h1 {
   border-bottom: none;
 }
 
+/* Lista de turmas em duas colunas */
+.list-container--two-cols {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 15px;
+}
+
+.list-container--two-cols .list-item--full-width {
+  grid-column: 1 / -1;
+}
+
 /* Tags/Badges */
 .badge {
   padding: 5px 10px;

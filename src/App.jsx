@@ -784,20 +784,22 @@ function App() {
   const handleSaveSchool = async (e) => {
     e.preventDefault();
     setSavingSchool(true);
-    
+
+    const schoolId = editingSchool?.id;
+
     const schoolData = {
-      nome: schoolFormData.nome,
-      inep: schoolFormData.inep,
-      endereco: schoolFormData.endereco,
-      tipo_estrutura: schoolFormData.tipo,
+      nome: schoolFormData.nome?.trim() ?? '',
+      inep: schoolFormData.inep?.trim() ?? '',
+      endereco: schoolFormData.endereco?.trim() ?? '',
+      tipo_estrutura: schoolFormData.tipo || 'Polo',
     };
 
     let error;
-    if (editingSchool) {
+    if (editingSchool && schoolId) {
       const { error: updateError } = await supabase
         .from('escolas')
         .update(schoolData)
-        .eq('id', editingSchool.id);
+        .eq('id', schoolId);
       error = updateError;
     } else {
       const { error: insertError } = await supabase.from('escolas').insert([schoolData]);
@@ -808,21 +810,17 @@ function App() {
       alert('Erro ao salvar escola: ' + error.message);
       setSavingSchool(false);
     } else {
-      const editedId = editingSchool?.id;
       setShowSchoolModal(false);
       setEditingSchool(null);
       setSchoolFormData({ nome: '', inep: '', endereco: '', tipo: 'Polo' });
       setSavingSchool(false);
-      
-      // Recarregar escolas e atualizar seletor / escola ativa
+
       const { data: newData } = await supabase.from('escolas').select('*');
       if (newData) {
         setSchools(newData);
-        if (editedId != null && editedId === activeSchoolId) {
-          const updated = newData.find((s) => String(s.id) === String(editedId));
-          if (updated) {
-            setActiveSchool(updated);
-          }
+        if (schoolId && String(activeSchoolId) === String(schoolId)) {
+          const updated = newData.find((s) => String(s.id) === String(schoolId));
+          if (updated) setActiveSchool(updated);
         }
       }
     }
@@ -949,41 +947,33 @@ function App() {
       setClassFormData({ nome: '', ano: [], codigo: '', professor_regente: '', aluno_representante: '', escola_id: activeSchoolId || '', ano_letivo: selectedYear });
       setSavingClass(false);
       
-      // Atualizar estado imediatamente com os dados retornados
-      if (updatedTurma) {
-        // Garantir que ano_escolar seja um array
+      // Atualizar estado: ao editar, recarregar lista para evitar tela branca por dados em formato inesperado
+      if (isEditing && turmaId) {
+        const { data: newData } = await supabase
+          .from('turmas')
+          .select('*')
+          .eq('escola_id', schoolId)
+          .eq('ano_letivo', selectedYear);
+        if (newData) setClasses(newData);
+      } else if (updatedTurma && !isEditing) {
+        // Criação: adicionar nova turma ao array (apenas se for do ano letivo e escola corretos)
         const turmaComFormatoCorreto = {
           ...updatedTurma,
-          ano_escolar: Array.isArray(updatedTurma.ano_escolar) 
-            ? updatedTurma.ano_escolar 
-            : updatedTurma.ano_escolar 
-              ? [updatedTurma.ano_escolar] 
+          ano_escolar: Array.isArray(updatedTurma.ano_escolar)
+            ? updatedTurma.ano_escolar
+            : updatedTurma.ano_escolar
+              ? [updatedTurma.ano_escolar]
               : [],
         };
-        
-        if (isEditing && turmaId) {
-          // Edição: substituir a turma antiga no array
+        if (turmaComFormatoCorreto.ano_letivo === selectedYear && String(turmaComFormatoCorreto.escola_id) === String(schoolId)) {
           setClasses((prevClasses) => {
-            const updated = prevClasses.map((t) => 
-              String(t.id) === String(turmaId) ? turmaComFormatoCorreto : t
-            );
-            return updated;
+            const prev = prevClasses || [];
+            const exists = prev.some((t) => String(t.id) === String(turmaComFormatoCorreto.id));
+            if (!exists) return [...prev, turmaComFormatoCorreto];
+            return prev;
           });
-        } else {
-          // Criação: adicionar nova turma ao array (apenas se for do ano letivo e escola corretos)
-          if (turmaComFormatoCorreto.ano_letivo === selectedYear && String(turmaComFormatoCorreto.escola_id) === String(schoolId)) {
-            setClasses((prevClasses) => {
-              // Verificar se já existe para evitar duplicatas
-              const exists = prevClasses.some((t) => String(t.id) === String(turmaComFormatoCorreto.id));
-              if (!exists) {
-                return [...prevClasses, turmaComFormatoCorreto];
-              }
-              return prevClasses;
-            });
-          }
         }
-      } else {
-        // Se não retornou dados, fazer fetch completo como fallback
+      } else if (!updatedTurma && !isEditing) {
         const { data: newData } = await supabase
           .from('turmas')
           .select('*')
@@ -2404,14 +2394,14 @@ function App() {
                     }}
                   />
                 </div>
-                <div className="list-container">
+                <div className="list-container list-container--two-cols">
                   {classesLoading && (
-                    <div className="list-item">
+                    <div className="list-item list-item--full-width">
                       <span>Carregando turmas...</span>
                     </div>
                   )}
                   {classesError && (
-                    <div className="list-item">
+                    <div className="list-item list-item--full-width">
                       <span>{classesError}</span>
                     </div>
                   )}
@@ -2419,12 +2409,12 @@ function App() {
                     !classesError &&
                     filteredClassesSorted.length === 0 &&
                     classesList.length > 0 && (
-                      <div className="list-item">
+                      <div className="list-item list-item--full-width">
                         <span>Nenhuma turma encontrada com o termo "{classSearchTerm}".</span>
                       </div>
                     )}
                   {!classesLoading && !classesError && classesList.length === 0 && (
-                    <div className="list-item">
+                    <div className="list-item list-item--full-width">
                       <span>Nenhuma turma encontrada para esta escola.</span>
                     </div>
                   )}
@@ -3843,7 +3833,7 @@ function App() {
             <h2 style={{ marginBottom: 20, color: 'var(--primary)' }}>
               {editingSchool ? 'Editar Escola' : 'Nova Escola'}
             </h2>
-            <form onSubmit={handleSaveSchool}>
+            <form key={editingSchool?.id ?? 'new'} onSubmit={handleSaveSchool}>
               <div className="input-group" style={{ marginBottom: 15 }}>
                 <label>Nome *</label>
                 <input
