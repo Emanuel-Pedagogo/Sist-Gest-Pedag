@@ -68,6 +68,25 @@ function App() {
   });
   const [savingFrequency, setSavingFrequency] = useState(false);
 
+  const [sondagens, setSondagens] = useState([]);
+  const [sondagensLoading, setSondagensLoading] = useState(false);
+  const [sondagensError, setSondagensError] = useState(null);
+  const [showSondagemModal, setShowSondagemModal] = useState(false);
+  const [editingSondagem, setEditingSondagem] = useState(null);
+  const [sondagemFormData, setSondagemFormData] = useState({
+    data: new Date().toISOString().split('T')[0],
+    nivel_escrita: '',
+    nivel_leitura: '',
+    foto_escrita_url: '',
+    audio_leitura_url: '',
+    foto_file: null,
+    audio_file: null,
+  });
+  const [savingSondagem, setSavingSondagem] = useState(false);
+  const [showSondagemMidiaModal, setShowSondagemMidiaModal] = useState(false);
+  const [sondagemMidiaTipo, setSondagemMidiaTipo] = useState('foto'); // 'foto' | 'audio'
+  const [sondagemMidiaUrl, setSondagemMidiaUrl] = useState('');
+
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Escola ativa (Polo por padrão)
@@ -250,19 +269,21 @@ function App() {
       const { data, error } = await supabase.from('escolas').select('*');
       if (error) {
         setSchoolsError('Erro ao carregar escolas.');
+        setSchools([]);
       } else {
         setSchools(data || []);
-        // Se não há escola ativa, buscar Polo
-        if (!activeSchoolId && data && data.length > 0) {
-          const poloSchool = data.find((s) => s.tipo_estrutura === 'Polo');
-          if (poloSchool) {
-            setActiveSchoolId(poloSchool.id);
-            setActiveSchool(poloSchool);
-          } else if (data.length > 0) {
-            // Se não há Polo, usar a primeira escola
-            setActiveSchoolId(data[0].id);
-            setActiveSchool(data[0]);
-          }
+        // Se não há escola ativa, definir Polo ou primeira escola
+        if (data && data.length > 0) {
+          setActiveSchoolId((prev) => {
+            if (prev) return prev;
+            const poloSchool = data.find((s) => s.tipo_estrutura === 'Polo');
+            return poloSchool ? poloSchool.id : data[0].id;
+          });
+          setActiveSchool((prev) => {
+            if (prev) return prev;
+            const poloSchool = data.find((s) => s.tipo_estrutura === 'Polo');
+            return poloSchool || data[0];
+          });
         }
       }
       setSchoolsLoading(false);
@@ -272,6 +293,13 @@ function App() {
       fetchSchools();
     }
   }, [isLoggedIn]);
+
+  // Sincronizar activeSchool com a lista (para nome e dados atualizados)
+  useEffect(() => {
+    if (schools.length === 0 || !activeSchoolId) return;
+    const school = schools.find((s) => String(s.id) === String(activeSchoolId));
+    if (school) setActiveSchool(school);
+  }, [schools, activeSchoolId]);
 
   // Carregar turmas quando a view de turmas for aberta e houver uma escola ativa
   useEffect(() => {
@@ -593,6 +621,28 @@ function App() {
     }
   }, [currentTab, selectedStudentId]);
 
+  // Carregar sondagens quando a aba Sondagens for aberta
+  useEffect(() => {
+    if (currentTab === 'sondagem' && selectedStudentId) {
+      setSondagensLoading(true);
+      setSondagensError(null);
+      supabase
+        .from('sondagens')
+        .select('*')
+        .eq('aluno_id', selectedStudentId)
+        .order('data', { ascending: false })
+        .then(({ data, error }) => {
+          setSondagensLoading(false);
+          if (error) {
+            setSondagensError(error.message);
+            setSondagens([]);
+          } else {
+            setSondagens(data || []);
+          }
+        });
+    }
+  }, [currentTab, selectedStudentId]);
+
   const getBadgeColorClass = (etiquetaCor) => {
     if (etiquetaCor === 'roxo') return 'bg-purple';
     switch (etiquetaCor) {
@@ -765,6 +815,159 @@ function App() {
       ano: new Date().getFullYear(),
       porcentagem: '',
     });
+  };
+
+  const NIVEL_ESCRITA_OPCOES = [
+    'PRÉ-SILÁBICO',
+    'SILÁBICO SEM VALOR SONORO',
+    'SILÁBICO COM VALOR SONORO',
+    'SILÁBICO ALFABÉTICO',
+    'ALFABÉTICO',
+  ];
+  const NIVEL_LEITURA_OPCOES = [
+    'PRÉ – LEITOR 1',
+    'PRÉ – LEITOR 2',
+    'PRÉ – LEITOR 3',
+    'PRÉ – LEITOR 4',
+    'LEITOR INICIANTE',
+    'LEITOR FLUENTE',
+  ];
+
+  const BUCKET_SONDAGENS = 'sondagens-anexos';
+
+  const handleOpenSondagemModal = (sondagem = null) => {
+    if (sondagem) {
+      setEditingSondagem(sondagem);
+      setSondagemFormData({
+        data: sondagem.data ? sondagem.data.split('T')[0] : new Date().toISOString().split('T')[0],
+        nivel_escrita: sondagem.nivel_escrita || '',
+        nivel_leitura: sondagem.nivel_leitura || '',
+        foto_escrita_url: sondagem.foto_escrita_url || '',
+        audio_leitura_url: sondagem.audio_leitura_url || '',
+        foto_file: null,
+        audio_file: null,
+      });
+    } else {
+      setEditingSondagem(null);
+      setSondagemFormData({
+        data: new Date().toISOString().split('T')[0],
+        nivel_escrita: '',
+        nivel_leitura: '',
+        foto_escrita_url: '',
+        audio_leitura_url: '',
+        foto_file: null,
+        audio_file: null,
+      });
+    }
+    setShowSondagemModal(true);
+  };
+
+  const handleCancelSondagemModal = () => {
+    setShowSondagemModal(false);
+    setEditingSondagem(null);
+    setSondagemFormData({
+      data: new Date().toISOString().split('T')[0],
+      nivel_escrita: '',
+      nivel_leitura: '',
+      foto_escrita_url: '',
+      audio_leitura_url: '',
+      foto_file: null,
+      audio_file: null,
+    });
+  };
+
+  const openSondagemMidia = (tipo, url) => {
+    if (!url) return;
+    setSondagemMidiaTipo(tipo);
+    setSondagemMidiaUrl(url);
+    setShowSondagemMidiaModal(true);
+  };
+
+  const handleSaveSondagem = async (e) => {
+    e.preventDefault();
+    if (!selectedStudentId) return;
+    if (!sondagemFormData.nivel_escrita || !sondagemFormData.nivel_leitura) {
+      alert('Preencha nível de escrita e nível de leitura.');
+      return;
+    }
+    setSavingSondagem(true);
+    const payload = {
+      aluno_id: selectedStudentId,
+      data: sondagemFormData.data,
+      nivel_escrita: sondagemFormData.nivel_escrita,
+      nivel_leitura: sondagemFormData.nivel_leitura,
+    };
+    const { data, error } = editingSondagem
+      ? await supabase.from('sondagens').update(payload).eq('id', editingSondagem.id).select()
+      : await supabase.from('sondagens').insert([payload]).select();
+    if (error) {
+      setSavingSondagem(false);
+      alert('Erro ao salvar sondagem: ' + error.message);
+      return;
+    }
+    const sondagemId = (data && data[0] && data[0].id) || editingSondagem?.id;
+    let fotoUrl = sondagemFormData.foto_escrita_url || null;
+    let audioUrl = sondagemFormData.audio_leitura_url || null;
+
+    if (sondagemId) {
+      if (sondagemFormData.foto_file) {
+        const ext = sondagemFormData.foto_file.name.split('.').pop() || 'jpg';
+        const filePath = `${sondagemId}/foto.${ext}`;
+        const { error: uploadError } = await supabase.storage
+          .from(BUCKET_SONDAGENS)
+          .upload(filePath, sondagemFormData.foto_file, { cacheControl: '3600', upsert: true });
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage.from(BUCKET_SONDAGENS).getPublicUrl(filePath);
+          fotoUrl = urlData?.publicUrl || null;
+        }
+      }
+      if (sondagemFormData.audio_file) {
+        const ext = sondagemFormData.audio_file.name.split('.').pop() || 'webm';
+        const filePath = `${sondagemId}/audio.${ext}`;
+        const { error: uploadError } = await supabase.storage
+          .from(BUCKET_SONDAGENS)
+          .upload(filePath, sondagemFormData.audio_file, { cacheControl: '3600', upsert: true });
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage.from(BUCKET_SONDAGENS).getPublicUrl(filePath);
+          audioUrl = urlData?.publicUrl || null;
+        }
+      }
+      const updatePayload = {
+        foto_escrita_url: fotoUrl,
+        audio_leitura_url: audioUrl,
+      };
+      await supabase.from('sondagens').update(updatePayload).eq('id', sondagemId).select();
+    }
+
+    setSavingSondagem(false);
+    setShowSondagemModal(false);
+    setEditingSondagem(null);
+    setSondagemFormData({
+      data: new Date().toISOString().split('T')[0],
+      nivel_escrita: '',
+      nivel_leitura: '',
+      foto_escrita_url: '',
+      audio_leitura_url: '',
+      foto_file: null,
+      audio_file: null,
+    });
+    // Recarregar a lista do servidor para exibir foto/áudio no histórico
+    const { data: freshData } = await supabase
+      .from('sondagens')
+      .select('*')
+      .eq('aluno_id', selectedStudentId)
+      .order('data', { ascending: false });
+    setSondagens(freshData || []);
+  };
+
+  const handleDeleteSondagem = async (sondagem) => {
+    if (!sondagem?.id || !confirm('Tem certeza que deseja excluir esta sondagem?')) return;
+    const { error } = await supabase.from('sondagens').delete().eq('id', sondagem.id);
+    if (error) {
+      alert('Erro ao excluir: ' + error.message);
+      return;
+    }
+    setSondagens((prev) => prev.filter((s) => s.id !== sondagem.id));
   };
 
   // Agrupar notas por ano
@@ -1952,26 +2155,33 @@ function App() {
               </button>
               <h1>{getPageTitle()}</h1>
               <div style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
-                {schools.length > 0 && (
-                  <select
-                    value={activeSchoolId ?? ''}
-                    onChange={(e) => handleChangeActiveSchool(e.target.value || null)}
-                    style={{
-                      padding: '8px 12px',
-                      border: '1px solid #ddd',
-                      borderRadius: 6,
-                      fontSize: '0.9em',
-                      background: 'white',
-                      color: 'var(--text)',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {schools.map((school) => (
-                      <option key={school.id} value={school.id}>
-                        {school.nome} ({school.tipo_estrutura})
-                      </option>
-                    ))}
-                  </select>
+                <select
+                  value={activeSchoolId ?? ''}
+                  onChange={(e) => handleChangeActiveSchool(e.target.value || null)}
+                  disabled={schoolsLoading || schools.length === 0}
+                  style={{
+                    padding: '8px 12px',
+                    border: '1px solid #ddd',
+                    borderRadius: 6,
+                    fontSize: '0.9em',
+                    background: 'white',
+                    color: 'var(--text)',
+                    cursor: schoolsLoading || schools.length === 0 ? 'not-allowed' : 'pointer',
+                    minWidth: 180,
+                  }}
+                  title={schoolsError || (schools.length === 0 && !schoolsLoading ? 'Cadastre uma escola em Gestão de Escolas' : '')}
+                >
+                  <option value="">
+                    {schoolsLoading ? 'Carregando escolas...' : schools.length === 0 ? 'Nenhuma escola' : 'Selecione a escola'}
+                  </option>
+                  {schools.map((school) => (
+                    <option key={school.id} value={school.id}>
+                      {school.nome} ({school.tipo_estrutura})
+                    </option>
+                  ))}
+                </select>
+                {schoolsError && (
+                  <span style={{ fontSize: '0.8em', color: 'var(--danger)' }}>{schoolsError}</span>
                 )}
                 <select
                   value={selectedYear}
@@ -2894,45 +3104,144 @@ function App() {
                 {/* Tab Sondagem */}
                 {currentTab === 'sondagem' && (
                   <div id="tab-sondagem" className="tab-content active">
-                    <h3>Histórico Alfabetiza Pará</h3>
-                    <table
+                    <div
                       style={{
-                        width: '100%',
-                        marginTop: 15,
-                        borderCollapse: 'collapse',
-                        background: 'white',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
                       }}
                     >
-                      <thead>
-                        <tr style={{ background: '#eee', textAlign: 'left' }}>
-                          <th style={{ padding: 10 }}>Data</th>
-                          <th style={{ padding: 10 }}>Nível</th>
-                          <th style={{ padding: 10 }}>Avaliador</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr>
-                          <td style={{ padding: 10, borderBottom: '1px solid #eee' }}>
-                            10/02/2024
-                          </td>
-                          <td style={{ padding: 10, borderBottom: '1px solid #eee' }}>
-                            Pré-Silábico
-                          </td>
-                          <td style={{ padding: 10, borderBottom: '1px solid #eee' }}>Prof. Ana</td>
-                        </tr>
-                        <tr>
-                          <td style={{ padding: 10, borderBottom: '1px solid #eee' }}>
-                            15/05/2024
-                          </td>
-                          <td style={{ padding: 10, borderBottom: '1px solid #eee' }}>
-                            Silábico
-                          </td>
-                          <td style={{ padding: 10, borderBottom: '1px solid #eee' }}>
-                            Coord. Maria
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
+                      <h3>Sondagens</h3>
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        style={{ width: 'auto' }}
+                        onClick={() => handleOpenSondagemModal()}
+                      >
+                        + Nova sondagem
+                      </button>
+                    </div>
+                    {sondagensLoading && (
+                      <p style={{ marginTop: 15, color: 'var(--text)' }}>Carregando sondagens...</p>
+                    )}
+                    {sondagensError && (
+                      <p style={{ marginTop: 15, color: 'var(--danger)' }}>{sondagensError}</p>
+                    )}
+                    {!sondagensLoading && !sondagensError && (
+                      <table
+                        style={{
+                          width: '100%',
+                          marginTop: 15,
+                          borderCollapse: 'collapse',
+                          background: 'white',
+                        }}
+                      >
+                        <thead>
+                          <tr style={{ background: '#eee', textAlign: 'left' }}>
+                            <th style={{ padding: 10 }}>Data</th>
+                            <th style={{ padding: 10 }}>Nível de escrita</th>
+                            <th style={{ padding: 10 }}>Nível de leitura</th>
+                            <th style={{ padding: 10, width: 140 }}>Foto / Áudio</th>
+                            <th style={{ padding: 10, width: 100 }}>Ações</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sondagens.length === 0 ? (
+                            <tr>
+                              <td colSpan={5} style={{ padding: 15, color: '#666' }}>
+                                Nenhuma sondagem cadastrada. Clique em &quot;+ Nova sondagem&quot; para adicionar.
+                              </td>
+                            </tr>
+                          ) : (
+                            sondagens.map((s) => (
+                              <tr key={s.id} style={{ borderBottom: '1px solid #eee' }}>
+                                <td style={{ padding: 10 }}>
+                                  {s.data ? new Date(s.data).toLocaleDateString('pt-BR') : '-'}
+                                </td>
+                                <td style={{ padding: 10 }}>{s.nivel_escrita || '-'}</td>
+                                <td style={{ padding: 10 }}>{s.nivel_leitura || '-'}</td>
+                                <td style={{ padding: 10 }}>
+                                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                    {s.foto_escrita_url ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => openSondagemMidia('foto', s.foto_escrita_url)}
+                                        style={{
+                                          padding: '4px 10px',
+                                          border: '1px solid #0d6efd',
+                                          borderRadius: 6,
+                                          background: 'white',
+                                          color: '#0d6efd',
+                                          cursor: 'pointer',
+                                          fontSize: 12,
+                                        }}
+                                        title="Ver foto da escrita"
+                                      >
+                                        📷 Foto
+                                      </button>
+                                    ) : (
+                                      <span style={{ fontSize: 12, color: '#999' }}>—</span>
+                                    )}
+                                    {s.audio_leitura_url ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => openSondagemMidia('audio', s.audio_leitura_url)}
+                                        style={{
+                                          padding: '4px 10px',
+                                          border: '1px solid #198754',
+                                          borderRadius: 6,
+                                          background: 'white',
+                                          color: '#198754',
+                                          cursor: 'pointer',
+                                          fontSize: 12,
+                                        }}
+                                        title="Ouvir áudio da leitura"
+                                      >
+                                        🎧 Áudio
+                                      </button>
+                                    ) : (
+                                      <span style={{ fontSize: 12, color: '#999' }}>—</span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td style={{ padding: 10 }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenSondagemModal(s)}
+                                    style={{
+                                      marginRight: 8,
+                                      padding: '4px 10px',
+                                      border: '1px solid #ddd',
+                                      borderRadius: 6,
+                                      background: 'white',
+                                      cursor: 'pointer',
+                                      fontSize: 12,
+                                    }}
+                                  >
+                                    Editar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteSondagem(s)}
+                                    style={{
+                                      padding: '4px 10px',
+                                      border: '1px solid #dc3545',
+                                      borderRadius: 6,
+                                      background: 'white',
+                                      color: '#dc3545',
+                                      cursor: 'pointer',
+                                      fontSize: 12,
+                                    }}
+                                  >
+                                    Excluir
+                                  </button>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    )}
                   </div>
                 )}
 
@@ -3794,6 +4103,263 @@ function App() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Sondagem */}
+      {showSondagemModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 2000,
+          }}
+          onClick={handleCancelSondagemModal}
+        >
+          <div
+            style={{
+              background: 'white',
+              padding: 30,
+              borderRadius: 12,
+              width: '90%',
+              maxWidth: 500,
+              boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ marginBottom: 20, color: 'var(--primary)' }}>
+              {editingSondagem ? 'Editar sondagem' : 'Nova sondagem'}
+            </h2>
+            <form onSubmit={handleSaveSondagem}>
+              <div className="input-group" style={{ marginBottom: 15 }}>
+                <label>Data *</label>
+                <input
+                  type="date"
+                  required
+                  value={sondagemFormData.data}
+                  onChange={(e) =>
+                    setSondagemFormData({ ...sondagemFormData, data: e.target.value })
+                  }
+                />
+              </div>
+              <div className="input-group" style={{ marginBottom: 15 }}>
+                <label>Nível de escrita *</label>
+                <select
+                  required
+                  value={sondagemFormData.nivel_escrita}
+                  onChange={(e) =>
+                    setSondagemFormData({ ...sondagemFormData, nivel_escrita: e.target.value })
+                  }
+                  style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #ddd' }}
+                >
+                  <option value="">Selecione...</option>
+                  {NIVEL_ESCRITA_OPCOES.map((op) => (
+                    <option key={op} value={op}>
+                      {op}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="input-group" style={{ marginBottom: 15 }}>
+                <label>Nível de leitura *</label>
+                <select
+                  required
+                  value={sondagemFormData.nivel_leitura}
+                  onChange={(e) =>
+                    setSondagemFormData({ ...sondagemFormData, nivel_leitura: e.target.value })
+                  }
+                  style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #ddd' }}
+                >
+                  <option value="">Selecione...</option>
+                  {NIVEL_LEITURA_OPCOES.map((op) => (
+                    <option key={op} value={op}>
+                      {op}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="input-group" style={{ marginBottom: 15 }}>
+                <label>Foto da escrita (opcional)</label>
+                {(sondagemFormData.foto_escrita_url || sondagemFormData.foto_file) ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13, color: '#666' }}>
+                      {sondagemFormData.foto_file
+                        ? sondagemFormData.foto_file.name
+                        : 'Foto anexada'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSondagemFormData({
+                          ...sondagemFormData,
+                          foto_escrita_url: '',
+                          foto_file: null,
+                        })
+                      }
+                      style={{
+                        padding: '2px 8px',
+                        fontSize: 12,
+                        border: '1px solid #ddd',
+                        borderRadius: 4,
+                        background: 'white',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Remover
+                    </button>
+                  </div>
+                ) : (
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) =>
+                      setSondagemFormData({
+                        ...sondagemFormData,
+                        foto_file: e.target.files?.[0] || null,
+                      })
+                    }
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #ddd' }}
+                  />
+                )}
+              </div>
+              <div className="input-group" style={{ marginBottom: 20 }}>
+                <label>Áudio da leitura (opcional)</label>
+                {(sondagemFormData.audio_leitura_url || sondagemFormData.audio_file) ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13, color: '#666' }}>
+                      {sondagemFormData.audio_file
+                        ? sondagemFormData.audio_file.name
+                        : 'Áudio anexado'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSondagemFormData({
+                          ...sondagemFormData,
+                          audio_leitura_url: '',
+                          audio_file: null,
+                        })
+                      }
+                      style={{
+                        padding: '2px 8px',
+                        fontSize: 12,
+                        border: '1px solid #ddd',
+                        borderRadius: 4,
+                        background: 'white',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Remover
+                    </button>
+                  </div>
+                ) : (
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    onChange={(e) =>
+                      setSondagemFormData({
+                        ...sondagemFormData,
+                        audio_file: e.target.files?.[0] || null,
+                      })
+                    }
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #ddd' }}
+                  />
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={handleCancelSondagemModal}
+                  style={{
+                    padding: '10px 20px',
+                    border: '1px solid #ddd',
+                    borderRadius: 6,
+                    background: 'white',
+                    cursor: 'pointer',
+                    color: 'var(--text)',
+                  }}
+                  disabled={savingSondagem}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  style={{ width: 'auto', padding: '10px 20px' }}
+                  disabled={savingSondagem}
+                >
+                  {savingSondagem ? 'Salvando...' : 'Salvar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para ver foto ou ouvir áudio da sondagem */}
+      {showSondagemMidiaModal && sondagemMidiaUrl && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 2100,
+          }}
+          onClick={() => setShowSondagemMidiaModal(false)}
+        >
+          <div
+            style={{
+              background: 'white',
+              padding: 20,
+              borderRadius: 12,
+              maxWidth: '95vw',
+              maxHeight: '95vh',
+              overflow: 'auto',
+              boxShadow: '0 10px 40px rgba(0,0,0,0.4)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
+              <button
+                type="button"
+                onClick={() => setShowSondagemMidiaModal(false)}
+                style={{
+                  padding: '6px 14px',
+                  border: '1px solid #ddd',
+                  borderRadius: 6,
+                  background: 'white',
+                  cursor: 'pointer',
+                  fontSize: 14,
+                }}
+              >
+                Fechar
+              </button>
+            </div>
+            {sondagemMidiaTipo === 'foto' ? (
+              <img
+                src={sondagemMidiaUrl}
+                alt="Foto da escrita"
+                style={{ maxWidth: '100%', maxHeight: '80vh', display: 'block' }}
+              />
+            ) : (
+              <audio controls src={sondagemMidiaUrl} style={{ minWidth: 280 }}>
+                Seu navegador não suporta áudio.
+              </audio>
+            )}
           </div>
         </div>
       )}
