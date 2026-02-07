@@ -916,10 +916,13 @@ function App() {
         const { error: uploadError } = await supabase.storage
           .from(BUCKET_SONDAGENS)
           .upload(filePath, sondagemFormData.foto_file, { cacheControl: '3600', upsert: true });
-        if (!uploadError) {
-          const { data: urlData } = supabase.storage.from(BUCKET_SONDAGENS).getPublicUrl(filePath);
-          fotoUrl = urlData?.publicUrl || null;
+        if (uploadError) {
+          setSavingSondagem(false);
+          alert('Erro ao enviar foto: ' + (uploadError.message || uploadError).toString() + '\n\nVerifique: Storage > bucket "sondagens-anexos" existe e tem política de INSERT.');
+          return;
         }
+        const { data: urlData } = supabase.storage.from(BUCKET_SONDAGENS).getPublicUrl(filePath);
+        fotoUrl = urlData?.publicUrl || null;
       }
       if (sondagemFormData.audio_file) {
         const ext = sondagemFormData.audio_file.name.split('.').pop() || 'webm';
@@ -927,10 +930,13 @@ function App() {
         const { error: uploadError } = await supabase.storage
           .from(BUCKET_SONDAGENS)
           .upload(filePath, sondagemFormData.audio_file, { cacheControl: '3600', upsert: true });
-        if (!uploadError) {
-          const { data: urlData } = supabase.storage.from(BUCKET_SONDAGENS).getPublicUrl(filePath);
-          audioUrl = urlData?.publicUrl || null;
+        if (uploadError) {
+          setSavingSondagem(false);
+          alert('Erro ao enviar áudio: ' + (uploadError.message || uploadError).toString() + '\n\nVerifique: Storage > bucket "sondagens-anexos" existe e tem política de INSERT.');
+          return;
         }
+        const { data: urlData } = supabase.storage.from(BUCKET_SONDAGENS).getPublicUrl(filePath);
+        audioUrl = urlData?.publicUrl || null;
       }
       const updatePayload = {
         foto_escrita_url: fotoUrl,
