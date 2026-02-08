@@ -3,13 +3,12 @@ import { supabase } from './supabaseClient';
 
 const DISCIPLINAS_FUNDAMENTAL1 = [
   'Língua Portuguesa',
-  'Arte',
-  'Educação Física',
-  'Matemática',
+  'Ensino da História e Geografia',
   'Ciências',
-  'História',
-  'Geografia',
+  'Matemática',
   'Ensino Religioso',
+  'Educação Física',
+  'Ensino da Arte',
 ];
 
 const DISCIPLINAS_FUNDAMENTAL2 = [
@@ -24,18 +23,34 @@ const DISCIPLINAS_FUNDAMENTAL2 = [
   'Ensino Religioso',
 ];
 
+const CONCEITO_TO_NUM = { '': '', N: 1, EP: 2, S: 3 };
+const NUM_TO_CONCEITO = { 1: 'N', 2: 'EP', 3: 'S' };
+
 function getDisciplinas(nivelEnsino) {
   if (nivelEnsino === 'fundamental2') return DISCIPLINAS_FUNDAMENTAL2;
   return DISCIPLINAS_FUNDAMENTAL1;
 }
 
-function BoletimView({ nivelEnsino = 'fundamental1', alunoId }) {
+function isTurmaPrimeiroAno(turmaNome) {
+  if (!turmaNome || typeof turmaNome !== 'string') return false;
+  return /1º|1o|1°|primeiro\s*ano/i.test(turmaNome.trim());
+}
+
+/** 6º ao 9º ano: usar disciplinas do fundamental2 (nome contém 6º, 7º, 8º, 9º). */
+function isTurmaFundamental2(turmaNome) {
+  if (!turmaNome || typeof turmaNome !== 'string') return false;
+  return /[6-9]º|[6-9]o|[6-9]°|sexto|sétimo|oitavo|nono\s*ano/i.test(turmaNome.trim());
+}
+
+function BoletimView({ nivelEnsino = 'fundamental1', alunoId, turmaNome = '' }) {
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [boletim, setBoletim] = useState({});
 
-  const disciplinas = getDisciplinas(nivelEnsino);
+  const nivelEfetivo = nivelEnsino === 'fundamental2' || isTurmaFundamental2(turmaNome) ? 'fundamental2' : 'fundamental1';
+  const disciplinas = getDisciplinas(nivelEfetivo);
+  const usaConceito = isTurmaPrimeiroAno(turmaNome);
 
   useEffect(() => {
     if (!alunoId) return;
@@ -81,11 +96,19 @@ function BoletimView({ nivelEnsino = 'fundamental1', alunoId }) {
 
   function updateCell(disciplina, bimestre, field, value) {
     const key = getBoletimKey(disciplina, bimestre);
+    let parsed = value;
+    if (field === 'nota' && usaConceito && (value === 1 || value === 2 || value === 3)) {
+      parsed = value;
+    } else if (field === 'nota') {
+      parsed = value === '' ? '' : (parseFloat(value) ?? '');
+    } else {
+      parsed = value === '' ? '' : (parseInt(value, 10) ?? '');
+    }
     setBoletim((prev) => ({
       ...prev,
       [key]: {
         ...(prev[key] || { nota: '', falta: '' }),
-        [field]: value === '' ? '' : (field === 'nota' ? (parseFloat(value) ?? '') : (parseInt(value, 10) ?? '')),
+        [field]: parsed,
       },
     }));
   }
@@ -98,7 +121,7 @@ function BoletimView({ nivelEnsino = 'fundamental1', alunoId }) {
       disciplinas.forEach((disciplina) => {
         [1, 2, 3, 4].forEach((bimestre) => {
           const cell = getCell(disciplina, bimestre);
-          const nota = cell.nota === '' ? null : Number(cell.nota);
+          const nota = cell.nota === '' ? null : (usaConceito ? Number(cell.nota) : Number(cell.nota));
           const falta = cell.falta === '' ? null : Number(cell.falta);
           rows.push({
             aluno_id: alunoId,
@@ -124,9 +147,13 @@ function BoletimView({ nivelEnsino = 'fundamental1', alunoId }) {
     }
   }
 
-  const formatNota = (v) => (v !== '' && v != null ? String(v) : '-');
+  const formatNota = (v) => {
+    if (v === '' || v == null) return '-';
+    if (usaConceito && (v === 1 || v === 2 || v === 3)) return NUM_TO_CONCEITO[v];
+    return String(v);
+  };
   const formatFalta = (v) => (v !== '' && v != null ? String(v) : '-');
-  const isNotaBaixa = (v) => v !== '' && v != null && Number(v) < 6;
+  const isNotaBaixa = (v) => !usaConceito && v !== '' && v != null && Number(v) < 6;
 
   if (loading) {
     return (
@@ -218,23 +245,46 @@ function BoletimView({ nivelEnsino = 'fundamental1', alunoId }) {
                     <td key={bimestre} style={{ padding: '8px 10px', borderBottom: '1px solid #eee', textAlign: 'center' }}>
                       {isEditing ? (
                         <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>
-                          <input
-                            type="number"
-                            min={0}
-                            max={10}
-                            step={0.5}
-                            placeholder="Nota"
-                            value={cell.nota === '' ? '' : cell.nota}
-                            onChange={(e) => updateCell(disciplina, bimestre, 'nota', e.target.value)}
-                            style={{
-                              width: 56,
-                              padding: '6px 8px',
-                              border: '1px solid #d1d5db',
-                              borderRadius: 6,
-                              fontSize: 13,
-                              textAlign: 'center',
-                            }}
-                          />
+                          {usaConceito ? (
+                            <select
+                              value={cell.nota === 1 || cell.nota === 2 || cell.nota === 3 ? NUM_TO_CONCEITO[cell.nota] : ''}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                updateCell(disciplina, bimestre, 'nota', v === '' ? '' : CONCEITO_TO_NUM[v]);
+                              }}
+                              style={{
+                                minWidth: 56,
+                                padding: '6px 8px',
+                                border: '1px solid #d1d5db',
+                                borderRadius: 6,
+                                fontSize: 13,
+                                background: 'white',
+                              }}
+                            >
+                              <option value="">—</option>
+                              <option value="N">N</option>
+                              <option value="EP">EP</option>
+                              <option value="S">S</option>
+                            </select>
+                          ) : (
+                            <input
+                              type="number"
+                              min={0}
+                              max={10}
+                              step={0.5}
+                              placeholder="Nota"
+                              value={cell.nota === '' ? '' : cell.nota}
+                              onChange={(e) => updateCell(disciplina, bimestre, 'nota', e.target.value)}
+                              style={{
+                                width: 56,
+                                padding: '6px 8px',
+                                border: '1px solid #d1d5db',
+                                borderRadius: 6,
+                                fontSize: 13,
+                                textAlign: 'center',
+                              }}
+                            />
+                          )}
                           <input
                             type="number"
                             min={0}

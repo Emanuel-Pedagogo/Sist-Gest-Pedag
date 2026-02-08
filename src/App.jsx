@@ -34,7 +34,20 @@ function App() {
   const [totalRisco, setTotalRisco] = useState(0);
   const [totalAtencao, setTotalAtencao] = useState(0);
   const [totalAlunos, setTotalAlunos] = useState(0);
+  const [totalVerde, setTotalVerde] = useState(0);
+  const [totalAzul, setTotalAzul] = useState(0);
+  const [totalRoxo, setTotalRoxo] = useState(0);
   const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [dashboardSelectedDate, setDashboardSelectedDate] = useState(() => new Date());
+  const [dashboardWeekStart, setDashboardWeekStart] = useState(() => {
+    const d = new Date();
+    const day = d.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    d.setDate(d.getDate() + diff);
+    return d;
+  });
+  const [dashboardDayEvents, setDashboardDayEvents] = useState([]);
+  const [dashboardDayEventsLoading, setDashboardDayEventsLoading] = useState(false);
 
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({
@@ -150,6 +163,8 @@ function App() {
   const [loadingDocuments, setLoadingDocuments] = useState(false);
   const [savingStudent, setSavingStudent] = useState(false);
   const [studentSearchTerm, setStudentSearchTerm] = useState('');
+  const [filterStudentTurmaId, setFilterStudentTurmaId] = useState('');
+  const [filterStudentEtiquetaCor, setFilterStudentEtiquetaCor] = useState('');
 
   // Estados para Agenda e Planejamento
   const [agendaEvents, setAgendaEvents] = useState([]);
@@ -498,13 +513,11 @@ function App() {
         // Contar total de alunos
         setTotalAlunos(alunos?.length || 0);
 
-        // Contar alunos em risco (vermelho)
-        const risco = alunos?.filter((a) => a.etiqueta_cor === 'vermelho').length || 0;
-        setTotalRisco(risco);
-
-        // Contar alunos em atenção (amarelo)
-        const atencao = alunos?.filter((a) => a.etiqueta_cor === 'amarelo').length || 0;
-        setTotalAtencao(atencao);
+        setTotalRisco(alunos?.filter((a) => a.etiqueta_cor === 'vermelho').length || 0);
+        setTotalAtencao(alunos?.filter((a) => a.etiqueta_cor === 'amarelo').length || 0);
+        setTotalVerde(alunos?.filter((a) => a.etiqueta_cor === 'verde').length || 0);
+        setTotalAzul(alunos?.filter((a) => a.etiqueta_cor === 'azul').length || 0);
+        setTotalRoxo(alunos?.filter((a) => a.etiqueta_cor === 'roxo').length || 0);
       } catch (error) {
         console.error('Erro ao carregar dados do dashboard:', error);
       } finally {
@@ -517,6 +530,12 @@ function App() {
       loadTodayEvents();
     }
   }, [currentView, activeSchoolId, selectedYear]);
+
+  useEffect(() => {
+    if (currentView === 'dashboard' && activeSchoolId && dashboardSelectedDate) {
+      loadEventsForDate(dashboardSelectedDate);
+    }
+  }, [currentView, activeSchoolId, dashboardSelectedDate, selectedYear]);
 
   // Carregar eventos da agenda quando a view de agenda for aberta
   useEffect(() => {
@@ -1554,6 +1573,69 @@ function App() {
     }
   };
 
+  const loadEventsForDate = async (date) => {
+    if (!activeSchoolId) return;
+    setDashboardDayEventsLoading(true);
+    try {
+      const d = new Date(date);
+      const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const dayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59);
+      const { data: turmas } = await supabase
+        .from('turmas')
+        .select('id')
+        .eq('escola_id', activeSchoolId)
+        .eq('ano_letivo', selectedYear);
+      let query = supabase
+        .from('agenda_eventos')
+        .select('*')
+        .gte('data_inicio', dayStart.toISOString())
+        .lte('data_inicio', dayEnd.toISOString());
+      if (turmas && turmas.length > 0) {
+        const turmaIds = turmas.map((t) => t.id);
+        query = query.or(`turma_id.in.(${turmaIds.join(',')}),turma_id.is.null`);
+      } else {
+        query = query.is('turma_id', null);
+      }
+      const { data } = await query.order('data_inicio', { ascending: true });
+      setDashboardDayEvents(data || []);
+    } catch (error) {
+      console.error('Erro ao carregar eventos do dia:', error);
+      setDashboardDayEvents([]);
+    } finally {
+      setDashboardDayEventsLoading(false);
+    }
+  };
+
+  const getMondayOfWeek = (date) => {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    d.setDate(d.getDate() + diff);
+    return d;
+  };
+
+  const getWeekDates = (monday) => {
+    const dates = [];
+    const start = new Date(monday);
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      dates.push(d);
+    }
+    return dates;
+  };
+
+  const isSameDay = (a, b) => {
+    if (!a || !b) return false;
+    const d1 = new Date(a);
+    const d2 = new Date(b);
+    return d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate();
+  };
+
+  const isToday = (d) => isSameDay(d, new Date());
+
+  const dayNames = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+
   // Função helper para separar data e hora de uma string ISO
   const splitDateTime = (dateString) => {
     if (!dateString) return { date: '', time: '08:00' };
@@ -2018,9 +2100,16 @@ function App() {
     (a, b) => getTurmaSortOrder(a.nome) - getTurmaSortOrder(b.nome)
   );
 
-  const filteredStudents = students.filter((aluno) =>
-    aluno.nome?.toLowerCase().includes(studentSearchTerm.toLowerCase())
-  );
+  const filteredStudents = students
+    .filter((aluno) =>
+      aluno.nome?.toLowerCase().includes(studentSearchTerm.toLowerCase())
+    )
+    .filter((aluno) => {
+      // Dentro de uma turma (selectedClassId): não aplicar filtro de turma, a lista já é dessa turma
+      if (selectedClassId) return true;
+      return !filterStudentTurmaId || String(aluno.turma_id) === String(filterStudentTurmaId);
+    })
+    .filter((aluno) => !filterStudentEtiquetaCor || (aluno.etiqueta_cor || '').toLowerCase() === filterStudentEtiquetaCor.toLowerCase());
 
   // Ordenar alunos: quando uma turma está selecionada, ordem alfabética por nome; quando "Alunos" (todas), por turma (Pré→9º) e depois alfabética
   const sortedFilteredStudents = [...filteredStudents].sort((a, b) => {
@@ -2217,66 +2306,145 @@ function App() {
             {/* Dashboard */}
             {currentView === 'dashboard' && (
               <div id="view-dashboard" className="view-section">
-                <div className="calendar-strip">
-                  <div className="day-box">
-                    SEG
-                    <br />
-                    20
-                  </div>
-                  <div className="day-box">
-                    TER
-                    <br />
-                    21
-                  </div>
-                  <div className="day-box today">
-                    QUA
-                    <br />
-                    22
-                  </div>
-                  <div className="day-box">
-                    QUI
-                    <br />
-                    23
-                  </div>
-                  <div className="day-box">
-                    SEX
-                    <br />
-                    24
-                  </div>
+                {/* Blocos clicáveis (etiquetas) – acima dos dias da semana */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10, marginBottom: 20 }}>
+                  {[
+                    { label: 'Regular', count: totalAzul, cor: 'azul', color: '#007bff' },
+                    { label: 'Atenção', count: totalAtencao, cor: 'amarelo', color: '#ffc107' },
+                    { label: 'Prioridade', count: totalRisco, cor: 'vermelho', color: '#dc3545' },
+                    { label: 'Avançado', count: totalVerde, cor: 'verde', color: '#28a745' },
+                    { label: 'Educação Especial', count: totalRoxo, cor: 'roxo', color: '#9c27b0' },
+                    { label: 'Total de Alunos', count: totalAlunos, cor: '', color: '#374151' },
+                  ].map((item) => (
+                    <button
+                      type="button"
+                      key={item.cor || 'total'}
+                      onClick={() => {
+                        setFilterStudentEtiquetaCor(item.cor);
+                        setFilterStudentTurmaId('');
+                        setCurrentView('students');
+                      }}
+                      className="card"
+                      style={{
+                        textAlign: 'center',
+                        cursor: 'pointer',
+                        border: '1px solid #e0e0e0',
+                        padding: 12,
+                        borderRadius: 10,
+                        background: 'white',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                      }}
+                    >
+                      <h4 style={{ margin: '0 0 6px 0', fontSize: '0.8rem', color: '#666', fontWeight: 600 }}>
+                        {item.label}
+                      </h4>
+                      <div className="number" style={{ color: item.color, fontSize: '1.35rem', fontWeight: 700 }}>
+                        {dashboardLoading ? '...' : item.count}
+                      </div>
+                    </button>
+                  ))}
                 </div>
 
-                <div className="cards-grid">
-                  <div className="card">
-                    <h4>Alunos em Risco (Vermelho)</h4>
-                    <div className="number" style={{ color: 'var(--danger)' }}>
-                      {dashboardLoading ? '...' : totalRisco}
-                    </div>
-                  </div>
-                  <div className="card">
-                    <h4>Alunos em Atenção (Amarelo)</h4>
-                    <div className="number" style={{ color: 'var(--warning)' }}>
-                      {dashboardLoading ? '...' : totalAtencao}
-                    </div>
-                  </div>
-                  <div className="card">
-                    <h4>Total de Alunos</h4>
-                    <div className="number">
-                      {dashboardLoading ? '...' : totalAlunos}
-                    </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+                  <h3 style={{ margin: 0, fontSize: '1rem' }}>Semana atual</h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const prev = new Date(dashboardWeekStart);
+                        prev.setDate(prev.getDate() - 7);
+                        setDashboardWeekStart(prev);
+                        setDashboardSelectedDate(new Date(prev));
+                      }}
+                      style={{
+                        padding: '6px 10px',
+                        border: '1px solid #ddd',
+                        borderRadius: 6,
+                        background: 'white',
+                        cursor: 'pointer',
+                        fontSize: '0.9rem',
+                      }}
+                    >
+                      ‹
+                    </button>
+                    <span style={{ fontSize: '0.8rem', color: '#666', minWidth: 120, textAlign: 'center' }}>
+                      {getWeekDates(dashboardWeekStart)[0].toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} – {getWeekDates(dashboardWeekStart)[6].toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = new Date(dashboardWeekStart);
+                        next.setDate(next.getDate() + 7);
+                        setDashboardWeekStart(next);
+                        setDashboardSelectedDate(new Date(next));
+                      }}
+                      style={{
+                        padding: '6px 10px',
+                        border: '1px solid #ddd',
+                        borderRadius: 6,
+                        background: 'white',
+                        cursor: 'pointer',
+                        fontSize: '0.9rem',
+                      }}
+                    >
+                      ›
+                    </button>
                   </div>
                 </div>
+                <div className="calendar-strip" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 20 }}>
+                  {getWeekDates(dashboardWeekStart).map((day) => {
+                    const selected = isSameDay(day, dashboardSelectedDate);
+                    const today = isToday(day);
+                    return (
+                      <button
+                        type="button"
+                        key={day.getTime()}
+                        onClick={() => setDashboardSelectedDate(new Date(day))}
+                        className={`day-box ${today ? 'today' : ''}`}
+                        style={{
+                          flex: '1 1 52px',
+                          minWidth: 48,
+                          padding: '6px 4px',
+                          border: selected ? '2px solid var(--primary)' : '1px solid #e0e0e0',
+                          borderRadius: 8,
+                          background: selected ? 'rgba(13, 110, 253, 0.08)' : 'white',
+                          cursor: 'pointer',
+                          fontWeight: selected ? 600 : 400,
+                          boxShadow: selected ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+                          fontSize: '0.7rem',
+                        }}
+                      >
+                        <span style={{ fontSize: '0.65rem', color: '#666', display: 'block' }}>
+                          {dayNames[day.getDay()]}
+                        </span>
+                        <span style={{ fontSize: '1rem', display: 'block', marginTop: 2 }}>
+                          {day.getDate()}
+                        </span>
+                        <span style={{ fontSize: '0.6rem', color: '#999' }}>
+                          {day.toLocaleDateString('pt-BR', { month: 'short' })}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
 
-                <h3 style={{ marginBottom: 15 }}>Atividades do Dia</h3>
+                <h3 style={{ marginBottom: 15 }}>
+                  Atividades do dia {dashboardSelectedDate ? new Date(dashboardSelectedDate).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' }) : ''}
+                </h3>
                 <div className="list-container">
-                  {todayEvents.length === 0 ? (
+                  {dashboardDayEventsLoading ? (
+                    <div className="list-item">
+                      <span>Carregando eventos...</span>
+                    </div>
+                  ) : dashboardDayEvents.length === 0 ? (
                     <div className="list-item">
                       <div style={{ textAlign: 'center', padding: 20, color: '#666', width: '100%' }}>
                         <i className="fas fa-calendar-day" style={{ fontSize: '2em', marginBottom: 10, opacity: 0.3 }} />
-                        <p style={{ margin: 0 }}>Nenhum evento agendado para hoje.</p>
+                        <p style={{ margin: 0 }}>Nenhum evento agendado para este dia.</p>
                       </div>
                     </div>
                   ) : (
-                    todayEvents.map((event) => {
+                    dashboardDayEvents.map((event) => {
                       const eventDate = new Date(event?.data_inicio);
                       if (!event?.id || isNaN(eventDate.getTime())) return null;
                       return (
@@ -2414,27 +2582,43 @@ function App() {
               <div id="view-classes" className="view-section">
                 {selectedClassId ? (
                   <React.Fragment key="alunos-da-turma">
-                    <div
-                      className="breadcrumb"
-                      onClick={() => {
-                        setSelectedClassId(null);
-                        setSelectedClassName('');
-                      }}
-                    >
-                      <i className="fas fa-arrow-left" /> Voltar para lista de turmas
-                    </div>
+                    {/* Linha 1: Voltar (destaque) | Nome da turma | Novo Aluno */}
                     <div
                       style={{
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
-                        marginBottom: 20,
                         flexWrap: 'wrap',
                         gap: 15,
+                        marginBottom: 20,
                       }}
                     >
-                      <h2 style={{ margin: 0 }}>
-                        Alunos - {selectedClassName}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedClassId(null);
+                          setSelectedClassName('');
+                        }}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          padding: '10px 18px',
+                          border: '2px solid var(--primary)',
+                          borderRadius: 8,
+                          background: 'white',
+                          color: 'var(--primary)',
+                          fontWeight: 600,
+                          fontSize: '0.95rem',
+                          cursor: 'pointer',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                        }}
+                      >
+                        <i className="fas fa-arrow-left" />
+                        Voltar para lista de turmas
+                      </button>
+                      <h2 style={{ margin: 0, fontSize: '1.35rem', flex: 1, textAlign: 'center' }}>
+                        {selectedClassName}
                       </h2>
                       <button
                         className="btn-primary"
@@ -2461,19 +2645,53 @@ function App() {
                         Novo Aluno
                       </button>
                     </div>
-                    <div style={{ marginBottom: 20 }}>
-                      <input
-                        type="text"
-                        placeholder="Buscar aluno por nome..."
-                        value={studentSearchTerm}
-                        onChange={(e) => setStudentSearchTerm(e.target.value)}
-                        style={{
-                          width: '100%',
-                          padding: 10,
-                          border: '1px solid #ddd',
-                          borderRadius: 6,
-                        }}
-                      />
+                    {/* Linha 2: Buscar nome (esquerda) | Seletor Cor (mesma linha) */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: 12,
+                        alignItems: 'flex-end',
+                        marginBottom: 20,
+                      }}
+                    >
+                      <div style={{ flex: 1, minWidth: 200 }}>
+                        <label style={{ display: 'block', marginBottom: 4, fontSize: '0.85em', color: '#666' }}>Buscar aluno por nome</label>
+                        <input
+                          type="text"
+                          placeholder="Digite o nome..."
+                          value={studentSearchTerm}
+                          onChange={(e) => setStudentSearchTerm(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: 10,
+                            border: '1px solid #ddd',
+                            borderRadius: 6,
+                          }}
+                        />
+                      </div>
+                      <div style={{ minWidth: 160 }}>
+                        <label style={{ display: 'block', marginBottom: 4, fontSize: '0.85em', color: '#666' }}>Cor (etiqueta)</label>
+                        <select
+                          value={filterStudentEtiquetaCor}
+                          onChange={(e) => setFilterStudentEtiquetaCor(e.target.value || '')}
+                          style={{
+                            width: '100%',
+                            padding: 10,
+                            border: '1px solid #ddd',
+                            borderRadius: 6,
+                            background: 'white',
+                            fontSize: '0.9em',
+                          }}
+                        >
+                          <option value="">Todas as cores</option>
+                          <option value="verde">Verde</option>
+                          <option value="amarelo">Amarelo</option>
+                          <option value="vermelho">Vermelho</option>
+                          <option value="roxo">Roxo</option>
+                          <option value="azul">Azul</option>
+                        </select>
+                      </div>
                     </div>
                     <div className="list-container">
                       {studentsLoading && (
@@ -2488,7 +2706,7 @@ function App() {
                       )}
                       {!studentsLoading && !studentsError && sortedFilteredStudents.length === 0 && students.length > 0 && (
                         <div className="list-item">
-                          <span>Nenhum aluno encontrado com o termo "{studentSearchTerm}".</span>
+                          <span>Nenhum aluno encontrado com os filtros aplicados.</span>
                         </div>
                       )}
                       {!studentsLoading && !studentsError && students.length === 0 && (
@@ -2782,19 +3000,66 @@ function App() {
                     Novo Aluno
                   </button>
                 </div>
-                <div style={{ marginBottom: 20 }}>
-                  <input
-                    type="text"
-                    placeholder="Buscar aluno por nome..."
-                    value={studentSearchTerm}
-                    onChange={(e) => setStudentSearchTerm(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: 10,
-                      border: '1px solid #ddd',
-                      borderRadius: 6,
-                    }}
-                  />
+                <div style={{ marginBottom: 20, display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
+                  <div style={{ flex: 1, minWidth: 200 }}>
+                    <label style={{ display: 'block', marginBottom: 4, fontSize: '0.85em', color: '#666' }}>Buscar aluno por nome</label>
+                    <input
+                      type="text"
+                      placeholder="Digite o nome..."
+                      value={studentSearchTerm}
+                      onChange={(e) => setStudentSearchTerm(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: 10,
+                        border: '1px solid #ddd',
+                        borderRadius: 6,
+                      }}
+                    />
+                  </div>
+                  <div style={{ minWidth: 180 }}>
+                    <label style={{ display: 'block', marginBottom: 4, fontSize: '0.85em', color: '#666' }}>Turma</label>
+                    <select
+                      value={filterStudentTurmaId}
+                      onChange={(e) => setFilterStudentTurmaId(e.target.value || '')}
+                      style={{
+                        width: '100%',
+                        padding: 10,
+                        border: '1px solid #ddd',
+                        borderRadius: 6,
+                        background: 'white',
+                        fontSize: '0.9em',
+                      }}
+                    >
+                      <option value="">Todas as turmas</option>
+                      {classesList.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.nome}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div style={{ minWidth: 160 }}>
+                    <label style={{ display: 'block', marginBottom: 4, fontSize: '0.85em', color: '#666' }}>Cor (etiqueta)</label>
+                    <select
+                      value={filterStudentEtiquetaCor}
+                      onChange={(e) => setFilterStudentEtiquetaCor(e.target.value || '')}
+                      style={{
+                        width: '100%',
+                        padding: 10,
+                        border: '1px solid #ddd',
+                        borderRadius: 6,
+                        background: 'white',
+                        fontSize: '0.9em',
+                      }}
+                    >
+                      <option value="">Todas as cores</option>
+                      <option value="verde">Verde</option>
+                      <option value="amarelo">Amarelo</option>
+                      <option value="vermelho">Vermelho</option>
+                      <option value="roxo">Roxo</option>
+                      <option value="azul">Azul</option>
+                    </select>
+                  </div>
                 </div>
                 <div className="list-container">
                   {studentsLoading && (
@@ -2812,7 +3077,7 @@ function App() {
                     filteredStudents.length === 0 &&
                     students.length > 0 && (
                       <div className="list-item">
-                        <span>Nenhum aluno encontrado com o termo "{studentSearchTerm}".</span>
+                        <span>Nenhum aluno encontrado com os filtros aplicados.</span>
                       </div>
                     )}
                   {!studentsLoading && !studentsError && students.length === 0 && (
@@ -3011,6 +3276,7 @@ function App() {
                     <BoletimView
                       alunoId={selectedStudent.id}
                       nivelEnsino={classes.find((c) => String(c.id) === String(selectedStudent?.turma_id))?.nivel || 'fundamental1'}
+                      turmaNome={classes.find((c) => String(c.id) === String(selectedStudent?.turma_id))?.nome || ''}
                     />
                   </div>
                 )}
@@ -3685,7 +3951,7 @@ function App() {
     {/* Calendário (grid usa currentDate) */}
     <div style={{ background: 'white', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', background: '#f8f9fa', borderBottom: '1px solid #eee' }}>
-        {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(d => (
+        {['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'].map(d => (
           <div key={d} style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold', color: '#666', fontSize: '0.85rem' }}>{d}</div>
         ))}
       </div>
@@ -4808,6 +5074,11 @@ function App() {
                     value={studentFormData.nome}
                     onChange={(e) => setStudentFormData({ ...studentFormData, nome: e.target.value })}
                     placeholder="Nome completo do aluno"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
+                    data-form-type="other"
                   />
                 </div>
 
@@ -4864,6 +5135,11 @@ function App() {
                     value={studentFormData.nome_responsavel}
                     onChange={(e) => setStudentFormData({ ...studentFormData, nome_responsavel: e.target.value })}
                     placeholder="Nome do responsável (opcional)"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
+                    data-form-type="other"
                   />
                 </div>
 
