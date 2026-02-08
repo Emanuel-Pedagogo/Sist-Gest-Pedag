@@ -1,4 +1,22 @@
-# React + Vite
+# SACP - Sistema de Apoio à Coordenação Pedagógica
+
+React + Vite. Autenticação via Supabase (e-mail/senha e Google).
+
+## Login e cadastro
+
+- **Entrar**: e-mail e senha ou "Entrar com Google".
+- **Cadastrar**: nome (opcional), e-mail, senha e confirmação; ou "Cadastrar com Google".
+- **Recuperar senha**: envia link de redefinição para o e-mail.
+
+## Habilitar login com Google
+
+1. No [Supabase Dashboard](https://supabase.com/dashboard), abra o projeto.
+2. **Authentication** → **Providers** → **Google** → ative e preencha Client ID e Client Secret (obtidos no [Google Cloud Console](https://console.cloud.google.com/apis/credentials)).
+3. Em **Authentication** → **URL Configuration**, adicione a URL do seu app em **Redirect URLs** (ex.: `http://localhost:5173/` para dev e a URL de produção).
+
+---
+
+# React + Vite (template)
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 

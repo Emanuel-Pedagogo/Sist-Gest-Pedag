@@ -102,6 +102,154 @@ body {
   background-color: var(--secondary);
 }
 
+.btn-primary:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.auth-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #eee;
+}
+
+.auth-tabs button {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  background: transparent;
+  color: #666;
+  font-size: 0.9em;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.auth-tabs button:hover {
+  color: var(--primary);
+}
+
+.auth-tabs button.active {
+  color: var(--primary);
+  font-weight: 600;
+  border-bottom-color: var(--primary);
+}
+
+.auth-message {
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 0.9em;
+  margin-bottom: 15px;
+  text-align: left;
+}
+
+.auth-error {
+  background: #fee;
+  color: #c33;
+  border: 1px solid #fcc;
+}
+
+.auth-success {
+  background: #efe;
+  color: #363;
+  border: 1px solid #cfc;
+}
+
+.btn-google {
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #fff;
+  color: #333;
+  font-size: 1em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: 0.2s;
+}
+
+.btn-google:hover:not(:disabled) {
+  background: #f5f5f5;
+  border-color: #ccc;
+}
+
+.btn-google:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  padding: 10px 18px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--text);
+  font-size: 0.9em;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #f5f5f5;
+  border-color: #ccc;
+}
+
+.btn-secondary:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Perfil do usuário */
+.profile-view {
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.profile-card {
+  background: var(--white);
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 32px;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.profile-avatar {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 16px;
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  border-radius: 50%;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2em;
+  font-weight: 600;
+}
+
+.profile-card h2 {
+  margin: 0 0 4px;
+  font-size: 1.5em;
+  color: var(--primary);
+}
+
+.profile-role {
+  margin: 0 0 8px;
+  font-size: 0.95em;
+  color: #666;
+}
+
+.profile-email {
+  margin: 0;
+  font-size: 0.9em;
+  color: #555;
+}
+
 /* Layout Principal */
 .app-container {
   width: 100%;
@@ -136,8 +284,17 @@ aside {
   color: var(--text-light);
 }
 
+nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
 nav ul {
   list-style: none;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 nav li {
@@ -155,6 +312,18 @@ nav li.active {
   background-color: #eef2f7;
   color: var(--primary);
   border-left: 4px solid var(--primary);
+}
+
+nav li.nav-logout {
+  margin-top: auto;
+  border-top: 1px solid #eee;
+  color: #888;
+}
+
+nav li.nav-logout:hover {
+  background-color: #fee;
+  color: #c33;
+  border-left-color: #c33;
 }
 
 /* Main Content */
@@ -184,12 +353,36 @@ h1 {
   gap: 10px;
 }
 
+.header-user-profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.95em;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.header-user-profile:hover {
+  background: #f0f4f8;
+  border-color: #e0e6ed;
+}
+
 .avatar {
   width: 40px;
   height: 40px;
   background: var(--accent);
   border-radius: 50%;
   color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -458,11 +651,13 @@ h1 {
     min-width: 0;
   }
 
-  .user-profile {
+  .user-profile,
+  .header-user-profile {
     font-size: 0.9em;
   }
 
-  .user-profile span {
+  .user-profile span,
+  .header-user-profile span {
     display: none; /* Hide text on very small screens */
   }
 
@@ -552,7 +747,8 @@ h1 {
     font-size: 1.5em;
   }
 
-  .user-profile span {
+  .user-profile span,
+  .header-user-profile span {
     display: none;
   }
 }

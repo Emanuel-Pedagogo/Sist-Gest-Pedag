@@ -5,6 +5,24 @@ import BoletimView from './BoletimView';
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [authMode, setAuthMode] = useState('login'); // 'login' | 'register' | 'recover'
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [registerEmail, setRegisterEmail] = useState('');
+  const [registerPassword, setRegisterPassword] = useState('');
+  const [registerConfirm, setRegisterConfirm] = useState('');
+  const [registerName, setRegisterName] = useState('');
+  const [recoverEmail, setRecoverEmail] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [authSuccess, setAuthSuccess] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+  // Tela "Definir nova senha" quando o usuário abre o link do e-mail de recuperação
+  const [showRecoveryPasswordForm, setShowRecoveryPasswordForm] = useState(() =>
+    typeof window !== 'undefined' && window.location.hash.includes('type=recovery')
+  );
+  const [recoveryNewPassword, setRecoveryNewPassword] = useState('');
+  const [recoveryConfirmPassword, setRecoveryConfirmPassword] = useState('');
+  const [authUser, setAuthUser] = useState(null); // usuário logado (Supabase auth)
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedSchool, setSelectedSchool] = useState('');
   const [selectedSchoolId, setSelectedSchoolId] = useState(null);
@@ -193,11 +211,130 @@ function App() {
   const [eventAnexos, setEventAnexos] = useState([]);
   const [loadingAnexos, setLoadingAnexos] = useState(false);
 
+  // Listener de sessão: mantém login ao recarregar e após OAuth
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(!!session);
+      setAuthUser(session?.user ?? null);
+      if (session) setCurrentView('dashboard');
+    });
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setIsLoggedIn(!!session);
+      setAuthUser(session?.user ?? null);
+    });
+    return () => subscription?.unsubscribe();
+  }, []);
+
+  const clearAuthMessages = () => {
+    setAuthError('');
+    setAuthSuccess('');
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
-    setIsLoggedIn(true);
+    setAuthLoading(true);
+    clearAuthMessages();
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: loginEmail.trim(),
+      password: loginPassword,
+    });
+    setAuthLoading(false);
+    if (error) {
+      setAuthError(error.message === 'Invalid login credentials' ? 'E-mail ou senha incorretos.' : error.message);
+      return;
+    }
     setCurrentView('dashboard');
-    // A escola Polo será carregada pelo useEffect de escolas
+  };
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setAuthLoading(true);
+    clearAuthMessages();
+    if (registerPassword !== registerConfirm) {
+      setAuthError('As senhas não coincidem.');
+      setAuthLoading(false);
+      return;
+    }
+    if (registerPassword.length < 6) {
+      setAuthError('A senha deve ter pelo menos 6 caracteres.');
+      setAuthLoading(false);
+      return;
+    }
+    const { data, error } = await supabase.auth.signUp({
+      email: registerEmail.trim(),
+      password: registerPassword,
+      options: registerName.trim() ? { data: { full_name: registerName.trim() } } : undefined,
+    });
+    setAuthLoading(false);
+    if (error) {
+      setAuthError(error.message);
+      return;
+    }
+    if (data?.user && !data.user.identities?.length) {
+      setAuthError('Este e-mail já está cadastrado. Faça login ou recupere a senha.');
+      return;
+    }
+    setAuthSuccess('Conta criada! Verifique seu e-mail para confirmar (se habilitado) ou faça login.');
+    setAuthMode('login');
+    setLoginEmail(registerEmail.trim());
+    setRegisterEmail('');
+    setRegisterPassword('');
+    setRegisterConfirm('');
+    setRegisterName('');
+  };
+
+  const handleGoogleAuth = async () => {
+    setAuthLoading(true);
+    clearAuthMessages();
+    const { error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
+    setAuthLoading(false);
+    if (error) setAuthError(error.message);
+  };
+
+  const handleRecoverPassword = async (e) => {
+    e.preventDefault();
+    if (!recoverEmail.trim()) {
+      setAuthError('Informe seu e-mail.');
+      return;
+    }
+    setAuthLoading(true);
+    clearAuthMessages();
+    const { error } = await supabase.auth.resetPasswordForEmail(recoverEmail.trim(), {
+      redirectTo: `${window.location.origin}/`,
+    });
+    setAuthLoading(false);
+    if (error) {
+      setAuthError(error.message);
+      return;
+    }
+    setAuthSuccess('Enviamos um link para redefinir sua senha no e-mail informado.');
+    setAuthMode('login');
+    setRecoverEmail('');
+  };
+
+  const handleSetNewPassword = async (e) => {
+    e.preventDefault();
+    clearAuthMessages();
+    if (recoveryNewPassword !== recoveryConfirmPassword) {
+      setAuthError('As senhas não coincidem.');
+      return;
+    }
+    if (recoveryNewPassword.length < 6) {
+      setAuthError('A senha deve ter pelo menos 6 caracteres.');
+      return;
+    }
+    setAuthLoading(true);
+    const { error } = await supabase.auth.updateUser({ password: recoveryNewPassword });
+    setAuthLoading(false);
+    if (error) {
+      setAuthError(error.message);
+      return;
+    }
+    setAuthSuccess('Senha definida com sucesso. Você já está logado.');
+    setRecoveryNewPassword('');
+    setRecoveryConfirmPassword('');
+    setShowRecoveryPasswordForm(false);
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
   };
 
   const navigate = (viewId) => {
@@ -244,12 +381,18 @@ function App() {
       'student-detail': 'Detalhes do Aluno',
       reports: 'Relatórios',
       settings: 'Configurações',
+      profile: 'Meu perfil',
     };
     if (currentView === 'classes' && selectedSchool) {
       return `Gestão de Turmas - ${selectedSchool}`;
     }
     return titles[currentView] || 'SACP';
   };
+
+  // Nome e função do usuário para o header e perfil
+  const userName = authUser?.user_metadata?.full_name || authUser?.email?.split('@')[0] || 'Usuário';
+  const userRole = authUser?.user_metadata?.role || 'Coord.';
+  const userInitial = (userName && userName[0]) ? userName[0].toUpperCase() : 'U';
 
   const getActiveNav = () => {
     if (currentView === 'student-detail') return 'students';
@@ -633,12 +776,19 @@ function App() {
     }
   }, [currentView, selectedStudentId]);
 
-  // Carregar documentos AEE quando a aba AEE for aberta
+  // Carregar documentos AEE quando a aba AEE for aberta (apenas aluno roxo)
   useEffect(() => {
-    if (currentTab === 'aee' && selectedStudentId) {
+    if (currentTab === 'aee' && selectedStudentId && selectedStudent?.etiqueta_cor === 'roxo') {
       loadAeeDocuments();
     }
-  }, [currentTab, selectedStudentId]);
+  }, [currentTab, selectedStudentId, selectedStudent?.etiqueta_cor]);
+
+  // Se o aluno não for da educação especial (roxo) e estiver na aba AEE, voltar para Resumo
+  useEffect(() => {
+    if (currentView === 'student-detail' && selectedStudent?.etiqueta_cor !== 'roxo' && currentTab === 'aee') {
+      setCurrentTab('resumo');
+    }
+  }, [currentView, selectedStudent?.etiqueta_cor, currentTab]);
 
   // Carregar sondagens quando a aba Sondagens for aberta
   useEffect(() => {
@@ -1416,6 +1566,24 @@ function App() {
     }
   };
 
+  // Sanitizar nome de arquivo para chave do Storage (evita "Invalid key" por espaços, parênteses, etc.)
+  const sanitizeStorageFileName = (fileName) => {
+    if (!fileName || typeof fileName !== 'string') return `documento_${Date.now()}`;
+    const lastDot = fileName.lastIndexOf('.');
+    const base = lastDot > 0 ? fileName.slice(0, lastDot) : fileName;
+    const ext = lastDot > 0 ? fileName.slice(lastDot).toLowerCase() : '';
+    const normalized = base
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, '_')
+      .replace(/[()]/g, '')
+      .replace(/[^a-zA-Z0-9_.\-]/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_|_$/g, '');
+    const safe = normalized || `documento_${Date.now()}`;
+    return safe + ext;
+  };
+
   // Função para fazer upload de documento
   const handleUploadDocument = async (event) => {
     const file = event.target.files?.[0];
@@ -1430,7 +1598,8 @@ function App() {
 
     setUploadingDocument(true);
     try {
-      const filePath = `${selectedStudentId}/${file.name}`;
+      const safeName = sanitizeStorageFileName(file.name);
+      const filePath = `${selectedStudentId}/${safeName}`;
       const { error: uploadError } = await supabase.storage
         .from('documentos-aee')
         .upload(filePath, file, {
@@ -2126,34 +2295,196 @@ function App() {
 
   return (
     <>
-      {!isLoggedIn && (
+      {showRecoveryPasswordForm && (
+        <div className="login-screen">
+          <div className="login-box">
+            <h2>Definir nova senha</h2>
+            <p style={{ marginBottom: 20, color: '#666' }}>
+              Digite e confirme sua nova senha abaixo.
+            </p>
+            {authError && <div className="auth-message auth-error">{authError}</div>}
+            {authSuccess && <div className="auth-message auth-success">{authSuccess}</div>}
+            <form onSubmit={handleSetNewPassword}>
+              <div className="input-group">
+                <label>Nova senha (mín. 6 caracteres)</label>
+                <input
+                  type="password"
+                  value={recoveryNewPassword}
+                  onChange={(e) => setRecoveryNewPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  minLength={6}
+                />
+              </div>
+              <div className="input-group">
+                <label>Confirmar nova senha</label>
+                <input
+                  type="password"
+                  value={recoveryConfirmPassword}
+                  onChange={(e) => setRecoveryConfirmPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+              <button type="submit" className="btn-primary" disabled={authLoading}>
+                {authLoading ? 'Salvando...' : 'Definir senha'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {!showRecoveryPasswordForm && !isLoggedIn && (
         <div className="login-screen">
           <div className="login-box">
             <h2>SACP</h2>
             <p style={{ marginBottom: 20, color: '#666' }}>
               Sistema de Apoio à Coordenação Pedagógica
             </p>
-            <form onSubmit={handleLogin}>
-              <div className="input-group">
-                <label>E-mail</label>
-                <input type="email" defaultValue="coordenadora@escola.com" />
-              </div>
-              <div className="input-group">
-                <label>Senha</label>
-                <input type="password" defaultValue="********" />
-              </div>
-              <button type="submit" className="btn-primary">
+
+            <div className="auth-tabs">
+              <button
+                type="button"
+                className={authMode === 'login' ? 'active' : ''}
+                onClick={() => { setAuthMode('login'); clearAuthMessages(); }}
+              >
                 Entrar
               </button>
-            </form>
-            <p style={{ marginTop: 15, fontSize: '0.8em' }}>
-              <a href="#">Recuperar senha</a>
-            </p>
+              <button
+                type="button"
+                className={authMode === 'register' ? 'active' : ''}
+                onClick={() => { setAuthMode('register'); clearAuthMessages(); }}
+              >
+                Cadastrar
+              </button>
+              <button
+                type="button"
+                className={authMode === 'recover' ? 'active' : ''}
+                onClick={() => { setAuthMode('recover'); clearAuthMessages(); }}
+              >
+                Recuperar senha
+              </button>
+            </div>
+
+            {authError && <div className="auth-message auth-error">{authError}</div>}
+            {authSuccess && <div className="auth-message auth-success">{authSuccess}</div>}
+
+            {authMode === 'login' && (
+              <form onSubmit={handleLogin}>
+                <div className="input-group">
+                  <label>E-mail</label>
+                  <input
+                    type="email"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    placeholder="seu@email.com"
+                    required
+                  />
+                </div>
+                <div className="input-group">
+                  <label>Senha</label>
+                  <input
+                    type="password"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    placeholder="••••••••"
+                    required
+                  />
+                </div>
+                <button type="submit" className="btn-primary" disabled={authLoading}>
+                  {authLoading ? 'Entrando...' : 'Entrar'}
+                </button>
+                <button
+                  type="button"
+                  className="btn-google"
+                  onClick={handleGoogleAuth}
+                  disabled={authLoading}
+                >
+                  <i className="fab fa-google" style={{ marginRight: 8 }} />
+                  Entrar com Google
+                </button>
+              </form>
+            )}
+
+            {authMode === 'register' && (
+              <form onSubmit={handleRegister}>
+                <div className="input-group">
+                  <label>Nome (opcional)</label>
+                  <input
+                    type="text"
+                    value={registerName}
+                    onChange={(e) => setRegisterName(e.target.value)}
+                    placeholder="Seu nome"
+                  />
+                </div>
+                <div className="input-group">
+                  <label>E-mail</label>
+                  <input
+                    type="email"
+                    value={registerEmail}
+                    onChange={(e) => setRegisterEmail(e.target.value)}
+                    placeholder="seu@email.com"
+                    required
+                  />
+                </div>
+                <div className="input-group">
+                  <label>Senha (mín. 6 caracteres)</label>
+                  <input
+                    type="password"
+                    value={registerPassword}
+                    onChange={(e) => setRegisterPassword(e.target.value)}
+                    placeholder="••••••••"
+                    required
+                    minLength={6}
+                  />
+                </div>
+                <div className="input-group">
+                  <label>Confirmar senha</label>
+                  <input
+                    type="password"
+                    value={registerConfirm}
+                    onChange={(e) => setRegisterConfirm(e.target.value)}
+                    placeholder="••••••••"
+                    required
+                  />
+                </div>
+                <button type="submit" className="btn-primary" disabled={authLoading}>
+                  {authLoading ? 'Cadastrando...' : 'Criar conta'}
+                </button>
+                <button
+                  type="button"
+                  className="btn-google"
+                  onClick={handleGoogleAuth}
+                  disabled={authLoading}
+                >
+                  <i className="fab fa-google" style={{ marginRight: 8 }} />
+                  Cadastrar com Google
+                </button>
+              </form>
+            )}
+
+            {authMode === 'recover' && (
+              <form onSubmit={handleRecoverPassword}>
+                <div className="input-group">
+                  <label>E-mail</label>
+                  <input
+                    type="email"
+                    value={recoverEmail}
+                    onChange={(e) => setRecoverEmail(e.target.value)}
+                    placeholder="seu@email.com"
+                    required
+                  />
+                </div>
+                <button type="submit" className="btn-primary" disabled={authLoading}>
+                  {authLoading ? 'Enviando...' : 'Enviar link para redefinir senha'}
+                </button>
+              </form>
+            )}
           </div>
         </div>
       )}
 
-      {isLoggedIn && (
+      {!showRecoveryPasswordForm && isLoggedIn && (
         <div className="app-container">
           {/* Overlay para fechar menu no mobile */}
           {mobileMenuOpen && (
@@ -2235,6 +2566,15 @@ function App() {
                 >
                   <i className="fas fa-cog" /> Configurações
                 </li>
+                <li
+                  onClick={async () => {
+                    await supabase.auth.signOut();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="nav-logout"
+                >
+                  <i className="fas fa-sign-out-alt" /> Sair
+                </li>
               </ul>
             </nav>
           </aside>
@@ -2296,10 +2636,15 @@ function App() {
                   <option value={2026}>2026</option>
                   <option value={2027}>2027</option>
                 </select>
-                <div className="user-profile">
-                  <span>Olá, Maria (Coord.)</span>
-                  <div className="avatar">M</div>
-                </div>
+                <button
+                  type="button"
+                  className="header-user-profile"
+                  onClick={() => navigate('profile')}
+                  title="Abrir meu perfil"
+                >
+                  <span>Olá, {userName} ({userRole})</span>
+                  <div className="avatar">{userInitial}</div>
+                </button>
               </div>
             </header>
 
@@ -2656,7 +3001,6 @@ function App() {
                       }}
                     >
                       <div style={{ flex: 1, minWidth: 200 }}>
-                        <label style={{ display: 'block', marginBottom: 4, fontSize: '0.85em', color: '#666' }}>Buscar aluno por nome</label>
                         <input
                           type="text"
                           placeholder="Digite o nome..."
@@ -2671,7 +3015,6 @@ function App() {
                         />
                       </div>
                       <div style={{ minWidth: 160 }}>
-                        <label style={{ display: 'block', marginBottom: 4, fontSize: '0.85em', color: '#666' }}>Cor (etiqueta)</label>
                         <select
                           value={filterStudentEtiquetaCor}
                           onChange={(e) => setFilterStudentEtiquetaCor(e.target.value || '')}
@@ -3002,7 +3345,6 @@ function App() {
                 </div>
                 <div style={{ marginBottom: 20, display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
                   <div style={{ flex: 1, minWidth: 200 }}>
-                    <label style={{ display: 'block', marginBottom: 4, fontSize: '0.85em', color: '#666' }}>Buscar aluno por nome</label>
                     <input
                       type="text"
                       placeholder="Digite o nome..."
@@ -3017,7 +3359,6 @@ function App() {
                     />
                   </div>
                   <div style={{ minWidth: 180 }}>
-                    <label style={{ display: 'block', marginBottom: 4, fontSize: '0.85em', color: '#666' }}>Turma</label>
                     <select
                       value={filterStudentTurmaId}
                       onChange={(e) => setFilterStudentTurmaId(e.target.value || '')}
@@ -3039,7 +3380,6 @@ function App() {
                     </select>
                   </div>
                   <div style={{ minWidth: 160 }}>
-                    <label style={{ display: 'block', marginBottom: 4, fontSize: '0.85em', color: '#666' }}>Cor (etiqueta)</label>
                     <select
                       value={filterStudentEtiquetaCor}
                       onChange={(e) => setFilterStudentEtiquetaCor(e.target.value || '')}
@@ -3258,16 +3598,18 @@ function App() {
                   >
                     Evidências (Anexos)
                   </div>
-                  <div
-                    className={`tab ${currentTab === 'aee' ? 'active' : ''}`}
-                    onClick={() => switchTab('aee')}
-                    style={{
-                      borderLeft: selectedStudent?.etiqueta_cor === 'roxo' ? '3px solid #9c27b0' : undefined,
-                      fontWeight: selectedStudent?.etiqueta_cor === 'roxo' ? 'bold' : undefined,
-                    }}
-                  >
-                    AEE {selectedStudent?.etiqueta_cor === 'roxo' && '🟣'}
-                  </div>
+                  {selectedStudent?.etiqueta_cor === 'roxo' && (
+                    <div
+                      className={`tab ${currentTab === 'aee' ? 'active' : ''}`}
+                      onClick={() => switchTab('aee')}
+                      style={{
+                        borderLeft: '3px solid #9c27b0',
+                        fontWeight: 'bold',
+                      }}
+                    >
+                      AEE 🟣
+                    </div>
+                  )}
                 </div>
 
                 {/* Tab Boletim */}
@@ -3604,60 +3946,7 @@ function App() {
                       </div>
                     )}
                     <div style={{ maxWidth: 800 }}>
-                      <div className="input-group" style={{ marginBottom: 15 }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <input
-                            type="checkbox"
-                            checked={aeeFormData.aee_tem_laudo}
-                            onChange={(e) => setAeeFormData({ ...aeeFormData, aee_tem_laudo: e.target.checked })}
-                            style={{ width: 20, height: 20, cursor: 'pointer' }}
-                          />
-                          <span>Possui Laudo?</span>
-                        </label>
-                      </div>
-
-                      <div className="input-group" style={{ marginBottom: 15 }}>
-                        <label>Mediadora/Apoio</label>
-                        <input
-                          type="text"
-                          value={aeeFormData.aee_mediadora}
-                          onChange={(e) => setAeeFormData({ ...aeeFormData, aee_mediadora: e.target.value })}
-                          placeholder="Nome da mediadora ou profissional de apoio"
-                        />
-                      </div>
-
-                      <div className="input-group" style={{ marginBottom: 20 }}>
-                        <label>Plano de Desenvolvimento Individual (PDI)</label>
-                        <textarea
-                          value={aeeFormData.aee_plano_individual}
-                          onChange={(e) => setAeeFormData({ ...aeeFormData, aee_plano_individual: e.target.value })}
-                          placeholder="Descreva o plano de desenvolvimento individual do aluno..."
-                          rows={8}
-                          style={{
-                            width: '100%',
-                            padding: 10,
-                            border: '1px solid #ddd',
-                            borderRadius: 6,
-                            fontFamily: 'inherit',
-                            resize: 'vertical',
-                          }}
-                        />
-                      </div>
-
-                      <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                        <button
-                          type="button"
-                          onClick={handleSaveAEE}
-                          className="btn-primary"
-                          style={{ width: 'auto', padding: '10px 20px' }}
-                          disabled={savingAEE}
-                        >
-                          {savingAEE ? 'Salvando...' : 'Salvar Dados AEE'}
-                        </button>
-                      </div>
-
-                      {/* Seção de Documentos AEE */}
-                      <div style={{ marginTop: 30, padding: 20, background: '#f9f9f9', borderRadius: 8, border: '1px solid #ddd' }}>
+                      <div style={{ padding: 20, background: '#f9f9f9', borderRadius: 8, border: '1px solid #ddd' }}>
                         <h4 style={{ marginBottom: 15, color: 'var(--primary)' }}>
                           Documentos Anexados (Laudos/Planos)
                         </h4>
@@ -4038,6 +4327,47 @@ function App() {
   </div>
 )}
 {/* --- FIM DA AGENDA RECUPERADA --- */}
+
+            {/* Meu perfil */}
+            {currentView === 'profile' && (
+              <div className="view-section profile-view">
+                <div className="profile-card">
+                  <div className="profile-avatar">{userInitial}</div>
+                  <h2>{userName}</h2>
+                  <p className="profile-role">{userRole}</p>
+                  <p className="profile-email">{authUser?.email || '—'}</p>
+                  <p style={{ fontSize: '0.85em', color: '#666', marginTop: 8 }}>
+                    Cadastrado com {authUser?.app_metadata?.provider === 'google' ? 'Google' : 'e-mail e senha'}
+                  </p>
+                  {authUser?.email && (
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      style={{ marginTop: 16 }}
+                      onClick={async () => {
+                        setAuthLoading(true);
+                        setAuthError('');
+                        setAuthSuccess('');
+                        const { error } = await supabase.auth.resetPasswordForEmail(authUser.email, {
+                          redirectTo: `${window.location.origin}/`,
+                        });
+                        setAuthLoading(false);
+                        if (error) setAuthError(error.message);
+                        else setAuthSuccess('Enviamos um link para redefinir sua senha no seu e-mail.');
+                      }}
+                      disabled={authLoading}
+                    >
+                      {authLoading ? 'Enviando...' : 'Enviar link para redefinir senha'}
+                    </button>
+                  )}
+                  {(authError || authSuccess) && (
+                    <div className={`auth-message ${authError ? 'auth-error' : 'auth-success'}`} style={{ marginTop: 12 }}>
+                      {authError || authSuccess}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Settings placeholder */}
             {currentView === 'settings' && (
