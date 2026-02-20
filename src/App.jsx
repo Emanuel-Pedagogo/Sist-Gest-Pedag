@@ -1,9 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
 import { supabase } from './supabaseClient';
 import BoletimView from './BoletimView';
 
 function App() {
+  // Data local em YYYY-MM-DD (evita dia anterior por timezone)
+  const getLocalDateString = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [authMode, setAuthMode] = useState('login'); // 'login' | 'register' | 'recover'
   const [loginEmail, setLoginEmail] = useState('');
@@ -23,6 +29,7 @@ function App() {
   const [recoveryNewPassword, setRecoveryNewPassword] = useState('');
   const [recoveryConfirmPassword, setRecoveryConfirmPassword] = useState('');
   const [authUser, setAuthUser] = useState(null); // usuário logado (Supabase auth)
+  // Inicializar estados - serão carregados do localStorage quando houver sessão
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedSchool, setSelectedSchool] = useState('');
   const [selectedSchoolId, setSelectedSchoolId] = useState(null);
@@ -68,12 +75,12 @@ function App() {
   const [dashboardDayEventsLoading, setDashboardDayEventsLoading] = useState(false);
 
   const [showModal, setShowModal] = useState(false);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState(() => ({
     titulo: '',
     tipo: 'Pedagógico',
-    data_ocorrencia: new Date().toISOString().split('T')[0],
+    data_ocorrencia: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })(),
     descricao: '',
-  });
+  }));
   const [savingOccurrence, setSavingOccurrence] = useState(false);
 
   const [notes, setNotes] = useState([]);
@@ -108,10 +115,13 @@ function App() {
     data: new Date().toISOString().split('T')[0],
     nivel_escrita: '',
     nivel_leitura: '',
+    observacoes: '',
     foto_escrita_url: '',
     audio_leitura_url: '',
+    arquivo_url: '',
     foto_file: null,
     audio_file: null,
+    arquivo_file: null,
   });
   const [savingSondagem, setSavingSondagem] = useState(false);
   const [showSondagemMidiaModal, setShowSondagemMidiaModal] = useState(false);
@@ -213,17 +223,99 @@ function App() {
 
   // Listener de sessão: mantém login ao recarregar e após OAuth
   useEffect(() => {
+    const loadSavedState = () => {
+      if (typeof window !== 'undefined') {
+        const savedView = localStorage.getItem('sacp_currentView');
+        const savedSchoolId = localStorage.getItem('sacp_selectedSchoolId');
+        const savedClassId = localStorage.getItem('sacp_selectedClassId');
+        const savedStudentId = localStorage.getItem('sacp_selectedStudentId');
+        const savedTab = localStorage.getItem('sacp_currentTab');
+        if (savedView) setCurrentView(savedView);
+        if (savedSchoolId) setSelectedSchoolId(parseInt(savedSchoolId, 10));
+        if (savedClassId) setSelectedClassId(parseInt(savedClassId, 10));
+        if (savedStudentId) setSelectedStudentId(parseInt(savedStudentId, 10));
+        if (savedTab) setCurrentTab(savedTab);
+      }
+    };
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsLoggedIn(!!session);
       setAuthUser(session?.user ?? null);
-      if (session) setCurrentView('dashboard');
+      // Carregar estado salvo do localStorage quando houver sessão
+      if (session) {
+        loadSavedState();
+      }
     });
     supabase.auth.getSession().then(({ data: { session } }) => {
       setIsLoggedIn(!!session);
       setAuthUser(session?.user ?? null);
+      // Carregar estado salvo do localStorage quando houver sessão
+      if (session) {
+        loadSavedState();
+      }
     });
     return () => subscription?.unsubscribe();
   }, []);
+
+  // Carregar estado do localStorage quando isLoggedIn mudar para true (para garantir que seja carregado)
+  useEffect(() => {
+    if (isLoggedIn && typeof window !== 'undefined') {
+      const savedView = localStorage.getItem('sacp_currentView');
+      const savedSchoolId = localStorage.getItem('sacp_selectedSchoolId');
+      const savedClassId = localStorage.getItem('sacp_selectedClassId');
+      const savedStudentId = localStorage.getItem('sacp_selectedStudentId');
+      const savedTab = localStorage.getItem('sacp_currentTab');
+      if (savedView) setCurrentView(savedView);
+      if (savedSchoolId) setSelectedSchoolId(parseInt(savedSchoolId, 10));
+      if (savedClassId) setSelectedClassId(parseInt(savedClassId, 10));
+      if (savedStudentId) setSelectedStudentId(parseInt(savedStudentId, 10));
+      if (savedTab) setCurrentTab(savedTab);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoggedIn]);
+
+  // Salvar estado de navegação no localStorage quando mudar
+  useEffect(() => {
+    if (isLoggedIn && typeof window !== 'undefined') {
+      localStorage.setItem('sacp_currentView', currentView);
+    }
+  }, [currentView, isLoggedIn]);
+
+  useEffect(() => {
+    if (isLoggedIn && typeof window !== 'undefined') {
+      if (selectedSchoolId) {
+        localStorage.setItem('sacp_selectedSchoolId', selectedSchoolId.toString());
+      } else {
+        localStorage.removeItem('sacp_selectedSchoolId');
+      }
+    }
+  }, [selectedSchoolId, isLoggedIn]);
+
+  useEffect(() => {
+    if (isLoggedIn && typeof window !== 'undefined') {
+      if (selectedClassId) {
+        localStorage.setItem('sacp_selectedClassId', selectedClassId.toString());
+      } else {
+        localStorage.removeItem('sacp_selectedClassId');
+      }
+    }
+  }, [selectedClassId, isLoggedIn]);
+
+  useEffect(() => {
+    if (isLoggedIn && typeof window !== 'undefined') {
+      if (selectedStudentId) {
+        localStorage.setItem('sacp_selectedStudentId', selectedStudentId.toString());
+      } else {
+        localStorage.removeItem('sacp_selectedStudentId');
+      }
+    }
+  }, [selectedStudentId, isLoggedIn]);
+
+  useEffect(() => {
+    if (isLoggedIn && typeof window !== 'undefined') {
+      localStorage.setItem('sacp_currentTab', currentTab);
+    }
+  }, [currentTab, isLoggedIn]);
 
   const clearAuthMessages = () => {
     setAuthError('');
@@ -243,7 +335,11 @@ function App() {
       setAuthError(error.message === 'Invalid login credentials' ? 'E-mail ou senha incorretos.' : error.message);
       return;
     }
-    setCurrentView('dashboard');
+    // Não forçar dashboard - manter a view salva no localStorage se existir
+    const savedView = localStorage.getItem('sacp_currentView');
+    if (savedView) {
+      setCurrentView(savedView);
+    }
   };
 
   const handleRegister = async (e) => {
@@ -366,6 +462,16 @@ function App() {
     });
   };
 
+  // Fechar modal só quando o clique foi no backdrop (não ao arrastar para selecionar texto)
+  const backdropMouseDownRef = useRef(false);
+  const handleBackdropClick = (e, onClose) => {
+    if (e.target !== e.currentTarget) return;
+    if (backdropMouseDownRef.current) onClose();
+    backdropMouseDownRef.current = false;
+  };
+  const handleBackdropMouseDown = (e) => {
+    backdropMouseDownRef.current = e.target === e.currentTarget;
+  };
 
   const switchTab = (tabName) => {
     setCurrentTab(tabName);
@@ -861,7 +967,7 @@ function App() {
       setFormData({
         titulo: '',
         tipo: 'Pedagógico',
-        data_ocorrencia: new Date().toISOString().split('T')[0],
+        data_ocorrencia: getLocalDateString(),
         descricao: '',
       });
       setSavingOccurrence(false);
@@ -882,7 +988,7 @@ function App() {
     setFormData({
       titulo: '',
       tipo: 'Pedagógico',
-      data_ocorrencia: new Date().toISOString().split('T')[0],
+      data_ocorrencia: getLocalDateString(),
       descricao: '',
     });
   };
@@ -986,14 +1092,15 @@ function App() {
     });
   };
 
-  const NIVEL_ESCRITA_OPCOES = [
+  // Níveis de escrita e leitura para 1º e 2º ano (Alfabetiza Pará)
+  const NIVEL_ESCRITA_OPCOES_1_2 = [
     'PRÉ-SILÁBICO',
     'SILÁBICO SEM VALOR SONORO',
     'SILÁBICO COM VALOR SONORO',
     'SILÁBICO ALFABÉTICO',
     'ALFABÉTICO',
   ];
-  const NIVEL_LEITURA_OPCOES = [
+  const NIVEL_LEITURA_OPCOES_1_2 = [
     'PRÉ – LEITOR 1',
     'PRÉ – LEITOR 2',
     'PRÉ – LEITOR 3',
@@ -1001,6 +1108,58 @@ function App() {
     'LEITOR INICIANTE',
     'LEITOR FLUENTE',
   ];
+
+  // Níveis de escrita e leitura para 3º ao 5º ano
+  const NIVEL_ESCRITA_OPCOES_3_5 = [
+    'ESCREVE PALAVRAS NÃO ORTOGRÁFICAS',
+    'ESCREVE PALAVRAS ORTOGRÁFICAS',
+    'ESCREVE FRASES NÃO COESAS',
+    'ESCREVE FRASES COESAS',
+    'ESCREVE TEXTOS NÃO COESOS',
+    'ESCREVE TEXTOS COESOS',
+  ];
+  const NIVEL_LEITURA_OPCOES_3_5 = [
+    'PRÉ-LEITOR',
+    'LEITOR DE PALAVRAS SEM FLUÊNCIA',
+    'LEITOR DE PALAVRAS COM FLUÊNCIA',
+    'LEITOR DE TEXTO SEM FLUÊNCIA',
+    'LEITOR DE TEXTO COM FLUÊNCIA',
+    'LEITOR COM FLUÊNCIA, RESPEITA RITMO, INTENSIDADE E ENTONAÇÃO',
+  ];
+
+  // Níveis de escrita e leitura para 6º ao 9º ano
+  const NIVEL_ESCRITA_OPCOES_FUNDAMENTAL2 = [
+    'Não Ortográfica',
+    'Escreve Palavras Ortográficas',
+    'Escreve Frases não Coesas',
+    'Não Escreve Textos Coesos',
+    'Escreve Textos Coesos',
+  ];
+  const NIVEL_LEITURA_OPCOES_FUNDAMENTAL2 = [
+    'Pré-Leitor',
+    'Leitor de Palavras sem Fluência',
+    'Leitor de Palavras com Fluência',
+    'Leitor de Frases sem Fluência',
+    'Leitor de Frases com Fluência',
+    'Leitor de Texto sem Fluência',
+    'Leitor de Texto com Fluência',
+    'Leitor com Fluência, Respeita Ritmo, Intensidade e Entonação',
+  ];
+
+  // Retorna qual conjunto de níveis usar: '1-2', '3-5', ou '6-9'
+  const getSondagemNivelSet = () => {
+    if (!selectedStudent?.turma_id) return '1-2';
+    const turma = (classes || []).find((c) => String(c.id) === String(selectedStudent.turma_id));
+    if (!turma) return '1-2';
+    const nome = (turma.nome || '').toLowerCase();
+    const anoEscolar = turma.ano_escolar ?? turma.ano;
+    const anos = Array.isArray(anoEscolar) ? anoEscolar : anoEscolar != null ? [anoEscolar] : [];
+    const temAno69 = nome.match(/\b[6-9]º?\b/) || anos.some((a) => [6, 7, 8, 9].includes(Number(a)));
+    if (temAno69) return '6-9';
+    const temAno35 = nome.match(/\b[3-5]º?\b/) || anos.some((a) => [3, 4, 5].includes(Number(a)));
+    if (temAno35) return '3-5';
+    return '1-2';
+  };
 
   const BUCKET_SONDAGENS = 'sondagens-anexos';
 
@@ -1011,10 +1170,13 @@ function App() {
         data: sondagem.data ? sondagem.data.split('T')[0] : new Date().toISOString().split('T')[0],
         nivel_escrita: sondagem.nivel_escrita || '',
         nivel_leitura: sondagem.nivel_leitura || '',
+        observacoes: sondagem.observacoes || '',
         foto_escrita_url: sondagem.foto_escrita_url || '',
         audio_leitura_url: sondagem.audio_leitura_url || '',
+        arquivo_url: sondagem.arquivo_url || '',
         foto_file: null,
         audio_file: null,
+        arquivo_file: null,
       });
     } else {
       setEditingSondagem(null);
@@ -1022,10 +1184,13 @@ function App() {
         data: new Date().toISOString().split('T')[0],
         nivel_escrita: '',
         nivel_leitura: '',
+        observacoes: '',
         foto_escrita_url: '',
         audio_leitura_url: '',
+        arquivo_url: '',
         foto_file: null,
         audio_file: null,
+        arquivo_file: null,
       });
     }
     setShowSondagemModal(true);
@@ -1038,10 +1203,13 @@ function App() {
       data: new Date().toISOString().split('T')[0],
       nivel_escrita: '',
       nivel_leitura: '',
+      observacoes: '',
       foto_escrita_url: '',
       audio_leitura_url: '',
+      arquivo_url: '',
       foto_file: null,
       audio_file: null,
+      arquivo_file: null,
     });
   };
 
@@ -1065,6 +1233,7 @@ function App() {
       data: sondagemFormData.data,
       nivel_escrita: sondagemFormData.nivel_escrita,
       nivel_leitura: sondagemFormData.nivel_leitura,
+      observacoes: sondagemFormData.observacoes?.trim() || null,
     };
     const { data, error } = editingSondagem
       ? await supabase.from('sondagens').update(payload).eq('id', editingSondagem.id).select()
@@ -1077,6 +1246,7 @@ function App() {
     const sondagemId = (data && data[0] && data[0].id) || editingSondagem?.id;
     let fotoUrl = sondagemFormData.foto_escrita_url || null;
     let audioUrl = sondagemFormData.audio_leitura_url || null;
+    let arquivoUrl = sondagemFormData.arquivo_url || null;
 
     if (sondagemId) {
       if (sondagemFormData.foto_file) {
@@ -1107,9 +1277,24 @@ function App() {
         const { data: urlData } = supabase.storage.from(BUCKET_SONDAGENS).getPublicUrl(filePath);
         audioUrl = urlData?.publicUrl || null;
       }
+      if (sondagemFormData.arquivo_file) {
+        const ext = sondagemFormData.arquivo_file.name.split('.').pop() || 'pdf';
+        const filePath = `${sondagemId}/arquivo.${ext}`;
+        const { error: uploadError } = await supabase.storage
+          .from(BUCKET_SONDAGENS)
+          .upload(filePath, sondagemFormData.arquivo_file, { cacheControl: '3600', upsert: true });
+        if (uploadError) {
+          setSavingSondagem(false);
+          alert('Erro ao enviar arquivo: ' + (uploadError.message || uploadError).toString() + '\n\nVerifique: Storage > bucket "sondagens-anexos" existe e tem política de INSERT.');
+          return;
+        }
+        const { data: urlData } = supabase.storage.from(BUCKET_SONDAGENS).getPublicUrl(filePath);
+        arquivoUrl = urlData?.publicUrl || null;
+      }
       const updatePayload = {
         foto_escrita_url: fotoUrl,
         audio_leitura_url: audioUrl,
+        arquivo_url: arquivoUrl,
       };
       await supabase.from('sondagens').update(updatePayload).eq('id', sondagemId).select();
     }
@@ -1121,10 +1306,13 @@ function App() {
       data: new Date().toISOString().split('T')[0],
       nivel_escrita: '',
       nivel_leitura: '',
+      observacoes: '',
       foto_escrita_url: '',
       audio_leitura_url: '',
+      arquivo_url: '',
       foto_file: null,
       audio_file: null,
+      arquivo_file: null,
     });
     // Recarregar a lista do servidor para exibir foto/áudio no histórico
     const { data: freshData } = await supabase
@@ -2569,6 +2757,14 @@ function App() {
                 <li
                   onClick={async () => {
                     await supabase.auth.signOut();
+                    // Limpar localStorage ao fazer logout
+                    if (typeof window !== 'undefined') {
+                      localStorage.removeItem('sacp_currentView');
+                      localStorage.removeItem('sacp_selectedSchoolId');
+                      localStorage.removeItem('sacp_selectedClassId');
+                      localStorage.removeItem('sacp_selectedStudentId');
+                      localStorage.removeItem('sacp_currentTab');
+                    }
                     setMobileMenuOpen(false);
                   }}
                   className="nav-logout"
@@ -3669,7 +3865,10 @@ function App() {
                       <button
                         className="btn-primary"
                         style={{ width: 'auto', padding: '10px 20px' }}
-                        onClick={() => setShowModal(true)}
+                        onClick={() => {
+                          setFormData(prev => ({ ...prev, data_ocorrencia: getLocalDateString() }));
+                          setShowModal(true);
+                        }}
                       >
                         <i className="fas fa-plus" style={{ marginRight: 5 }} />
                         Nova Ocorrência
@@ -3702,7 +3901,12 @@ function App() {
                             <div style={{ fontSize: '0.9em', color: 'var(--text-light)', marginBottom: 10 }}>
                               <i className="fas fa-calendar" style={{ marginRight: 5 }} />
                               {ocorrencia.data_ocorrencia
-                                ? new Date(ocorrencia.data_ocorrencia).toLocaleDateString('pt-BR')
+                                ? (() => {
+                                    const d = ocorrencia.data_ocorrencia;
+                                    if (!d) return 'Data não informada';
+                                    const [y, m, day] = d.split('-');
+                                    return `${day}/${m}/${y}`;
+                                  })()
                                 : 'Data não informada'}
                             </div>
                             <div style={{ fontSize: '0.9em', color: 'var(--text)', lineHeight: '1.5' }}>
@@ -3755,7 +3959,7 @@ function App() {
                             <th style={{ padding: 10 }}>Data</th>
                             <th style={{ padding: 10 }}>Nível de escrita</th>
                             <th style={{ padding: 10 }}>Nível de leitura</th>
-                            <th style={{ padding: 10, width: 140 }}>Foto / Áudio</th>
+                            <th style={{ padding: 10, width: 180 }}>Anexos</th>
                             <th style={{ padding: 10, width: 100 }}>Ações</th>
                           </tr>
                         </thead>
@@ -3775,46 +3979,65 @@ function App() {
                                 <td style={{ padding: 10 }}>{s.nivel_escrita || '-'}</td>
                                 <td style={{ padding: 10 }}>{s.nivel_leitura || '-'}</td>
                                 <td style={{ padding: 10 }}>
-                                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                                     {s.foto_escrita_url ? (
                                       <button
                                         type="button"
                                         onClick={() => openSondagemMidia('foto', s.foto_escrita_url)}
                                         style={{
-                                          padding: '4px 10px',
+                                          padding: '4px 8px',
                                           border: '1px solid #0d6efd',
                                           borderRadius: 6,
                                           background: 'white',
                                           color: '#0d6efd',
                                           cursor: 'pointer',
-                                          fontSize: 12,
+                                          fontSize: 11,
                                         }}
                                         title="Ver foto da escrita"
                                       >
                                         📷 Foto
                                       </button>
-                                    ) : (
-                                      <span style={{ fontSize: 12, color: '#999' }}>—</span>
-                                    )}
+                                    ) : null}
                                     {s.audio_leitura_url ? (
                                       <button
                                         type="button"
                                         onClick={() => openSondagemMidia('audio', s.audio_leitura_url)}
                                         style={{
-                                          padding: '4px 10px',
+                                          padding: '4px 8px',
                                           border: '1px solid #198754',
                                           borderRadius: 6,
                                           background: 'white',
                                           color: '#198754',
                                           cursor: 'pointer',
-                                          fontSize: 12,
+                                          fontSize: 11,
                                         }}
                                         title="Ouvir áudio da leitura"
                                       >
                                         🎧 Áudio
                                       </button>
-                                    ) : (
-                                      <span style={{ fontSize: 12, color: '#999' }}>—</span>
+                                    ) : null}
+                                    {s.arquivo_url ? (
+                                      <a
+                                        href={s.arquivo_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={{
+                                          padding: '4px 8px',
+                                          border: '1px solid #6c757d',
+                                          borderRadius: 6,
+                                          background: 'white',
+                                          color: '#6c757d',
+                                          textDecoration: 'none',
+                                          fontSize: 11,
+                                          display: 'inline-block',
+                                        }}
+                                        title="Abrir arquivo"
+                                      >
+                                        📄 Arquivo
+                                      </a>
+                                    ) : null}
+                                    {!s.foto_escrita_url && !s.audio_leitura_url && !s.arquivo_url && (
+                                      <span style={{ fontSize: 11, color: '#999' }}>—</span>
                                     )}
                                   </div>
                                 </td>
@@ -4394,7 +4617,8 @@ function App() {
             alignItems: 'center',
             zIndex: 2000,
           }}
-          onClick={handleCancelModal}
+          onMouseDown={handleBackdropMouseDown}
+          onClick={(e) => handleBackdropClick(e, handleCancelModal)}
         >
           <div
             style={{
@@ -4513,7 +4737,8 @@ function App() {
             alignItems: 'center',
             zIndex: 2000,
           }}
-          onClick={handleCancelNoteModal}
+          onMouseDown={handleBackdropMouseDown}
+          onClick={(e) => handleBackdropClick(e, handleCancelNoteModal)}
         >
           <div
             style={{
@@ -4622,7 +4847,8 @@ function App() {
             alignItems: 'center',
             zIndex: 2000,
           }}
-          onClick={handleCancelFrequencyModal}
+          onMouseDown={handleBackdropMouseDown}
+          onClick={(e) => handleBackdropClick(e, handleCancelFrequencyModal)}
         >
           <div
             style={{
@@ -4724,169 +4950,241 @@ function App() {
             alignItems: 'center',
             zIndex: 2000,
           }}
-          onClick={handleCancelSondagemModal}
+          onMouseDown={handleBackdropMouseDown}
+          onClick={(e) => handleBackdropClick(e, handleCancelSondagemModal)}
         >
           <div
             style={{
               background: 'white',
-              padding: 30,
+              padding: 20,
               borderRadius: 12,
               width: '90%',
-              maxWidth: 500,
+              maxWidth: 480,
+              maxHeight: '90vh',
+              display: 'flex',
+              flexDirection: 'column',
               boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 style={{ marginBottom: 20, color: 'var(--primary)' }}>
+            <h2 style={{ marginBottom: 15, color: 'var(--primary)', fontSize: 18 }}>
               {editingSondagem ? 'Editar sondagem' : 'Nova sondagem'}
             </h2>
-            <form onSubmit={handleSaveSondagem}>
-              <div className="input-group" style={{ marginBottom: 15 }}>
-                <label>Data *</label>
-                <input
-                  type="date"
-                  required
-                  value={sondagemFormData.data}
-                  onChange={(e) =>
-                    setSondagemFormData({ ...sondagemFormData, data: e.target.value })
-                  }
-                />
-              </div>
-              <div className="input-group" style={{ marginBottom: 15 }}>
-                <label>Nível de escrita *</label>
-                <select
-                  required
-                  value={sondagemFormData.nivel_escrita}
-                  onChange={(e) =>
-                    setSondagemFormData({ ...sondagemFormData, nivel_escrita: e.target.value })
-                  }
-                  style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #ddd' }}
-                >
-                  <option value="">Selecione...</option>
-                  {NIVEL_ESCRITA_OPCOES.map((op) => (
-                    <option key={op} value={op}>
-                      {op}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="input-group" style={{ marginBottom: 15 }}>
-                <label>Nível de leitura *</label>
-                <select
-                  required
-                  value={sondagemFormData.nivel_leitura}
-                  onChange={(e) =>
-                    setSondagemFormData({ ...sondagemFormData, nivel_leitura: e.target.value })
-                  }
-                  style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #ddd' }}
-                >
-                  <option value="">Selecione...</option>
-                  {NIVEL_LEITURA_OPCOES.map((op) => (
-                    <option key={op} value={op}>
-                      {op}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="input-group" style={{ marginBottom: 15 }}>
-                <label>Foto da escrita (opcional)</label>
-                {(sondagemFormData.foto_escrita_url || sondagemFormData.foto_file) ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 13, color: '#666' }}>
-                      {sondagemFormData.foto_file
-                        ? sondagemFormData.foto_file.name
-                        : 'Foto anexada'}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() =>
+            <form onSubmit={handleSaveSondagem} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+              <div style={{ overflowY: 'auto', flex: 1, minHeight: 0, paddingRight: 5 }}>
+                <div className="input-group" style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 13 }}>Data *</label>
+                  <input
+                    type="date"
+                    required
+                    value={sondagemFormData.data}
+                    onChange={(e) =>
+                      setSondagemFormData({ ...sondagemFormData, data: e.target.value })
+                    }
+                    style={{ padding: 8, fontSize: 13 }}
+                  />
+                </div>
+                <div className="input-group" style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 13 }}>Nível de escrita *</label>
+                  <select
+                    required
+                    value={sondagemFormData.nivel_escrita}
+                    onChange={(e) =>
+                      setSondagemFormData({ ...sondagemFormData, nivel_escrita: e.target.value })
+                    }
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #ddd', fontSize: 13 }}
+                  >
+                    <option value="">Selecione...</option>
+                    {(() => {
+                      const nivelSet = getSondagemNivelSet();
+                      const opcoes = nivelSet === '3-5' ? NIVEL_ESCRITA_OPCOES_3_5 : nivelSet === '6-9' ? NIVEL_ESCRITA_OPCOES_FUNDAMENTAL2 : NIVEL_ESCRITA_OPCOES_1_2;
+                      return opcoes.map((op) => (
+                        <option key={op} value={op}>
+                          {op}
+                        </option>
+                      ));
+                    })()}
+                  </select>
+                </div>
+                <div className="input-group" style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 13 }}>Nível de leitura *</label>
+                  <select
+                    required
+                    value={sondagemFormData.nivel_leitura}
+                    onChange={(e) =>
+                      setSondagemFormData({ ...sondagemFormData, nivel_leitura: e.target.value })
+                    }
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #ddd', fontSize: 13 }}
+                  >
+                    <option value="">Selecione...</option>
+                    {(() => {
+                      const nivelSet = getSondagemNivelSet();
+                      const opcoes = nivelSet === '3-5' ? NIVEL_LEITURA_OPCOES_3_5 : nivelSet === '6-9' ? NIVEL_LEITURA_OPCOES_FUNDAMENTAL2 : NIVEL_LEITURA_OPCOES_1_2;
+                      return opcoes.map((op) => (
+                        <option key={op} value={op}>
+                          {op}
+                        </option>
+                      ));
+                    })()}
+                  </select>
+                </div>
+                <div className="input-group" style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 13 }}>Observações (opcional)</label>
+                  <textarea
+                    value={sondagemFormData.observacoes || ''}
+                    onChange={(e) =>
+                      setSondagemFormData({ ...sondagemFormData, observacoes: e.target.value })
+                    }
+                    placeholder="Anotações sobre a sondagem..."
+                    rows={3}
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #ddd', fontSize: 13, resize: 'vertical' }}
+                  />
+                </div>
+                <div className="input-group" style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 13 }}>Foto da escrita (opcional)</label>
+                  {(sondagemFormData.foto_escrita_url || sondagemFormData.foto_file) ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 12, color: '#666' }}>
+                        {sondagemFormData.foto_file
+                          ? sondagemFormData.foto_file.name
+                          : 'Foto anexada'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSondagemFormData({
+                            ...sondagemFormData,
+                            foto_escrita_url: '',
+                            foto_file: null,
+                          })
+                        }
+                        style={{
+                          padding: '2px 8px',
+                          fontSize: 11,
+                          border: '1px solid #ddd',
+                          borderRadius: 4,
+                          background: 'white',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Remover
+                      </button>
+                    </div>
+                  ) : (
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) =>
                         setSondagemFormData({
                           ...sondagemFormData,
-                          foto_escrita_url: '',
-                          foto_file: null,
+                          foto_file: e.target.files?.[0] || null,
                         })
                       }
-                      style={{
-                        padding: '2px 8px',
-                        fontSize: 12,
-                        border: '1px solid #ddd',
-                        borderRadius: 4,
-                        background: 'white',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Remover
-                    </button>
-                  </div>
-                ) : (
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) =>
-                      setSondagemFormData({
-                        ...sondagemFormData,
-                        foto_file: e.target.files?.[0] || null,
-                      })
-                    }
-                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #ddd' }}
-                  />
-                )}
-              </div>
-              <div className="input-group" style={{ marginBottom: 20 }}>
-                <label>Áudio da leitura (opcional)</label>
-                {(sondagemFormData.audio_leitura_url || sondagemFormData.audio_file) ? (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 13, color: '#666' }}>
-                      {sondagemFormData.audio_file
-                        ? sondagemFormData.audio_file.name
-                        : 'Áudio anexado'}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() =>
+                      style={{ width: '100%', padding: 6, borderRadius: 6, border: '1px solid #ddd', fontSize: 12 }}
+                    />
+                  )}
+                </div>
+                <div className="input-group" style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 13 }}>Áudio da leitura (opcional)</label>
+                  {(sondagemFormData.audio_leitura_url || sondagemFormData.audio_file) ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 12, color: '#666' }}>
+                        {sondagemFormData.audio_file
+                          ? sondagemFormData.audio_file.name
+                          : 'Áudio anexado'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSondagemFormData({
+                            ...sondagemFormData,
+                            audio_leitura_url: '',
+                            audio_file: null,
+                          })
+                        }
+                        style={{
+                          padding: '2px 8px',
+                          fontSize: 11,
+                          border: '1px solid #ddd',
+                          borderRadius: 4,
+                          background: 'white',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Remover
+                      </button>
+                    </div>
+                  ) : (
+                    <input
+                      type="file"
+                      accept="audio/*"
+                      onChange={(e) =>
                         setSondagemFormData({
                           ...sondagemFormData,
-                          audio_leitura_url: '',
-                          audio_file: null,
+                          audio_file: e.target.files?.[0] || null,
                         })
                       }
-                      style={{
-                        padding: '2px 8px',
-                        fontSize: 12,
-                        border: '1px solid #ddd',
-                        borderRadius: 4,
-                        background: 'white',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Remover
-                    </button>
-                  </div>
-                ) : (
-                  <input
-                    type="file"
-                    accept="audio/*"
-                    onChange={(e) =>
-                      setSondagemFormData({
-                        ...sondagemFormData,
-                        audio_file: e.target.files?.[0] || null,
-                      })
-                    }
-                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #ddd' }}
-                  />
-                )}
+                      style={{ width: '100%', padding: 6, borderRadius: 6, border: '1px solid #ddd', fontSize: 12 }}
+                    />
+                  )}
+                </div>
+                <div className="input-group" style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 13 }}>Arquivo (PDF/Word) (opcional)</label>
+                  {(sondagemFormData.arquivo_url || sondagemFormData.arquivo_file) ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 12, color: '#666' }}>
+                        {sondagemFormData.arquivo_file
+                          ? sondagemFormData.arquivo_file.name
+                          : 'Arquivo anexado'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSondagemFormData({
+                            ...sondagemFormData,
+                            arquivo_url: '',
+                            arquivo_file: null,
+                          })
+                        }
+                        style={{
+                          padding: '2px 8px',
+                          fontSize: 11,
+                          border: '1px solid #ddd',
+                          borderRadius: 4,
+                          background: 'white',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Remover
+                      </button>
+                    </div>
+                  ) : (
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx"
+                      onChange={(e) =>
+                        setSondagemFormData({
+                          ...sondagemFormData,
+                          arquivo_file: e.target.files?.[0] || null,
+                        })
+                      }
+                      style={{ width: '100%', padding: 6, borderRadius: 6, border: '1px solid #ddd', fontSize: 12 }}
+                    />
+                  )}
+                </div>
               </div>
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12, paddingTop: 12, borderTop: '1px solid #eee' }}>
                 <button
                   type="button"
                   onClick={handleCancelSondagemModal}
                   style={{
-                    padding: '10px 20px',
+                    padding: '8px 16px',
                     border: '1px solid #ddd',
                     borderRadius: 6,
                     background: 'white',
                     cursor: 'pointer',
                     color: 'var(--text)',
+                    fontSize: 13,
                   }}
                   disabled={savingSondagem}
                 >
@@ -4895,7 +5193,7 @@ function App() {
                 <button
                   type="submit"
                   className="btn-primary"
-                  style={{ width: 'auto', padding: '10px 20px' }}
+                  style={{ width: 'auto', padding: '8px 16px', fontSize: 13 }}
                   disabled={savingSondagem}
                 >
                   {savingSondagem ? 'Salvando...' : 'Salvar'}
@@ -4921,7 +5219,8 @@ function App() {
             alignItems: 'center',
             zIndex: 2100,
           }}
-          onClick={() => setShowSondagemMidiaModal(false)}
+          onMouseDown={handleBackdropMouseDown}
+          onClick={(e) => handleBackdropClick(e, () => setShowSondagemMidiaModal(false))}
         >
           <div
             style={{
@@ -4981,11 +5280,12 @@ function App() {
             alignItems: 'center',
             zIndex: 2000,
           }}
-          onClick={() => {
+          onMouseDown={handleBackdropMouseDown}
+          onClick={(e) => handleBackdropClick(e, () => {
             setShowSchoolModal(false);
             setEditingSchool(null);
             setSchoolFormData({ nome: '', inep: '', endereco: '', tipo: 'Polo' });
-          }}
+          })}
         >
           <div
             style={{
@@ -5102,11 +5402,12 @@ function App() {
             alignItems: 'center',
             zIndex: 2000,
           }}
-          onClick={() => {
+          onMouseDown={handleBackdropMouseDown}
+          onClick={(e) => handleBackdropClick(e, () => {
             setShowClassModal(false);
             setEditingClass(null);
             setClassFormData({ nome: '', ano: [], codigo: '', professor_regente: '', aluno_representante: '', escola_id: activeSchoolId || '', ano_letivo: selectedYear });
-          }}
+          })}
         >
           <div
             style={{
@@ -5366,12 +5667,13 @@ function App() {
             alignItems: 'center',
             zIndex: 2000,
           }}
-          onClick={() => {
+          onMouseDown={handleBackdropMouseDown}
+          onClick={(e) => handleBackdropClick(e, () => {
             setShowStudentModal(false);
             setEditingStudent(null);
             setStudentFormData({ nome: '', data_nascimento: '', turma_id: '', etiqueta_cor: 'azul', matricula: '', nome_responsavel: '', contato: '', aee_deficiencia: '', aee_cid: '', motivo_etiqueta: '' });
-      setAeeFormData({ aee_tem_laudo: false, aee_mediadora: '', aee_plano_individual: '' });
-          }}
+            setAeeFormData({ aee_tem_laudo: false, aee_mediadora: '', aee_plano_individual: '' });
+          })}
         >
           <div
             style={{
@@ -5626,13 +5928,13 @@ function App() {
             alignItems: 'center',
             zIndex: 2000,
           }}
-          onClick={() => {
+          onMouseDown={handleBackdropMouseDown}
+          onClick={(e) => handleBackdropClick(e, () => {
             if (!savingEvent) {
               setShowEventModal(false);
               setEditingEvent(null);
-              // NÃO alterar currentDate ao fechar modal para evitar mudança de mês
             }
-          }}
+          })}
         >
           <div
             style={{
