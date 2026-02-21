@@ -75,6 +75,7 @@ function App() {
   const [dashboardDayEventsLoading, setDashboardDayEventsLoading] = useState(false);
 
   const [showModal, setShowModal] = useState(false);
+  const [editingOccurrence, setEditingOccurrence] = useState(null);
   const [formData, setFormData] = useState(() => ({
     titulo: '',
     tipo: 'Pedagógico',
@@ -220,6 +221,16 @@ function App() {
   const [todayEvents, setTodayEvents] = useState([]);
   const [eventAnexos, setEventAnexos] = useState([]);
   const [loadingAnexos, setLoadingAnexos] = useState(false);
+
+  // Relatórios: filtros e lista gerada
+  const [reportSchoolId, setReportSchoolId] = useState('');
+  const [reportClassId, setReportClassId] = useState('');
+  const [reportEtiqueta, setReportEtiqueta] = useState('');
+  const [reportNivelLeitura, setReportNivelLeitura] = useState('');
+  const [reportClasses, setReportClasses] = useState([]);
+  const [reportList, setReportList] = useState([]);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportGenerated, setReportGenerated] = useState(false);
 
   // Listener de sessão: mantém login ao recarregar e após OAuth
   useEffect(() => {
@@ -505,6 +516,17 @@ function App() {
     return currentView;
   };
 
+  // Nome descritivo da etiqueta (em vez da cor)
+  const getEtiquetaLabel = (etiquetaCor) => {
+    const c = (etiquetaCor || '').toLowerCase();
+    if (c === 'azul') return 'Regular';
+    if (c === 'verde') return 'Avançado';
+    if (c === 'amarelo') return 'Atenção';
+    if (c === 'vermelho') return 'Prioridade';
+    if (c === 'roxo') return 'AEE';
+    return etiquetaCor ? String(etiquetaCor) : '-';
+  };
+
   // Função helper para formatar exibição dos anos escolares
   const formatAnosEscolares = (anoEscolar) => {
     if (!anoEscolar) return 'Ano não informado';
@@ -641,6 +663,23 @@ function App() {
       fetchClasses();
     }
   }, [activeSchoolId, selectedYear, currentView]);
+
+  // Carregar turmas para relatórios quando escola for selecionada
+  useEffect(() => {
+    if (currentView !== 'reports' || !reportSchoolId) {
+      setReportClasses([]);
+      return;
+    }
+    const fetch = async () => {
+      const { data } = await supabase
+        .from('turmas')
+        .select('*')
+        .eq('escola_id', reportSchoolId)
+        .eq('ano_letivo', selectedYear);
+      setReportClasses(data || []);
+    };
+    fetch();
+  }, [currentView, reportSchoolId, selectedYear]);
 
   // Recarregar alunos quando escola ativa mudar
   useEffect(() => {
@@ -943,54 +982,289 @@ function App() {
     }
   };
 
-  const handleSaveOccurrence = async (e) => {
-    e.preventDefault();
-    if (!selectedStudentId) return;
-
-    setSavingOccurrence(true);
-    const { data, error } = await supabase.from('ocorrencias').insert([
-      {
-        aluno_id: selectedStudentId,
-        titulo: formData.titulo,
-        tipo: formData.tipo,
-        data_ocorrencia: formData.data_ocorrencia,
-        descricao: formData.descricao,
-      },
-    ]);
-
-    if (error) {
-      alert('Erro ao salvar ocorrência: ' + error.message);
-      setSavingOccurrence(false);
+  const handleOpenOccurrenceModal = (ocorrencia = null) => {
+    if (ocorrencia) {
+      setEditingOccurrence(ocorrencia);
+      setFormData({
+        titulo: ocorrencia.titulo || '',
+        tipo: ocorrencia.tipo || 'Pedagógico',
+        data_ocorrencia: ocorrencia.data_ocorrencia ? ocorrencia.data_ocorrencia.split('T')[0] : getLocalDateString(),
+        descricao: ocorrencia.descricao || '',
+      });
     } else {
-      // Fechar modal e limpar formulário
-      setShowModal(false);
+      setEditingOccurrence(null);
       setFormData({
         titulo: '',
         tipo: 'Pedagógico',
         data_ocorrencia: getLocalDateString(),
         descricao: '',
       });
-      setSavingOccurrence(false);
+    }
+    setShowModal(true);
+  };
 
-      // Recarregar ocorrências
-      const { data: newData, error: fetchError } = await supabase
+  const handleSaveOccurrence = async (e) => {
+    e.preventDefault();
+    if (!selectedStudentId) return;
+
+    setSavingOccurrence(true);
+    const payload = {
+      titulo: formData.titulo,
+      tipo: formData.tipo,
+      data_ocorrencia: formData.data_ocorrencia,
+      descricao: formData.descricao,
+    };
+
+    if (editingOccurrence?.id) {
+      const { error } = await supabase
         .from('ocorrencias')
-        .select('*')
-        .eq('aluno_id', selectedStudentId);
-      if (!fetchError) {
-        setOccurrences(newData || []);
+        .update(payload)
+        .eq('id', editingOccurrence.id);
+
+      if (error) {
+        alert('Erro ao atualizar ocorrência: ' + error.message);
+        setSavingOccurrence(false);
+      } else {
+        setShowModal(false);
+        setEditingOccurrence(null);
+        setFormData({
+          titulo: '',
+          tipo: 'Pedagógico',
+          data_ocorrencia: getLocalDateString(),
+          descricao: '',
+        });
+        setSavingOccurrence(false);
+
+        const { data: newData, error: fetchError } = await supabase
+          .from('ocorrencias')
+          .select('*')
+          .eq('aluno_id', selectedStudentId);
+        if (!fetchError) setOccurrences(newData || []);
+      }
+    } else {
+      const { error } = await supabase.from('ocorrencias').insert([
+        { aluno_id: selectedStudentId, ...payload },
+      ]);
+
+      if (error) {
+        alert('Erro ao salvar ocorrência: ' + error.message);
+        setSavingOccurrence(false);
+      } else {
+        setShowModal(false);
+        setEditingOccurrence(null);
+        setFormData({
+          titulo: '',
+          tipo: 'Pedagógico',
+          data_ocorrencia: getLocalDateString(),
+          descricao: '',
+        });
+        setSavingOccurrence(false);
+
+        const { data: newData, error: fetchError } = await supabase
+          .from('ocorrencias')
+          .select('*')
+          .eq('aluno_id', selectedStudentId);
+        if (!fetchError) setOccurrences(newData || []);
+      }
+    }
+  };
+
+  const handleDeleteOccurrence = async (ocorrencia) => {
+    if (!ocorrencia?.id || !confirm('Tem certeza que deseja excluir esta ocorrência?')) return;
+
+    const { error } = await supabase.from('ocorrencias').delete().eq('id', ocorrencia.id);
+
+    if (error) {
+      alert('Erro ao excluir ocorrência: ' + error.message);
+    } else {
+      setOccurrences((prev) => prev.filter((o) => o.id !== ocorrencia.id));
+      if (editingOccurrence?.id === ocorrencia.id) {
+        setShowModal(false);
+        setEditingOccurrence(null);
       }
     }
   };
 
   const handleCancelModal = () => {
     setShowModal(false);
+    setEditingOccurrence(null);
     setFormData({
       titulo: '',
       tipo: 'Pedagógico',
       data_ocorrencia: getLocalDateString(),
       descricao: '',
     });
+  };
+
+  // Gerar lista de alunos para relatório
+  const handleGenerateReport = async () => {
+    setReportLoading(true);
+    setReportList([]);
+
+    let turmaIds = [];
+    if (reportClassId) {
+      turmaIds = [reportClassId];
+    } else if (reportSchoolId) {
+      const { data: turmas } = await supabase
+        .from('turmas')
+        .select('id')
+        .eq('escola_id', reportSchoolId)
+        .eq('ano_letivo', selectedYear);
+      turmaIds = (turmas || []).map((t) => t.id);
+    }
+    if (turmaIds.length === 0 && !reportSchoolId) {
+      setReportLoading(false);
+      alert('Selecione pelo menos uma escola ou turma.');
+      return;
+    }
+
+    let query = supabase.from('alunos').select('*, turmas(nome)');
+    if (turmaIds.length > 0) query = query.in('turma_id', turmaIds);
+    if (reportEtiqueta) query = query.eq('etiqueta_cor', reportEtiqueta);
+
+    const { data: alunos, error } = await query;
+    if (error) {
+      alert('Erro ao buscar alunos: ' + error.message);
+      setReportLoading(false);
+      return;
+    }
+
+    let list = (alunos || []).map((a) => ({
+      ...a,
+      turma_nome: a.turmas?.nome || '-',
+      nivel_leitura: '',
+      nivel_escrita: '',
+    }));
+
+    if (reportNivelLeitura && list.length > 0) {
+      const alunoIds = list.map((a) => a.id);
+      const { data: sonds } = await supabase
+        .from('sondagens')
+        .select('aluno_id, nivel_leitura, nivel_escrita, data')
+        .in('aluno_id', alunoIds)
+        .order('data', { ascending: false });
+
+      const latestByAluno = {};
+      (sonds || []).forEach((s) => {
+        if (!latestByAluno[s.aluno_id]) {
+          latestByAluno[s.aluno_id] = { nivel_leitura: s.nivel_leitura, nivel_escrita: s.nivel_escrita };
+        }
+      });
+      list = list
+        .map((a) => ({
+          ...a,
+          nivel_leitura: latestByAluno[a.id]?.nivel_leitura || '-',
+          nivel_escrita: latestByAluno[a.id]?.nivel_escrita || '-',
+        }))
+        .filter((a) => !reportNivelLeitura || a.nivel_leitura === reportNivelLeitura);
+    } else if (list.length > 0) {
+      const alunoIds = list.map((a) => a.id);
+      const { data: sonds } = await supabase
+        .from('sondagens')
+        .select('aluno_id, nivel_leitura, nivel_escrita, data')
+        .in('aluno_id', alunoIds)
+        .order('data', { ascending: false });
+      const latestByAluno = {};
+      (sonds || []).forEach((s) => {
+        if (!latestByAluno[s.aluno_id]) {
+          latestByAluno[s.aluno_id] = { nivel_leitura: s.nivel_leitura, nivel_escrita: s.nivel_escrita };
+        }
+      });
+      list = list.map((a) => ({
+        ...a,
+        nivel_leitura: latestByAluno[a.id]?.nivel_leitura || '-',
+        nivel_escrita: latestByAluno[a.id]?.nivel_escrita || '-',
+      }));
+    }
+
+    setReportList(list);
+    setReportGenerated(true);
+    setReportLoading(false);
+  };
+
+  const exportReportPDF = async () => {
+    if (reportList.length === 0) {
+      alert('Gere a lista antes de exportar.');
+      return;
+    }
+    try {
+      const [{ jsPDF }, { default: autoTable }] = await Promise.all([
+        import('jspdf'),
+        import('jspdf-autotable'),
+      ]);
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm' });
+      const head = [['Nome', 'Turma', 'Etiqueta', 'Nível Leitura', 'Nível Escrita', 'Matrícula', 'Data Nasc.']];
+      const rows = reportList.map((a) => [
+        a.nome || '-',
+        a.turma_nome || '-',
+        getEtiquetaLabel(a.etiqueta_cor),
+        a.nivel_leitura || '-',
+        a.nivel_escrita || '-',
+        a.matricula || '-',
+        a.data_nascimento ? (() => { const [y, m, d] = (a.data_nascimento + '').split(/[T-]/); return d && m && y ? `${d}/${m}/${y}` : a.data_nascimento; })() : '-',
+      ]);
+      doc.setFontSize(14);
+      doc.text('Relatório de Alunos - SACP', 14, 12);
+      autoTable(doc, {
+        head,
+        body: rows,
+        startY: 18,
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [13, 110, 253] },
+      });
+      doc.save(`relatorio-alunos-${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (err) {
+      alert('Erro ao exportar PDF: ' + (err?.message || err));
+    }
+  };
+
+  const exportReportWord = async () => {
+    if (reportList.length === 0) {
+      alert('Gere a lista antes de exportar.');
+      return;
+    }
+    try {
+      const docx = await import('docx');
+      const { saveAs } = await import('file-saver');
+      const { Document, Packer, Paragraph, Table, TableCell, TableRow, WidthType } = docx;
+      const tableRows = [
+      new TableRow({
+        children: ['Nome', 'Turma', 'Etiqueta', 'Nível Leitura', 'Nível Escrita', 'Matrícula', 'Data Nasc.'].map(
+          (text) =>
+            new TableCell({ children: [new Paragraph({ text })] })
+        ),
+      }),
+      ...reportList.map((a) =>
+        new TableRow({
+          children: [
+            a.nome || '-',
+            a.turma_nome || '-',
+            getEtiquetaLabel(a.etiqueta_cor),
+            a.nivel_leitura || '-',
+            a.nivel_escrita || '-',
+            a.matricula || '-',
+            a.data_nascimento ? (() => { const [y, m, d] = (a.data_nascimento + '').split(/[T-]/); return d && m && y ? `${d}/${m}/${y}` : a.data_nascimento; })() : '-',
+          ].map((text) => new TableCell({ children: [new Paragraph({ text: String(text) })] })),
+        })
+      ),
+    ];
+    const table = new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: tableRows,
+    });
+    const doc = new Document({
+      sections: [{
+        children: [
+          new Paragraph({ text: 'Relatório de Alunos - SACP', heading: 'Heading1', spacing: { after: 400 } }),
+          table,
+        ],
+      }],
+    });
+      const blob = await Packer.toBlob(doc);
+      saveAs(blob, `relatorio-alunos-${new Date().toISOString().slice(0, 10)}.docx`);
+    } catch (err) {
+      alert('Erro ao exportar Word: ' + (err?.message || err));
+    }
   };
 
   const handleSaveNote = async (e) => {
@@ -3865,10 +4139,7 @@ function App() {
                       <button
                         className="btn-primary"
                         style={{ width: 'auto', padding: '10px 20px' }}
-                        onClick={() => {
-                          setFormData(prev => ({ ...prev, data_ocorrencia: getLocalDateString() }));
-                          setShowModal(true);
-                        }}
+                        onClick={() => handleOpenOccurrenceModal()}
                       >
                         <i className="fas fa-plus" style={{ marginRight: 5 }} />
                         Nova Ocorrência
@@ -3909,8 +4180,40 @@ function App() {
                                   })()
                                 : 'Data não informada'}
                             </div>
-                            <div style={{ fontSize: '0.9em', color: 'var(--text)', lineHeight: '1.5' }}>
+                            <div style={{ fontSize: '0.9em', color: 'var(--text)', lineHeight: '1.5', marginBottom: 12 }}>
                               {ocorrencia.descricao || 'Sem descrição'}
+                            </div>
+                            <div style={{ display: 'flex', gap: 8, marginTop: 'auto' }}>
+                              <button
+                                type="button"
+                                onClick={() => handleOpenOccurrenceModal(ocorrencia)}
+                                style={{
+                                  padding: '6px 14px',
+                                  border: '1px solid #0d6efd',
+                                  borderRadius: 6,
+                                  background: 'white',
+                                  color: '#0d6efd',
+                                  cursor: 'pointer',
+                                  fontSize: 13,
+                                }}
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteOccurrence(ocorrencia)}
+                                style={{
+                                  padding: '6px 14px',
+                                  border: '1px solid #dc3545',
+                                  borderRadius: 6,
+                                  background: 'white',
+                                  color: '#dc3545',
+                                  cursor: 'pointer',
+                                  fontSize: 13,
+                                }}
+                              >
+                                Excluir
+                              </button>
                             </div>
                           </div>
                         ))}
@@ -4291,42 +4594,233 @@ function App() {
             {/* Reports */}
             {currentView === 'reports' && (
               <div id="view-reports" className="view-section">
-                <h2>Relatórios e Indicadores</h2>
-                <div className="cards-grid" style={{ marginTop: 20 }}>
-                  <div className="card" style={{ cursor: 'pointer' }}>
-                    <i
-                      className="fas fa-file-pdf"
-                      style={{ fontSize: '2em', color: 'var(--danger)', marginBottom: 10 }}
-                    />
-                    <h4>Alunos em Risco</h4>
-                    <small>Gerar PDF</small>
-                  </div>
-                  <div className="card" style={{ cursor: 'pointer' }}>
-                    <i
-                      className="fas fa-table"
-                      style={{ fontSize: '2em', color: 'var(--success)', marginBottom: 10 }}
-                    />
-                    <h4>Resultados Alfabetiza Pará</h4>
-                    <small>Exportar Excel</small>
-                  </div>
-                </div>
+                <h2>Relatórios e Listas</h2>
+                <p style={{ color: 'var(--text-light)', marginBottom: 20 }}>
+                  Gere listas de alunos por escola, turma, etiqueta ou nível de leitura e exporte em PDF ou Word.
+                </p>
+
                 <div
                   style={{
                     background: 'white',
-                    padding: 20,
-                    borderRadius: 8,
-                    marginTop: 20,
-                    height: 200,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    border: '2px dashed #ddd',
+                    padding: 24,
+                    borderRadius: 12,
+                    marginBottom: 20,
+                    border: '1px solid #eee',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
                   }}
                 >
-                  <p style={{ color: 'gray' }}>
-                    [Gráfico: Evolução de Leitura por Turma]
-                  </p>
+                  <h4 style={{ marginTop: 0, marginBottom: 16 }}>Filtros</h4>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                      gap: 16,
+                      alignItems: 'end',
+                    }}
+                  >
+                    <div className="input-group">
+                      <label>Escola</label>
+                      <select
+                        value={reportSchoolId}
+                        onChange={(e) => {
+                          setReportSchoolId(e.target.value);
+                          setReportClassId('');
+                        }}
+                        style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #ddd' }}
+                      >
+                        <option value="">Todas</option>
+                        {(schools || []).map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.nome}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="input-group">
+                      <label>Turma</label>
+                      <select
+                        value={reportClassId}
+                        onChange={(e) => setReportClassId(e.target.value)}
+                        style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #ddd' }}
+                        disabled={!reportSchoolId}
+                      >
+                        <option value="">Todas</option>
+                        {reportClasses.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.nome}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="input-group">
+                      <label>Etiqueta (tag)</label>
+                      <select
+                        value={reportEtiqueta}
+                        onChange={(e) => setReportEtiqueta(e.target.value)}
+                        style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #ddd' }}
+                      >
+                        <option value="">Todas</option>
+                        <option value="azul">Regular</option>
+                        <option value="verde">Avançado</option>
+                        <option value="amarelo">Atenção</option>
+                        <option value="vermelho">Prioridade</option>
+                        <option value="roxo">AEE</option>
+                      </select>
+                    </div>
+                    <div className="input-group">
+                      <label>Nível de leitura</label>
+                      <select
+                        value={reportNivelLeitura}
+                        onChange={(e) => setReportNivelLeitura(e.target.value)}
+                        style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #ddd' }}
+                      >
+                        <option value="">Qualquer</option>
+                        <optgroup label="1º e 2º ano">
+                          <option value="PRÉ – LEITOR 1">PRÉ – LEITOR 1</option>
+                          <option value="PRÉ – LEITOR 2">PRÉ – LEITOR 2</option>
+                          <option value="PRÉ – LEITOR 3">PRÉ – LEITOR 3</option>
+                          <option value="PRÉ – LEITOR 4">PRÉ – LEITOR 4</option>
+                          <option value="LEITOR INICIANTE">LEITOR INICIANTE</option>
+                          <option value="LEITOR FLUENTE">LEITOR FLUENTE</option>
+                        </optgroup>
+                        <optgroup label="3º ao 5º ano">
+                          <option value="PRÉ-LEITOR">PRÉ-LEITOR</option>
+                          <option value="LEITOR DE PALAVRAS SEM FLUÊNCIA">LEITOR DE PALAVRAS SEM FLUÊNCIA</option>
+                          <option value="LEITOR DE PALAVRAS COM FLUÊNCIA">LEITOR DE PALAVRAS COM FLUÊNCIA</option>
+                          <option value="LEITOR DE TEXTO SEM FLUÊNCIA">LEITOR DE TEXTO SEM FLUÊNCIA</option>
+                          <option value="LEITOR DE TEXTO COM FLUÊNCIA">LEITOR DE TEXTO COM FLUÊNCIA</option>
+                          <option value="LEITOR COM FLUÊNCIA, RESPEITA RITMO, INTENSIDADE E ENTONAÇÃO">LEITOR COM FLUÊNCIA, RESPEITA RITMO, INTENSIDADE E ENTONAÇÃO</option>
+                        </optgroup>
+                        <optgroup label="6º ao 9º ano">
+                          <option value="Pré-Leitor">Pré-Leitor</option>
+                          <option value="Leitor de Palavras sem Fluência">Leitor de Palavras sem Fluência</option>
+                          <option value="Leitor de Palavras com Fluência">Leitor de Palavras com Fluência</option>
+                          <option value="Leitor de Frases sem Fluência">Leitor de Frases sem Fluência</option>
+                          <option value="Leitor de Frases com Fluência">Leitor de Frases com Fluência</option>
+                          <option value="Leitor de Texto sem Fluência">Leitor de Texto sem Fluência</option>
+                          <option value="Leitor de Texto com Fluência">Leitor de Texto com Fluência</option>
+                          <option value="Leitor com Fluência, Respeita Ritmo, Intensidade e Entonação">Leitor com Fluência, Respeita Ritmo, Intensidade e Entonação</option>
+                        </optgroup>
+                      </select>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      onClick={handleGenerateReport}
+                      disabled={reportLoading}
+                      style={{ padding: '10px 24px', height: 42 }}
+                    >
+                      {reportLoading ? 'Gerando...' : 'Gerar lista'}
+                    </button>
+                  </div>
                 </div>
+
+                {reportGenerated && (
+                  <div
+                    style={{
+                      background: 'white',
+                      padding: 24,
+                      borderRadius: 12,
+                      border: '1px solid #eee',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+                      <h4 style={{ margin: 0 }}>
+                        {reportList.length} aluno(s) encontrado(s)
+                      </h4>
+                      {reportList.length > 0 && (
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button
+                            type="button"
+                            onClick={exportReportPDF}
+                            style={{
+                              padding: '10px 18px',
+                              border: '1px solid #dc3545',
+                              borderRadius: 6,
+                              background: 'white',
+                              color: '#dc3545',
+                              cursor: 'pointer',
+                              fontSize: 14,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                            }}
+                          >
+                            <i className="fas fa-file-pdf" /> Exportar PDF
+                          </button>
+                          <button
+                            type="button"
+                            onClick={exportReportWord}
+                            style={{
+                              padding: '10px 18px',
+                              border: '1px solid #0d6efd',
+                              borderRadius: 6,
+                              background: 'white',
+                              color: '#0d6efd',
+                              cursor: 'pointer',
+                              fontSize: 14,
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 8,
+                            }}
+                          >
+                            <i className="fas fa-file-word" /> Exportar Word
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {reportList.length > 0 ? (
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                          <thead>
+                            <tr style={{ background: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
+                              <th style={{ padding: 12, textAlign: 'left' }}>Nome</th>
+                              <th style={{ padding: 12, textAlign: 'left' }}>Turma</th>
+                              <th style={{ padding: 12, textAlign: 'left' }}>Etiqueta</th>
+                              <th style={{ padding: 12, textAlign: 'left' }}>Nível Leitura</th>
+                              <th style={{ padding: 12, textAlign: 'left' }}>Nível Escrita</th>
+                              <th style={{ padding: 12, textAlign: 'left' }}>Matrícula</th>
+                              <th style={{ padding: 12, textAlign: 'left' }}>Data Nasc.</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {reportList.map((a, i) => (
+                              <tr key={a.id || i} style={{ borderBottom: '1px solid #eee' }}>
+                                <td style={{ padding: 10 }}>{a.nome || '-'}</td>
+                                <td style={{ padding: 10 }}>{a.turma_nome || '-'}</td>
+                                <td style={{ padding: 10 }}>
+                                  <span
+                                    className={`badge bg-${a.etiqueta_cor === 'vermelho' ? 'red' : a.etiqueta_cor === 'amarelo' ? 'yellow' : a.etiqueta_cor === 'verde' ? 'green' : a.etiqueta_cor === 'roxo' ? 'purple' : 'blue'}`}
+                                  >
+                                    {getEtiquetaLabel(a.etiqueta_cor)}
+                                  </span>
+                                </td>
+                                <td style={{ padding: 10 }}>{a.nivel_leitura || '-'}</td>
+                                <td style={{ padding: 10 }}>{a.nivel_escrita || '-'}</td>
+                                <td style={{ padding: 10 }}>{a.matricula || '-'}</td>
+                                <td style={{ padding: 10 }}>
+                                  {a.data_nascimento
+                                    ? (() => {
+                                        const d = String(a.data_nascimento);
+                                        const m = d.match(/^(\d{4})-(\d{2})-(\d{2})/);
+                                        return m ? `${m[3]}/${m[2]}/${m[1]}` : d;
+                                      })()
+                                    : '-'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p style={{ color: 'var(--text-light)', margin: 0 }}>
+                        Nenhum aluno encontrado com os filtros selecionados. Ajuste os critérios e tente novamente.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -4631,7 +5125,9 @@ function App() {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 style={{ marginBottom: 20, color: 'var(--primary)' }}>Nova Ocorrência</h2>
+            <h2 style={{ marginBottom: 20, color: 'var(--primary)' }}>
+              {editingOccurrence ? 'Editar Ocorrência' : 'Nova Ocorrência'}
+            </h2>
             <form onSubmit={handleSaveOccurrence}>
               <div className="input-group" style={{ marginBottom: 15 }}>
                 <label>Título *</label>
