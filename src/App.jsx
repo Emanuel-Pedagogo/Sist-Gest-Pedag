@@ -1,4 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell,
+} from 'recharts';
 import './App.css';
 import { supabase } from './supabaseClient';
 import BoletimView from './BoletimView';
@@ -51,6 +55,8 @@ function App() {
   const [students, setStudents] = useState([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [studentsError, setStudentsError] = useState(null);
+  const studentsCountRef = useRef(0);
+  studentsCountRef.current = students.length;
 
   const [occurrences, setOccurrences] = useState([]);
   const [occurrencesLoading, setOccurrencesLoading] = useState(false);
@@ -221,16 +227,24 @@ function App() {
   const [todayEvents, setTodayEvents] = useState([]);
   const [eventAnexos, setEventAnexos] = useState([]);
   const [loadingAnexos, setLoadingAnexos] = useState(false);
+  const [agendaBirthdayAlunos, setAgendaBirthdayAlunos] = useState([]); // alunos (id, nome, data_nascimento) para exibir aniversários na agenda
 
   // Relatórios: filtros e lista gerada
+  const [reportYear, setReportYear] = useState(() => new Date().getFullYear());
   const [reportSchoolId, setReportSchoolId] = useState('');
-  const [reportClassId, setReportClassId] = useState('');
+  const [reportGradeLevels, setReportGradeLevels] = useState(null); // null = todas, [] = nenhuma, [...] = selecionadas
   const [reportEtiqueta, setReportEtiqueta] = useState('');
   const [reportNivelLeitura, setReportNivelLeitura] = useState('');
+  const [reportNotasFilter, setReportNotasFilter] = useState('nao');  // 'nao' | 'acima' | 'abaixo'
+  const [reportFaltasFilter, setReportFaltasFilter] = useState('nao'); // 'nao' | 'sim'
   const [reportClasses, setReportClasses] = useState([]);
   const [reportList, setReportList] = useState([]);
   const [reportLoading, setReportLoading] = useState(false);
   const [reportGenerated, setReportGenerated] = useState(false);
+
+  // Gráficos: dados agregados para visualização (mesmo escopo de escola/ano dos relatórios)
+  const [chartDataList, setChartDataList] = useState([]);
+  const [chartLoading, setChartLoading] = useState(false);
 
   // Listener de sessão: mantém login ao recarregar e após OAuth
   useEffect(() => {
@@ -244,7 +258,7 @@ function App() {
         if (savedView) setCurrentView(savedView);
         if (savedSchoolId) setSelectedSchoolId(parseInt(savedSchoolId, 10));
         if (savedClassId) setSelectedClassId(parseInt(savedClassId, 10));
-        if (savedStudentId) setSelectedStudentId(parseInt(savedStudentId, 10));
+        if (savedStudentId) setSelectedStudentId(savedStudentId);
         if (savedTab) setCurrentTab(savedTab);
       }
     };
@@ -279,7 +293,7 @@ function App() {
       if (savedView) setCurrentView(savedView);
       if (savedSchoolId) setSelectedSchoolId(parseInt(savedSchoolId, 10));
       if (savedClassId) setSelectedClassId(parseInt(savedClassId, 10));
-      if (savedStudentId) setSelectedStudentId(parseInt(savedStudentId, 10));
+      if (savedStudentId) setSelectedStudentId(savedStudentId);
       if (savedTab) setCurrentTab(savedTab);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -664,22 +678,67 @@ function App() {
     }
   }, [activeSchoolId, selectedYear, currentView]);
 
-  // Carregar turmas para relatórios quando escola for selecionada
+  // Carregar turmas para relatórios e gráficos (da escola selecionada ou de todas as escolas)
   useEffect(() => {
-    if (currentView !== 'reports' || !reportSchoolId) {
+    if (currentView !== 'reports' && currentView !== 'graficos') {
       setReportClasses([]);
       return;
     }
     const fetch = async () => {
-      const { data } = await supabase
-        .from('turmas')
-        .select('*')
-        .eq('escola_id', reportSchoolId)
-        .eq('ano_letivo', selectedYear);
-      setReportClasses(data || []);
+      let query = supabase.from('turmas').select('*, escolas(nome)').eq('ano_letivo', reportYear);
+      if (reportSchoolId) query = query.eq('escola_id', reportSchoolId);
+      const { data } = await query;
+      const raw = data || [];
+      const unique = [...new Map(raw.map((t) => [t.id, t])).values()];
+      setReportClasses(unique);
     };
     fetch();
-  }, [currentView, reportSchoolId, selectedYear]);
+  }, [currentView, reportSchoolId, reportYear]);
+
+  // Carregar dados para gráficos (alunos + sondagens por escola/ano)
+  useEffect(() => {
+    if (currentView !== 'graficos') {
+      setChartDataList([]);
+      return;
+    }
+    const fetchChartData = async () => {
+      setChartLoading(true);
+      let query = supabase.from('turmas').select('id, nome').eq('ano_letivo', reportYear);
+      if (reportSchoolId) query = query.eq('escola_id', reportSchoolId);
+      const { data: turmas } = await query;
+      const turmaList = turmas || [];
+      const turmaIds = turmaList.map((t) => t.id);
+      if (turmaIds.length === 0) {
+        setChartDataList([]);
+        setChartLoading(false);
+        return;
+      }
+      const turmaById = Object.fromEntries(turmaList.map((t) => [t.id, t.nome]));
+      const { data: alunos } = await supabase.from('alunos').select('id, nome, turma_id, etiqueta_cor').in('turma_id', turmaIds);
+      const alunoList = alunos || [];
+      const alunoIds = alunoList.map((a) => a.id);
+      let list = alunoList.map((a) => ({
+        ...a,
+        turma_nome: turmaById[a.turma_id] || '-',
+        nivel_leitura: '',
+      }));
+      if (alunoIds.length > 0) {
+        const { data: sonds } = await supabase
+          .from('sondagens')
+          .select('aluno_id, nivel_leitura, data')
+          .in('aluno_id', alunoIds)
+          .order('data', { ascending: false });
+        const latestByAluno = {};
+        (sonds || []).forEach((s) => {
+          if (!latestByAluno[s.aluno_id]) latestByAluno[s.aluno_id] = s.nivel_leitura;
+        });
+        list = list.map((a) => ({ ...a, nivel_leitura: latestByAluno[a.id] || 'Sem registro' }));
+      }
+      setChartDataList(list);
+      setChartLoading(false);
+    };
+    fetchChartData();
+  }, [currentView, reportSchoolId, reportYear]);
 
   // Recarregar alunos quando escola ativa mudar
   useEffect(() => {
@@ -747,9 +806,13 @@ function App() {
       const { data, error } = await query;
       
       if (error) {
-        setStudentsError('Erro ao carregar alunos.');
+        // Se já temos lista em cache, não substituir por erro (ex.: voltou da aba e a requisição falhou)
+        if (studentsCountRef.current === 0) {
+          setStudentsError('Erro ao carregar alunos.');
+        }
       } else {
         setStudents(data || []);
+        setStudentsError(null);
       }
       setStudentsLoading(false);
     };
@@ -825,10 +888,11 @@ function App() {
     }
   }, [currentView, activeSchoolId, dashboardSelectedDate, selectedYear]);
 
-  // Carregar eventos da agenda quando a view de agenda for aberta
+  // Carregar eventos da agenda e alunos para aniversários quando a view de agenda for aberta
   useEffect(() => {
     if (currentView === 'agenda' && activeSchoolId) {
       loadAgendaEvents();
+      loadAgendaBirthdayAlunos();
     }
   }, [currentView, activeSchoolId, selectedYear]);
 
@@ -1096,25 +1160,39 @@ function App() {
     });
   };
 
+  // Extrai série (Pré I, Pré II, 1º... 9º) do nome da turma
+  const getGradeFromTurmaNome = (nome) => {
+    if (!nome) return null;
+    const n = (nome || '').toLowerCase();
+    if (n.includes('pré i') || n.includes('pre i') || n.includes('pré 1') || n.includes('pre 1')) return 'Pré I';
+    if (n.includes('pré ii') || n.includes('pre ii') || n.includes('pré 2') || n.includes('pre 2')) return 'Pré II';
+    for (let ano = 1; ano <= 9; ano++) {
+      if (n.includes(`${ano}º`) || n.includes(ano + 'º')) return `${ano}º`;
+    }
+    return null;
+  };
+
+  // Turmas/séries disponíveis: sempre mostra Pré I, Pré II, 1º... 9º
+  const GRADE_ORDER = ['Pré I', 'Pré II', '1º', '2º', '3º', '4º', '5º', '6º', '7º', '8º', '9º'];
+  const reportAvailableGrades = GRADE_ORDER;
+
+  // Filtra turmas pelas selecionadas (null = todas, [] = nenhuma)
+  const turmasForReport = (() => {
+    const list = reportClasses || [];
+    if (reportGradeLevels === null) return list;
+    if (!reportGradeLevels || reportGradeLevels.length === 0) return [];
+    return list.filter((t) => reportGradeLevels.includes(getGradeFromTurmaNome(t.nome)));
+  })();
+
   // Gerar lista de alunos para relatório
   const handleGenerateReport = async () => {
     setReportLoading(true);
     setReportList([]);
 
-    let turmaIds = [];
-    if (reportClassId) {
-      turmaIds = [reportClassId];
-    } else if (reportSchoolId) {
-      const { data: turmas } = await supabase
-        .from('turmas')
-        .select('id')
-        .eq('escola_id', reportSchoolId)
-        .eq('ano_letivo', selectedYear);
-      turmaIds = (turmas || []).map((t) => t.id);
-    }
-    if (turmaIds.length === 0 && !reportSchoolId) {
+    const turmaIds = turmasForReport.map((t) => t.id);
+    if (turmaIds.length === 0) {
       setReportLoading(false);
-      alert('Selecione pelo menos uma escola ou turma.');
+      alert('Nenhuma turma encontrada para o ano letivo selecionado.');
       return;
     }
 
@@ -1177,6 +1255,43 @@ function App() {
       }));
     }
 
+    // Buscar dados do boletim (notas_boletim)
+    if (list.length > 0) {
+      const alunoIds = list.map((a) => a.id);
+      const { data: boletimRows } = await supabase
+        .from('notas_boletim')
+        .select('aluno_id, nota, falta')
+        .in('aluno_id', alunoIds);
+
+      const byAluno = {};
+      (boletimRows || []).forEach((row) => {
+        const id = row.aluno_id;
+        if (!byAluno[id]) byAluno[id] = { qtd_notas: 0, qtd_faltas: 0, tem_acima: false, tem_abaixo: false };
+        const n = row.nota != null && row.nota !== '' ? Number(row.nota) : null;
+        const f = row.falta != null && row.falta !== '' ? Number(row.falta) : 0;
+        if (n != null && !Number.isNaN(n)) {
+          byAluno[id].qtd_notas += 1;
+          if (n >= 5) byAluno[id].tem_acima = true;
+          else byAluno[id].tem_abaixo = true;
+        }
+        if (!Number.isNaN(f)) byAluno[id].qtd_faltas += f;
+      });
+
+      list = list.map((a) => {
+        const b = byAluno[a.id] || { qtd_notas: 0, qtd_faltas: 0, tem_acima: false, tem_abaixo: false };
+        return {
+          ...a,
+          qtd_notas: b.qtd_notas,
+          qtd_faltas: b.qtd_faltas,
+          tem_acima: b.tem_acima,
+          tem_abaixo: b.tem_abaixo,
+        };
+      });
+
+      if (reportNotasFilter === 'acima') list = list.filter((a) => a.tem_acima);
+      else if (reportNotasFilter === 'abaixo') list = list.filter((a) => a.tem_abaixo);
+    }
+
     setReportList(list);
     setReportGenerated(true);
     setReportLoading(false);
@@ -1193,20 +1308,20 @@ function App() {
         import('jspdf-autotable'),
       ]);
       const doc = new jsPDF({ orientation: 'landscape', unit: 'mm' });
-      const head = [['Nome', 'Turma', 'Etiqueta', 'Nível Leitura', 'Nível Escrita', 'Matrícula', 'Data Nasc.']];
-      const rows = reportList.map((a) => [
-        a.nome || '-',
-        a.turma_nome || '-',
-        getEtiquetaLabel(a.etiqueta_cor),
-        a.nivel_leitura || '-',
-        a.nivel_escrita || '-',
-        a.matricula || '-',
-        a.data_nascimento ? (() => { const [y, m, d] = (a.data_nascimento + '').split(/[T-]/); return d && m && y ? `${d}/${m}/${y}` : a.data_nascimento; })() : '-',
-      ]);
+      const showNotas = reportNotasFilter === 'acima' || reportNotasFilter === 'abaixo';
+      const showFaltas = reportFaltasFilter === 'sim';
+      const head = ['Nome', 'Turma', 'Etiqueta', 'Nível Leitura', 'Nível Escrita']
+        .concat(showNotas ? [reportNotasFilter === 'acima' ? 'Acima da média' : 'Abaixo da média'] : [])
+        .concat(showFaltas ? ['Faltas'] : []);
+      const rows = reportList.map((a) =>
+        [a.nome || '-', a.turma_nome || '-', getEtiquetaLabel(a.etiqueta_cor), a.nivel_leitura || '-', a.nivel_escrita || '-']
+          .concat(showNotas ? [String(a.qtd_notas ?? 0)] : [])
+          .concat(showFaltas ? [String(a.qtd_faltas ?? 0)] : [])
+      );
       doc.setFontSize(14);
       doc.text('Relatório de Alunos - SACP', 14, 12);
       autoTable(doc, {
-        head,
+        head: [head],
         body: rows,
         startY: 18,
         styles: { fontSize: 8 },
@@ -1227,27 +1342,27 @@ function App() {
       const docx = await import('docx');
       const { saveAs } = await import('file-saver');
       const { Document, Packer, Paragraph, Table, TableCell, TableRow, WidthType } = docx;
-      const tableRows = [
-      new TableRow({
-        children: ['Nome', 'Turma', 'Etiqueta', 'Nível Leitura', 'Nível Escrita', 'Matrícula', 'Data Nasc.'].map(
-          (text) =>
-            new TableCell({ children: [new Paragraph({ text })] })
-        ),
-      }),
-      ...reportList.map((a) =>
-        new TableRow({
-          children: [
-            a.nome || '-',
-            a.turma_nome || '-',
-            getEtiquetaLabel(a.etiqueta_cor),
-            a.nivel_leitura || '-',
-            a.nivel_escrita || '-',
-            a.matricula || '-',
-            a.data_nascimento ? (() => { const [y, m, d] = (a.data_nascimento + '').split(/[T-]/); return d && m && y ? `${d}/${m}/${y}` : a.data_nascimento; })() : '-',
-          ].map((text) => new TableCell({ children: [new Paragraph({ text: String(text) })] })),
-        })
-      ),
-    ];
+      const showNotas = reportNotasFilter === 'acima' || reportNotasFilter === 'abaixo';
+      const showFaltas = reportFaltasFilter === 'sim';
+      const headerCells = ['Nome', 'Turma', 'Etiqueta', 'Nível Leitura', 'Nível Escrita']
+        .concat(showNotas ? [reportNotasFilter === 'acima' ? 'Acima da média' : 'Abaixo da média'] : [])
+        .concat(showFaltas ? ['Faltas'] : [])
+        .map((text) => new TableCell({ children: [new Paragraph({ text })] }));
+      const dataRows = reportList.map((a) => {
+        const cells = [
+          a.nome || '-',
+          a.turma_nome || '-',
+          getEtiquetaLabel(a.etiqueta_cor),
+          a.nivel_leitura || '-',
+          a.nivel_escrita || '-',
+        ]
+          .concat(showNotas ? [String(a.qtd_notas ?? 0)] : [])
+          .concat(showFaltas ? [String(a.qtd_faltas ?? 0)] : []);
+        return new TableRow({
+          children: cells.map((text) => new TableCell({ children: [new Paragraph({ text: String(text) })] })),
+        });
+      });
+      const tableRows = [new TableRow({ children: headerCells }), ...dataRows];
     const table = new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
       rows: tableRows,
@@ -1531,7 +1646,7 @@ function App() {
           .upload(filePath, sondagemFormData.foto_file, { cacheControl: '3600', upsert: true });
         if (uploadError) {
           setSavingSondagem(false);
-          alert('Erro ao enviar foto: ' + (uploadError.message || uploadError).toString() + '\n\nVerifique: Storage > bucket "sondagens-anexos" existe e tem política de INSERT.');
+          alert('Erro ao enviar foto: ' + (uploadError.message || uploadError).toString() + '\n\nVerifique: Storage > bucket "sondagens-anexos" existe e tem políticas de INSERT e UPDATE.');
           return;
         }
         const { data: urlData } = supabase.storage.from(BUCKET_SONDAGENS).getPublicUrl(filePath);
@@ -1545,7 +1660,7 @@ function App() {
           .upload(filePath, sondagemFormData.audio_file, { cacheControl: '3600', upsert: true });
         if (uploadError) {
           setSavingSondagem(false);
-          alert('Erro ao enviar áudio: ' + (uploadError.message || uploadError).toString() + '\n\nVerifique: Storage > bucket "sondagens-anexos" existe e tem política de INSERT.');
+          alert('Erro ao enviar áudio: ' + (uploadError.message || uploadError).toString() + '\n\nVerifique: Storage > bucket "sondagens-anexos" existe e tem políticas de INSERT e UPDATE.');
           return;
         }
         const { data: urlData } = supabase.storage.from(BUCKET_SONDAGENS).getPublicUrl(filePath);
@@ -1559,7 +1674,7 @@ function App() {
           .upload(filePath, sondagemFormData.arquivo_file, { cacheControl: '3600', upsert: true });
         if (uploadError) {
           setSavingSondagem(false);
-          alert('Erro ao enviar arquivo: ' + (uploadError.message || uploadError).toString() + '\n\nVerifique: Storage > bucket "sondagens-anexos" existe e tem política de INSERT.');
+          alert('Erro ao enviar arquivo: ' + (uploadError.message || uploadError).toString() + '\n\nVerifique: Storage > bucket "sondagens-anexos" existe e tem políticas de INSERT e UPDATE.');
           return;
         }
         const { data: urlData } = supabase.storage.from(BUCKET_SONDAGENS).getPublicUrl(filePath);
@@ -2166,6 +2281,58 @@ function App() {
     } finally {
       setAgendaLoading(false);
     }
+  };
+
+  const loadAgendaBirthdayAlunos = async () => {
+    if (!activeSchoolId) return;
+    try {
+      const { data: turmas } = await supabase
+        .from('turmas')
+        .select('id')
+        .eq('escola_id', activeSchoolId)
+        .eq('ano_letivo', selectedYear);
+      if (!turmas || turmas.length === 0) {
+        setAgendaBirthdayAlunos([]);
+        return;
+      }
+      const turmaIds = turmas.map((t) => t.id);
+      const { data: alunos, error } = await supabase
+        .from('alunos')
+        .select('id, nome, data_nascimento, turmas(nome)')
+        .in('turma_id', turmaIds)
+        .not('data_nascimento', 'is', null);
+      if (error) {
+        setAgendaBirthdayAlunos([]);
+        return;
+      }
+      setAgendaBirthdayAlunos((alunos || []).filter((a) => a.data_nascimento && String(a.data_nascimento).trim() !== ''));
+    } catch (e) {
+      setAgendaBirthdayAlunos([]);
+    }
+  };
+
+  const getBirthdayEventsForDay = (year, month, day) => {
+    return agendaBirthdayAlunos
+      .filter((a) => {
+        if (!a.data_nascimento) return false;
+        const d = new Date(a.data_nascimento + 'T12:00:00');
+        if (isNaN(d.getTime())) return false;
+        return d.getMonth() === month && d.getDate() === day;
+      })
+      .map((a) => {
+        const dataStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const primeiroNome = (a.nome || 'Aluno').trim().split(/\s+/)[0] || (a.nome || 'Aluno');
+        const turmaNome = a.turmas?.nome;
+        const titulo = turmaNome ? `${primeiroNome} (${turmaNome})` : primeiroNome;
+        return {
+          id: 'aniv-' + a.id,
+          titulo,
+          data_inicio: dataStr + 'T00:00:00',
+          data_fim: dataStr + 'T00:00:00',
+          tipo: 'aniversario',
+          cor_etiqueta: '#e91e63',
+        };
+      });
   };
 
   const loadTodayEvents = async () => {
@@ -3018,6 +3185,15 @@ function App() {
                   className={getActiveNav() === 'reports' ? 'active' : ''}
                 >
                   <i className="fas fa-chart-bar" /> Relatórios
+                </li>
+                <li
+                  onClick={() => {
+                    navigate('graficos');
+                    setMobileMenuOpen(false);
+                  }}
+                  className={getActiveNav() === 'graficos' ? 'active' : ''}
+                >
+                  <i className="fas fa-chart-pie" /> Gráficos
                 </li>
                 <li
                   onClick={() => {
@@ -4089,6 +4265,9 @@ function App() {
                       alunoId={selectedStudent.id}
                       nivelEnsino={classes.find((c) => String(c.id) === String(selectedStudent?.turma_id))?.nivel || 'fundamental1'}
                       turmaNome={classes.find((c) => String(c.id) === String(selectedStudent?.turma_id))?.nome || ''}
+                      onEtiquetaAtualizada={(novaCor) => {
+                        setSelectedStudent((prev) => (prev ? { ...prev, etiqueta_cor: novaCor } : null));
+                      }}
                     />
                   </div>
                 )}
@@ -4609,55 +4788,171 @@ function App() {
                     boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
                   }}
                 >
-                  <h4 style={{ marginTop: 0, marginBottom: 16 }}>Filtros</h4>
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                      gap: 16,
-                      alignItems: 'end',
-                    }}
-                  >
-                    <div className="input-group">
-                      <label>Escola</label>
+                  {/* Linha 1: Escola, Ano e Turmas na mesma linha */}
+                  <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                    <div className="input-group" style={{ minWidth: 180, marginBottom: 0 }}>
+                      <div style={{ minHeight: 24, display: 'flex', alignItems: 'center', marginBottom: 6 }}>
+                        <label style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#222' }}>Escola</label>
+                      </div>
                       <select
                         value={reportSchoolId}
                         onChange={(e) => {
                           setReportSchoolId(e.target.value);
-                          setReportClassId('');
+                          setReportGradeLevels(null);
                         }}
-                        style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #ddd' }}
+                        style={{ width: '100%', padding: '9px 10px', height: 38, borderRadius: 6, border: '1px solid #ddd' }}
                       >
-                        <option value="">Todas</option>
+                        <option value="">Todas as escolas</option>
                         {(schools || []).map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.nome}
-                          </option>
+                          <option key={s.id} value={s.id}>{s.nome}</option>
                         ))}
                       </select>
                     </div>
-                    <div className="input-group">
-                      <label>Turma</label>
+                    <div className="input-group" style={{ width: 85, flexShrink: 0, marginBottom: 0 }}>
+                      <div style={{ minHeight: 24, display: 'flex', alignItems: 'center', marginBottom: 6 }}>
+                        <label style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#222' }}>Ano letivo</label>
+                      </div>
                       <select
-                        value={reportClassId}
-                        onChange={(e) => setReportClassId(e.target.value)}
-                        style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #ddd' }}
-                        disabled={!reportSchoolId}
+                        value={reportYear}
+                        onChange={(e) => {
+                          setReportYear(Number(e.target.value));
+                          setReportGradeLevels(null);
+                        }}
+                        style={{ width: '100%', padding: '9px 10px', height: 38, borderRadius: 6, border: '1px solid #ddd' }}
                       >
-                        <option value="">Todas</option>
-                        {reportClasses.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.nome}
-                          </option>
+                        {Array.from({ length: 8 }, (_, i) => new Date().getFullYear() - i + 1).map((y) => (
+                          <option key={y} value={y}>{y}</option>
                         ))}
                       </select>
                     </div>
-                    <div className="input-group">
-                      <label>Etiqueta (tag)</label>
+                    <div className="input-group" style={{ flex: 1, minWidth: 0, marginBottom: 0 }}>
+                      <div style={{ minHeight: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                        <label style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#222' }}>
+                          Turma(s)
+                          <span style={{ fontWeight: 400, color: '#666', marginLeft: 6 }}>
+                            ({reportGradeLevels === null ? 'Todas' : reportGradeLevels.length === 0 ? 'Nenhuma' : reportGradeLevels.length + ' sel.'})
+                          </span>
+                        </label>
+                        {reportClasses.length > 0 && (
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button
+                              type="button"
+                              onClick={() => setReportGradeLevels(null)}
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 600,
+                                padding: '2px 8px',
+                                height: 24,
+                                lineHeight: 1.2,
+                                cursor: 'pointer',
+                                border: '1px solid #0d6efd',
+                                borderRadius: 4,
+                                background: 'white',
+                                color: '#0d6efd',
+                              }}
+                            >
+                              Todas
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setReportGradeLevels([])}
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 600,
+                                padding: '2px 8px',
+                                height: 24,
+                                lineHeight: 1.2,
+                                cursor: 'pointer',
+                                border: '1px solid #6c757d',
+                                borderRadius: 4,
+                                background: 'white',
+                                color: '#6c757d',
+                              }}
+                            >
+                              Limpar
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      <div
+                        style={{
+                          border: '1px solid #ddd',
+                          borderRadius: 6,
+                          padding: 4,
+                          minHeight: 38,
+                          background: '#fafafa',
+                          display: 'flex',
+                          flexWrap: 'nowrap',
+                          gap: 2,
+                          alignItems: 'center',
+                          flex: 1,
+                          minWidth: 0,
+                        }}
+                      >
+                        {reportClasses.length === 0 ? (
+                          <span style={{ color: '#999', fontSize: 12 }}>Carregando...</span>
+                        ) : (
+                          reportAvailableGrades.map((grade) => (
+                            <label
+                              key={grade}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 2,
+                                cursor: 'pointer',
+                                padding: '2px 4px',
+                                borderRadius: 4,
+                                background: (reportGradeLevels === null || reportGradeLevels.includes(grade)) ? 'rgba(13, 110, 253, 0.08)' : 'transparent',
+                                fontSize: 12,
+                                fontWeight: 500,
+                                color: '#333',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={reportGradeLevels === null || reportGradeLevels.includes(grade)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    const next =
+                                      reportGradeLevels === null
+                                        ? reportAvailableGrades.filter((g) => g !== grade)
+                                        : [...reportGradeLevels, grade];
+                                    const all = next.length === reportAvailableGrades.length;
+                                    setReportGradeLevels(all ? null : next);
+                                  } else {
+                                    const next =
+                                      reportGradeLevels === null
+                                        ? reportAvailableGrades.filter((g) => g !== grade)
+                                        : reportGradeLevels.filter((g) => g !== grade);
+                                    setReportGradeLevels(next);
+                                  }
+                                }}
+                                style={{ width: 14, height: 14, cursor: 'pointer', flexShrink: 0 }}
+                              />
+                              <span>{grade}</span>
+                            </label>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Linha 2: Etiqueta, Nível de leitura, Notas, Faltas, Gerar lista - tudo na mesma linha */}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'minmax(100px, 1fr) minmax(140px, 1.5fr) minmax(100px, 1fr) minmax(90px, 1fr) auto',
+                      gap: 12,
+                      alignItems: 'flex-end',
+                    }}
+                  >
+                    <div className="input-group" style={{ minWidth: 0 }}>
+                      <label style={{ margin: 0, marginBottom: 6, fontSize: 14, fontWeight: 600, color: '#222' }}>Etiqueta</label>
                       <select
                         value={reportEtiqueta}
                         onChange={(e) => setReportEtiqueta(e.target.value)}
-                        style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #ddd' }}
+                        style={{ width: '100%', padding: '9px 10px', height: 38, borderRadius: 6, border: '1px solid #ddd' }}
                       >
                         <option value="">Todas</option>
                         <option value="azul">Regular</option>
@@ -4667,12 +4962,12 @@ function App() {
                         <option value="roxo">AEE</option>
                       </select>
                     </div>
-                    <div className="input-group">
-                      <label>Nível de leitura</label>
+                    <div className="input-group" style={{ minWidth: 0 }}>
+                      <label style={{ margin: 0, marginBottom: 6, fontSize: 14, fontWeight: 600, color: '#222' }}>Nível de leitura</label>
                       <select
                         value={reportNivelLeitura}
                         onChange={(e) => setReportNivelLeitura(e.target.value)}
-                        style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #ddd' }}
+                        style={{ width: '100%', padding: '9px 10px', height: 38, borderRadius: 6, border: '1px solid #ddd' }}
                       >
                         <option value="">Qualquer</option>
                         <optgroup label="1º e 2º ano">
@@ -4703,15 +4998,41 @@ function App() {
                         </optgroup>
                       </select>
                     </div>
-                    <button
-                      type="button"
-                      className="btn-primary"
-                      onClick={handleGenerateReport}
-                      disabled={reportLoading}
-                      style={{ padding: '10px 24px', height: 42 }}
-                    >
-                      {reportLoading ? 'Gerando...' : 'Gerar lista'}
-                    </button>
+                    <div className="input-group" style={{ minWidth: 0 }}>
+                      <label style={{ margin: 0, marginBottom: 6, fontSize: 14, fontWeight: 600, color: '#222' }}>Notas</label>
+                      <select
+                        value={reportNotasFilter}
+                        onChange={(e) => setReportNotasFilter(e.target.value)}
+                        style={{ width: '100%', padding: '9px 10px', height: 38, borderRadius: 6, border: '1px solid #ddd' }}
+                      >
+                        <option value="nao">Não mostrar notas</option>
+                        <option value="acima">Acima da média (≥5)</option>
+                        <option value="abaixo">Abaixo da média (&lt;5)</option>
+                      </select>
+                    </div>
+                    <div className="input-group" style={{ minWidth: 0 }}>
+                      <label style={{ margin: 0, marginBottom: 6, fontSize: 14, fontWeight: 600, color: '#222' }}>Faltas</label>
+                      <select
+                        value={reportFaltasFilter}
+                        onChange={(e) => setReportFaltasFilter(e.target.value)}
+                        style={{ width: '100%', padding: '9px 10px', height: 38, borderRadius: 6, border: '1px solid #ddd' }}
+                      >
+                        <option value="nao">Não mostrar faltas</option>
+                        <option value="sim">Mostrar faltas</option>
+                      </select>
+                    </div>
+                    <div className="input-group" style={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                      <label style={{ margin: 0, marginBottom: 6, fontSize: 14, fontWeight: 600, color: '#222', visibility: 'hidden', height: 20 }}>—</label>
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        onClick={handleGenerateReport}
+                        disabled={reportLoading}
+                        style={{ padding: '9px 24px', height: 38 }}
+                      >
+                        {reportLoading ? 'Gerando...' : 'Gerar lista'}
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -4781,8 +5102,12 @@ function App() {
                               <th style={{ padding: 12, textAlign: 'left' }}>Etiqueta</th>
                               <th style={{ padding: 12, textAlign: 'left' }}>Nível Leitura</th>
                               <th style={{ padding: 12, textAlign: 'left' }}>Nível Escrita</th>
-                              <th style={{ padding: 12, textAlign: 'left' }}>Matrícula</th>
-                              <th style={{ padding: 12, textAlign: 'left' }}>Data Nasc.</th>
+                              {(reportNotasFilter === 'acima' || reportNotasFilter === 'abaixo') && (
+                                <th style={{ padding: 12, textAlign: 'left' }}>{reportNotasFilter === 'acima' ? 'Acima da média' : 'Abaixo da média'}</th>
+                              )}
+                              {reportFaltasFilter === 'sim' && (
+                                <th style={{ padding: 12, textAlign: 'left' }}>Faltas</th>
+                              )}
                             </tr>
                           </thead>
                           <tbody>
@@ -4799,16 +5124,12 @@ function App() {
                                 </td>
                                 <td style={{ padding: 10 }}>{a.nivel_leitura || '-'}</td>
                                 <td style={{ padding: 10 }}>{a.nivel_escrita || '-'}</td>
-                                <td style={{ padding: 10 }}>{a.matricula || '-'}</td>
-                                <td style={{ padding: 10 }}>
-                                  {a.data_nascimento
-                                    ? (() => {
-                                        const d = String(a.data_nascimento);
-                                        const m = d.match(/^(\d{4})-(\d{2})-(\d{2})/);
-                                        return m ? `${m[3]}/${m[2]}/${m[1]}` : d;
-                                      })()
-                                    : '-'}
-                                </td>
+                                {(reportNotasFilter === 'acima' || reportNotasFilter === 'abaixo') && (
+                                  <td style={{ padding: 10 }}>{a.qtd_notas ?? 0}</td>
+                                )}
+                                {reportFaltasFilter === 'sim' && (
+                                  <td style={{ padding: 10 }}>{a.qtd_faltas ?? 0}</td>
+                                )}
                               </tr>
                             ))}
                           </tbody>
@@ -4820,6 +5141,153 @@ function App() {
                       </p>
                     )}
                   </div>
+                )}
+              </div>
+            )}
+
+            {/* Gráficos */}
+            {currentView === 'graficos' && (
+              <div id="view-graficos" className="view-section">
+                <h2>Gráficos</h2>
+                <p style={{ color: 'var(--text-light)', marginBottom: 20 }}>
+                  Visualize a distribuição de alunos por etiqueta, turma e nível de leitura. Use os filtros para o mesmo escopo de escola e ano dos relatórios — assim os dados não se conflitam.
+                </p>
+
+                <div
+                  style={{
+                    background: 'white',
+                    padding: 24,
+                    borderRadius: 12,
+                    marginBottom: 24,
+                    border: '1px solid #eee',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+                  }}
+                >
+                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                    <div className="input-group" style={{ minWidth: 180 }}>
+                      <label style={{ margin: 0, marginBottom: 6, fontSize: 14, fontWeight: 600, color: '#222' }}>Escola</label>
+                      <select
+                        value={reportSchoolId}
+                        onChange={(e) => setReportSchoolId(e.target.value)}
+                        style={{ width: '100%', padding: '9px 10px', height: 38, borderRadius: 6, border: '1px solid #ddd' }}
+                      >
+                        <option value="">Todas as escolas</option>
+                        {(schools || []).map((s) => (
+                          <option key={s.id} value={s.id}>{s.nome}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="input-group" style={{ width: 100 }}>
+                      <label style={{ margin: 0, marginBottom: 6, fontSize: 14, fontWeight: 600, color: '#222' }}>Ano letivo</label>
+                      <select
+                        value={reportYear}
+                        onChange={(e) => setReportYear(Number(e.target.value))}
+                        style={{ width: '100%', padding: '9px 10px', height: 38, borderRadius: 6, border: '1px solid #ddd' }}
+                      >
+                        {Array.from({ length: 8 }, (_, i) => new Date().getFullYear() - i + 1).map((y) => (
+                          <option key={y} value={y}>{y}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {chartLoading ? (
+                  <p style={{ color: 'var(--text-light)' }}>Carregando dados para os gráficos...</p>
+                ) : chartDataList.length === 0 ? (
+                  <p style={{ color: 'var(--text-light)' }}>
+                    Nenhum aluno encontrado para o filtro selecionado. Ajuste escola e ano letivo.
+                  </p>
+                ) : (
+                  <>
+                    {(() => {
+                      const etiquetaLabels = { azul: 'Regular', verde: 'Avançado', amarelo: 'Atenção', vermelho: 'Prioridade', roxo: 'AEE' };
+                      const etiquetaCores = { azul: '#3498DB', verde: '#2ecc71', amarelo: '#f1c40f', vermelho: '#e74c3c', roxo: '#9b59b6' };
+                      const ordemEtiquetas = ['azul', 'verde', 'amarelo', 'vermelho', 'roxo'];
+                      const byEtiqueta = chartDataList.reduce((acc, a) => {
+                        const cor = a.etiqueta_cor || 'azul';
+                        acc[cor] = (acc[cor] || 0) + 1;
+                        return acc;
+                      }, {});
+                      const pieData = ordemEtiquetas
+                        .filter((cor) => (byEtiqueta[cor] || 0) > 0)
+                        .map((cor) => ({
+                          name: etiquetaLabels[cor] || cor,
+                          value: byEtiqueta[cor],
+                          cor,
+                        }));
+
+                      const byTurma = chartDataList.reduce((acc, a) => {
+                        const t = a.turma_nome || '-';
+                        acc[t] = (acc[t] || 0) + 1;
+                        return acc;
+                      }, {});
+                      const barTurmaData = Object.entries(byTurma)
+                        .map(([turma, total]) => ({ turma, total }))
+                        .sort((a, b) => (a.turma > b.turma ? 1 : -1));
+
+                      const byNivel = chartDataList.reduce((acc, a) => {
+                        const n = a.nivel_leitura || 'Sem registro';
+                        acc[n] = (acc[n] || 0) + 1;
+                        return acc;
+                      }, {});
+                      const barNivelData = Object.entries(byNivel)
+                        .map(([nivel, total]) => ({ nivel, total }))
+                        .sort((a, b) => b.total - a.total);
+
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
+                          <div style={{ background: 'white', padding: 24, borderRadius: 12, border: '1px solid #eee', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+                            <h4 style={{ margin: '0 0 16px 0', fontSize: 16 }}>Alunos por etiqueta</h4>
+                            <ResponsiveContainer width="100%" height={280}>
+                              <PieChart>
+                                <Pie
+                                  data={pieData}
+                                  dataKey="value"
+                                  nameKey="name"
+                                  cx="50%"
+                                  cy="50%"
+                                  outerRadius={100}
+                                  label={({ name, value }) => `${name}: ${value}`}
+                                >
+                                  {pieData.map((entry) => (
+                                    <Cell key={entry.cor} fill={etiquetaCores[entry.cor]} />
+                                  ))}
+                                </Pie>
+                                <Tooltip />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          </div>
+
+                          <div style={{ background: 'white', padding: 24, borderRadius: 12, border: '1px solid #eee', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+                            <h4 style={{ margin: '0 0 16px 0', fontSize: 16 }}>Alunos por turma</h4>
+                            <ResponsiveContainer width="100%" height={320}>
+                              <BarChart data={barTurmaData} margin={{ top: 8, right: 16, left: 8, bottom: 60 }}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="turma" angle={-45} textAnchor="end" height={60} tick={{ fontSize: 12 }} />
+                                <YAxis allowDecimals={false} />
+                                <Tooltip />
+                                <Bar dataKey="total" name="Alunos" fill="#3498DB" radius={[4, 4, 0, 0]} />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+
+                          <div style={{ background: 'white', padding: 24, borderRadius: 12, border: '1px solid #eee', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+                            <h4 style={{ margin: '0 0 16px 0', fontSize: 16 }}>Alunos por nível de leitura</h4>
+                            <ResponsiveContainer width="100%" height={Math.max(320, barNivelData.length * 28)}>
+                              <BarChart data={barNivelData} layout="vertical" margin={{ left: 120, right: 24 }}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis type="number" allowDecimals={false} />
+                                <YAxis type="category" dataKey="nivel" width={115} tick={{ fontSize: 11 }} />
+                                <Tooltip />
+                                <Bar dataKey="total" name="Alunos" fill="#2ecc71" radius={[0, 4, 4, 0]} />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </>
                 )}
               </div>
             )}
@@ -4974,11 +5442,13 @@ function App() {
             }
 
             for (let day = 1; day <= daysInMonth; day++) {
-                const dayEvents = agendaEvents.filter(ev => {
+                const dayAgendaEvents = agendaEvents.filter(ev => {
                     if (!ev.data_inicio) return false;
                     const evDate = new Date(ev.data_inicio);
                     return evDate.getFullYear() === year && evDate.getMonth() === month && evDate.getDate() === day;
                 });
+                const dayBirthdays = getBirthdayEventsForDay(year, month, day);
+                const dayEvents = [...dayAgendaEvents, ...dayBirthdays];
 
                 slots.push(
                     <div key={day}
@@ -5004,12 +5474,14 @@ function App() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '5px' }}>
                             {dayEvents.map(ev => {
                                 const inicio = splitDateTime(ev.data_inicio);
-                                const fim = splitDateTime(ev.data_fim);
+                                const fim = ev.data_fim ? splitDateTime(ev.data_fim) : inicio;
                                 const cor = (typeof ev.cor_etiqueta === 'string' && ev.cor_etiqueta.startsWith('#')) ? ev.cor_etiqueta : (ev.cor_etiqueta === 'vermelho' ? '#ef4444' : ev.cor_etiqueta === 'verde' ? '#10b981' : ev.cor_etiqueta === 'amarelo' ? '#eab308' : '#3b82f6');
+                                const isAniversario = ev.tipo === 'aniversario';
                                 return (
                                 <div key={ev.id}
                                      onClick={(e) => {
                                          e.stopPropagation();
+                                         if (isAniversario) return;
                                          setEditingEvent(ev);
                                          setEventFormData({
                                              titulo: ev.titulo || '',
@@ -5027,7 +5499,8 @@ function App() {
                                      style={{
                                          fontSize: '0.75rem', padding: '2px 4px', borderRadius: '4px', color: 'white',
                                          background: cor,
-                                         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+                                         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                         cursor: isAniversario ? 'default' : 'pointer',
                                      }}>
                                     {ev.titulo}
                                 </div>
