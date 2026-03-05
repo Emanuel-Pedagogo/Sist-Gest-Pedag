@@ -125,14 +125,16 @@ function App() {
     observacoes: '',
     foto_escrita_url: '',
     audio_leitura_url: '',
+    video_leitura_url: '',
     arquivo_url: '',
     foto_file: null,
     audio_file: null,
+    video_file: null,
     arquivo_file: null,
   });
   const [savingSondagem, setSavingSondagem] = useState(false);
   const [showSondagemMidiaModal, setShowSondagemMidiaModal] = useState(false);
-  const [sondagemMidiaTipo, setSondagemMidiaTipo] = useState('foto'); // 'foto' | 'audio'
+  const [sondagemMidiaTipo, setSondagemMidiaTipo] = useState('foto'); // 'foto' | 'audio' | 'video'
   const [sondagemMidiaUrl, setSondagemMidiaUrl] = useState('');
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -1562,9 +1564,11 @@ function App() {
         observacoes: sondagem.observacoes || '',
         foto_escrita_url: sondagem.foto_escrita_url || '',
         audio_leitura_url: sondagem.audio_leitura_url || '',
+        video_leitura_url: sondagem.video_leitura_url || '',
         arquivo_url: sondagem.arquivo_url || '',
         foto_file: null,
         audio_file: null,
+        video_file: null,
         arquivo_file: null,
       });
     } else {
@@ -1576,9 +1580,11 @@ function App() {
         observacoes: '',
         foto_escrita_url: '',
         audio_leitura_url: '',
+        video_leitura_url: '',
         arquivo_url: '',
         foto_file: null,
         audio_file: null,
+        video_file: null,
         arquivo_file: null,
       });
     }
@@ -1595,9 +1601,11 @@ function App() {
       observacoes: '',
       foto_escrita_url: '',
       audio_leitura_url: '',
+      video_leitura_url: '',
       arquivo_url: '',
       foto_file: null,
       audio_file: null,
+      video_file: null,
       arquivo_file: null,
     });
   };
@@ -6043,6 +6051,7 @@ function App() {
                     <input
                       type="file"
                       accept="image/*"
+                      capture="environment"
                       onChange={(e) =>
                         setSondagemFormData({
                           ...sondagemFormData,
@@ -6087,6 +6096,7 @@ function App() {
                     <input
                       type="file"
                       accept="audio/*"
+                      capture
                       onChange={(e) =>
                         setSondagemFormData({
                           ...sondagemFormData,
