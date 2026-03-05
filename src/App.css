@@ -582,13 +582,15 @@ h1 {
 /* Mobile Menu Button */
 .mobile-menu-btn {
   display: none;
-  background: none;
-  border: none;
+  background: var(--primary);
+  border: 1px solid rgba(0, 0, 0, 0.05);
   font-size: 1.5em;
-  color: var(--primary);
+  color: #ffffff;
   cursor: pointer;
   padding: 8px;
   margin-right: 10px;
+  border-radius: 999px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
 }
 
 /* Mobile Overlay */

@@ -3238,9 +3238,9 @@ function App() {
               <button
                 className="mobile-menu-btn"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                aria-label="Toggle menu"
+                aria-label="Abrir menu"
               >
-                <i className="fas fa-bars" />
+                ☰
               </button>
               <h1>{getPageTitle()}</h1>
               <div style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
