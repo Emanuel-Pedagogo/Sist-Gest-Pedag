@@ -203,6 +203,20 @@ function App() {
   const [filterStudentTurmaId, setFilterStudentTurmaId] = useState('');
   const [filterStudentEtiquetaCor, setFilterStudentEtiquetaCor] = useState('');
 
+  // Professores
+  const [teachers, setTeachers] = useState([]);
+  const [teachersLoading, setTeachersLoading] = useState(false);
+  const [teachersError, setTeachersError] = useState(null);
+  const [showTeacherModal, setShowTeacherModal] = useState(false);
+  const [editingTeacher, setEditingTeacher] = useState(null);
+  const [teacherFormData, setTeacherFormData] = useState({
+    nome: '',
+    disciplina: '',
+    turmas_ids: [],
+  });
+  const [savingTeacher, setSavingTeacher] = useState(false);
+  const [teacherSearchTerm, setTeacherSearchTerm] = useState('');
+
   // Biblioteca / Empréstimos de livros (estado apenas em memória)
   const [libraryBooks, setLibraryBooks] = useState([]);
   const [libraryBookForm, setLibraryBookForm] = useState({
@@ -531,6 +545,7 @@ function App() {
       schools: 'Gestão de Escolas',
       classes: 'Gestão de Turmas',
       students: 'Gestão de Alunos',
+      teachers: 'Gestão de Professores',
       'student-detail': 'Detalhes do Aluno',
       reports: 'Relatórios',
       emprestimos: 'Biblioteca e Empréstimos',
@@ -595,18 +610,22 @@ function App() {
         setSchools([]);
       } else {
         setSchools(data || []);
-        // Se não há escola ativa, definir Polo ou primeira escola
-        if (data && data.length > 0) {
+        const activeList = (data || []).filter((s) => !s.arquivada);
+        // Se não há escola ativa, definir Polo (não arquivada) ou primeira escola ativa
+        if (activeList.length > 0) {
           setActiveSchoolId((prev) => {
             if (prev) return prev;
-            const poloSchool = data.find((s) => s.tipo_estrutura === 'Polo');
-            return poloSchool ? poloSchool.id : data[0].id;
+            const poloSchool = activeList.find((s) => s.tipo_estrutura === 'Polo');
+            return poloSchool ? poloSchool.id : activeList[0].id;
           });
           setActiveSchool((prev) => {
             if (prev) return prev;
-            const poloSchool = data.find((s) => s.tipo_estrutura === 'Polo');
-            return poloSchool || data[0];
+            const poloSchool = activeList.find((s) => s.tipo_estrutura === 'Polo');
+            return poloSchool || activeList[0];
           });
+        } else {
+          setActiveSchoolId(null);
+          setActiveSchool(null);
         }
       }
       setSchoolsLoading(false);
@@ -661,15 +680,18 @@ function App() {
       setClassesLoading(false);
     };
 
-    // Carregar turmas na view Turmas ou na view Alunos (para o modal de novo aluno ter a lista de turmas)
-    if ((currentView === 'classes' || currentView === 'students') && (activeSchoolId || selectedSchoolId)) {
+    // Carregar turmas na view Turmas/Alunos/Professores (para modais terem lista)
+    if (
+      (currentView === 'classes' || currentView === 'students' || currentView === 'teachers') &&
+      (activeSchoolId || selectedSchoolId)
+    ) {
       fetchClasses();
     }
   }, [currentView, activeSchoolId, selectedSchoolId, selectedYear]);
 
   // Recarregar turmas quando escola ativa mudar (Turmas ou Alunos, para o modal ter lista)
   useEffect(() => {
-    if (activeSchoolId && (currentView === 'classes' || currentView === 'students')) {
+    if (activeSchoolId && (currentView === 'classes' || currentView === 'students' || currentView === 'teachers')) {
       const fetchClasses = async () => {
         setClassesLoading(true);
         const { data, error } = await supabase
@@ -700,6 +722,36 @@ function App() {
       fetchClasses();
     }
   }, [activeSchoolId, selectedYear, currentView]);
+
+  // Carregar professores quando a view de professores for aberta
+  useEffect(() => {
+    const fetchTeachers = async () => {
+      const schoolId = activeSchoolId || selectedSchoolId;
+      if (!schoolId) return;
+
+      setTeachersLoading(true);
+      setTeachersError(null);
+
+      const { data, error } = await supabase
+        .from('professores')
+        .select('*')
+        .eq('escola_id', schoolId)
+        .eq('ano_letivo', selectedYear)
+        .order('nome', { ascending: true });
+
+      if (error) {
+        setTeachersError('Erro ao carregar professores.');
+      } else {
+        setTeachers(data || []);
+        setTeachersError(null);
+      }
+      setTeachersLoading(false);
+    };
+
+    if (currentView === 'teachers') {
+      fetchTeachers();
+    }
+  }, [currentView, activeSchoolId, selectedSchoolId, selectedYear]);
 
   // Carregar turmas para relatórios e gráficos (da escola selecionada ou de todas as escolas)
   useEffect(() => {
@@ -1950,6 +2002,36 @@ function App() {
     }
   };
 
+  const handleToggleArchiveSchool = async (school) => {
+    const willArchive = !school?.arquivada;
+    const msg = willArchive ? 'Arquivar esta escola?' : 'Desarquivar esta escola?';
+    if (!confirm(msg)) return;
+
+    const { error } = await supabase
+      .from('escolas')
+      .update({ arquivada: willArchive })
+      .eq('id', school.id);
+
+    if (error) {
+      alert('Erro ao atualizar escola: ' + error.message);
+      return;
+    }
+
+    const { data: newData } = await supabase.from('escolas').select('*');
+    if (newData) {
+      setSchools(newData);
+
+      // Se arquivou a escola ativa, escolher outra escola ativa automaticamente
+      if (willArchive && String(activeSchoolId) === String(school.id)) {
+        const activeList = (newData || []).filter((s) => !s.arquivada);
+        const poloSchool = activeList.find((s) => s.tipo_estrutura === 'Polo');
+        const next = poloSchool || activeList[0] || null;
+        setActiveSchoolId(next ? next.id : null);
+        setActiveSchool(next);
+      }
+    }
+  };
+
   const handleChangeActiveSchool = (schoolId) => {
     if (schoolId == null || schoolId === '') return;
     const school = schools.find((s) => String(s.id) === String(schoolId));
@@ -3006,6 +3088,87 @@ function App() {
     }
   };
 
+  // Funções CRUD de Professores
+  const handleSaveTeacher = async (e) => {
+    e.preventDefault();
+    const schoolId = activeSchoolId || selectedSchoolId;
+    if (!schoolId) {
+      alert('Selecione uma escola.');
+      return;
+    }
+
+    if (!teacherFormData.nome?.trim()) {
+      alert('Informe o nome do professor.');
+      return;
+    }
+    if (!teacherFormData.disciplina?.trim()) {
+      alert('Informe a disciplina.');
+      return;
+    }
+
+    setSavingTeacher(true);
+
+    const teacherData = {
+      escola_id: schoolId,
+      ano_letivo: selectedYear,
+      nome: teacherFormData.nome.trim(),
+      disciplina: teacherFormData.disciplina.trim(),
+      turmas_ids: Array.isArray(teacherFormData.turmas_ids) ? teacherFormData.turmas_ids : [],
+    };
+
+    let error;
+    if (editingTeacher) {
+      const { error: updateError } = await supabase
+        .from('professores')
+        .update(teacherData)
+        .eq('id', editingTeacher.id);
+      error = updateError;
+    } else {
+      const { error: insertError } = await supabase.from('professores').insert([teacherData]);
+      error = insertError;
+    }
+
+    if (error) {
+      alert('Erro ao salvar professor: ' + error.message);
+      setSavingTeacher(false);
+      return;
+    }
+
+    setShowTeacherModal(false);
+    setEditingTeacher(null);
+    setTeacherFormData({ nome: '', disciplina: '', turmas_ids: [] });
+    setSavingTeacher(false);
+
+    // Recarregar lista
+    const { data: newData } = await supabase
+      .from('professores')
+      .select('*')
+      .eq('escola_id', schoolId)
+      .eq('ano_letivo', selectedYear)
+      .order('nome', { ascending: true });
+    if (newData) setTeachers(newData);
+  };
+
+  const handleEditTeacher = (prof) => {
+    setEditingTeacher(prof);
+    setTeacherFormData({
+      nome: prof.nome || '',
+      disciplina: prof.disciplina || '',
+      turmas_ids: Array.isArray(prof.turmas_ids) ? prof.turmas_ids : [],
+    });
+    setShowTeacherModal(true);
+  };
+
+  const handleDeleteTeacher = async (teacherId) => {
+    if (!confirm('Tem certeza que deseja excluir este professor?')) return;
+    const { error } = await supabase.from('professores').delete().eq('id', teacherId);
+    if (error) {
+      alert('Erro ao excluir professor: ' + error.message);
+      return;
+    }
+    setTeachers((prev) => prev.filter((t) => String(t.id) !== String(teacherId)));
+  };
+
   // Ordem crescente: Pré I, Pré II, 1º ao 9º ano (para ordenar turmas e alunos por turma)
   const getTurmaSortOrder = (nome) => {
     if (!nome) return 999;
@@ -3020,6 +3183,7 @@ function App() {
 
   // Filtrar turmas e alunos por busca (classes pode estar vazio; evita erro ao voltar para lista de turmas)
   const classesList = classes || [];
+  const activeSchoolsList = (schools || []).filter((s) => !s.arquivada);
   const filteredClasses = classesList.filter((turma) =>
     turma.nome?.toLowerCase().includes(classSearchTerm.toLowerCase()) ||
     turma.codigo?.toLowerCase().includes(classSearchTerm.toLowerCase())
@@ -3052,6 +3216,11 @@ function App() {
     if (orderA !== orderB) return orderA - orderB;
     return (a.nome || '').localeCompare(b.nome || '', 'pt-BR');
   });
+
+  const filteredTeachers = teachers.filter((p) =>
+    (p.nome || '').toLowerCase().includes(teacherSearchTerm.toLowerCase()) ||
+    (p.disciplina || '').toLowerCase().includes(teacherSearchTerm.toLowerCase())
+  );
 
   return (
     <>
@@ -3310,6 +3479,15 @@ function App() {
                 </li>
                 <li
                   onClick={() => {
+                    navigate('teachers');
+                    setMobileMenuOpen(false);
+                  }}
+                  className={getActiveNav() === 'teachers' ? 'active' : ''}
+                >
+                  <i className="fas fa-chalkboard-teacher" /> Professores
+                </li>
+                <li
+                  onClick={() => {
                     navigate('emprestimos');
                     setMobileMenuOpen(false);
                   }}
@@ -3379,7 +3557,7 @@ function App() {
                 <select
                   value={activeSchoolId ?? ''}
                   onChange={(e) => handleChangeActiveSchool(e.target.value || null)}
-                  disabled={schoolsLoading || schools.length === 0}
+                  disabled={schoolsLoading || activeSchoolsList.length === 0}
                   style={{
                     padding: '8px 12px',
                     border: '1px solid #ddd',
@@ -3387,15 +3565,19 @@ function App() {
                     fontSize: '0.9em',
                     background: 'white',
                     color: 'var(--text)',
-                    cursor: schoolsLoading || schools.length === 0 ? 'not-allowed' : 'pointer',
+                    cursor: schoolsLoading || activeSchoolsList.length === 0 ? 'not-allowed' : 'pointer',
                     minWidth: 180,
                   }}
-                  title={schoolsError || (schools.length === 0 && !schoolsLoading ? 'Cadastre uma escola em Gestão de Escolas' : '')}
+                  title={schoolsError || (activeSchoolsList.length === 0 && !schoolsLoading ? 'Cadastre ou desarquive uma escola em Gestão de Escolas' : '')}
                 >
                   <option value="">
-                    {schoolsLoading ? 'Carregando escolas...' : schools.length === 0 ? 'Nenhuma escola' : 'Selecione a escola'}
+                    {schoolsLoading
+                      ? 'Carregando escolas...'
+                      : activeSchoolsList.length === 0
+                      ? 'Nenhuma escola ativa'
+                      : 'Selecione a escola'}
                   </option>
-                  {schools.map((school) => (
+                  {activeSchoolsList.map((school) => (
                     <option key={school.id} value={school.id}>
                       {school.nome} ({school.tipo_estrutura})
                     </option>
@@ -3652,7 +3834,14 @@ function App() {
                   )}
                   {!schoolsLoading &&
                     !schoolsError &&
-                    schools.map((school) => (
+                    [...schools]
+                      .sort((a, b) => {
+                        const arqA = a.arquivada ? 1 : 0;
+                        const arqB = b.arquivada ? 1 : 0;
+                        if (arqA !== arqB) return arqA - arqB; // ativas primeiro
+                        return (a.nome || '').localeCompare(b.nome || '', 'pt-BR');
+                      })
+                      .map((school) => (
                       <div key={school.id} className="list-item">
                         <div style={{ flex: 1 }}>
                           <strong>{school.nome}</strong>
@@ -3667,8 +3856,39 @@ function App() {
                           >
                             {school.tipo_estrutura}
                           </span>
+                          {school.arquivada && (
+                            <span
+                              className="badge"
+                              style={{
+                                marginTop: 5,
+                                display: 'inline-block',
+                                marginLeft: 8,
+                                background: '#6b7280',
+                                color: 'white',
+                              }}
+                            >
+                              Arquivada
+                            </span>
+                          )}
                         </div>
                         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleArchiveSchool(school);
+                            }}
+                            style={{
+                              background: school.arquivada ? '#374151' : '#f59e0b',
+                              color: 'white',
+                              border: 'none',
+                              padding: '8px 12px',
+                              borderRadius: 6,
+                              cursor: 'pointer',
+                            }}
+                            title={school.arquivada ? 'Desarquivar escola' : 'Arquivar escola'}
+                          >
+                            <i className={`fas ${school.arquivada ? 'fa-box-open' : 'fa-archive'}`} />
+                          </button>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -4282,6 +4502,123 @@ function App() {
                                 e.stopPropagation();
                                 handleDeleteStudent(aluno.id);
                               }}
+                              style={{
+                                background: 'var(--danger)',
+                                color: 'white',
+                                border: 'none',
+                                padding: '8px 12px',
+                                borderRadius: 6,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <i className="fas fa-trash" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
+
+            {currentView === 'teachers' && (
+              <div id="view-teachers" className="view-section">
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: 20,
+                    flexWrap: 'wrap',
+                    gap: 15,
+                  }}
+                >
+                  <h2 style={{ margin: 0 }}>
+                    Professores {activeSchool ? `- ${activeSchool.nome}` : ''}
+                  </h2>
+                  <button
+                    className="btn-primary"
+                    style={{ width: 'auto', padding: '10px 20px' }}
+                    onClick={() => {
+                      setEditingTeacher(null);
+                      setTeacherFormData({ nome: '', disciplina: '', turmas_ids: [] });
+                      setShowTeacherModal(true);
+                    }}
+                  >
+                    <i className="fas fa-plus" style={{ marginRight: 5 }} />
+                    Novo Professor
+                  </button>
+                </div>
+
+                <div style={{ marginBottom: 20, display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
+                  <div style={{ flex: 1, minWidth: 240 }}>
+                    <input
+                      type="text"
+                      placeholder="Digite o nome ou a disciplina..."
+                      value={teacherSearchTerm}
+                      onChange={(e) => setTeacherSearchTerm(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: 10,
+                        border: '1px solid #ddd',
+                        borderRadius: 6,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="list-container">
+                  {teachersLoading && (
+                    <div className="list-item">
+                      <span>Carregando professores...</span>
+                    </div>
+                  )}
+                  {teachersError && (
+                    <div className="list-item">
+                      <span>{teachersError}</span>
+                    </div>
+                  )}
+                  {!teachersLoading && !teachersError && filteredTeachers.length === 0 && (
+                    <div className="list-item">
+                      <span>Nenhum professor encontrado.</span>
+                    </div>
+                  )}
+
+                  {!teachersLoading &&
+                    !teachersError &&
+                    filteredTeachers.map((p) => {
+                      const turmaNomes = (Array.isArray(p.turmas_ids) ? p.turmas_ids : [])
+                        .map((id) => classesList.find((t) => String(t.id) === String(id))?.nome)
+                        .filter(Boolean);
+
+                      return (
+                        <div key={p.id} className="list-item">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
+                            <i className="fas fa-chalkboard-teacher" style={{ color: 'var(--primary)', fontSize: '1.2em', width: 24, textAlign: 'center' }} />
+                            <div>
+                              <strong>{p.nome}</strong>
+                              <div style={{ fontSize: '0.8em', color: 'gray' }}>
+                                Disciplina: {p.disciplina || 'Não informado'}
+                                {turmaNomes.length > 0 ? ` • Turmas: ${turmaNomes.join(', ')}` : ' • Turmas: -'}
+                              </div>
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                            <button
+                              onClick={() => handleEditTeacher(p)}
+                              style={{
+                                background: 'var(--accent)',
+                                color: 'white',
+                                border: 'none',
+                                padding: '8px 12px',
+                                borderRadius: 6,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              <i className="fas fa-edit" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteTeacher(p.id)}
                               style={{
                                 background: 'var(--danger)',
                                 color: 'white',
@@ -7572,6 +7909,178 @@ function App() {
                   disabled={savingStudent}
                 >
                   {savingStudent ? 'Salvando...' : 'Salvar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showTeacherModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 2000,
+          }}
+          onMouseDown={handleBackdropMouseDown}
+          onClick={(e) =>
+            handleBackdropClick(e, () => {
+              if (!savingTeacher) {
+                setShowTeacherModal(false);
+                setEditingTeacher(null);
+                setTeacherFormData({ nome: '', disciplina: '', turmas_ids: [] });
+              }
+            })
+          }
+        >
+          <div
+            style={{
+              background: 'white',
+              padding: 30,
+              borderRadius: 12,
+              width: '90%',
+              maxWidth: 650,
+              boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ marginBottom: 20, color: 'var(--primary)' }}>
+              {editingTeacher ? 'Editar Professor' : 'Novo Professor'}
+            </h2>
+            <form onSubmit={handleSaveTeacher}>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '15px',
+                }}
+              >
+                <div className="input-group">
+                  <label>Nome *</label>
+                  <input
+                    type="text"
+                    required
+                    value={teacherFormData.nome}
+                    onChange={(e) => setTeacherFormData({ ...teacherFormData, nome: e.target.value })}
+                    placeholder="Nome completo do professor"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
+                    data-form-type="other"
+                  />
+                </div>
+
+                <div className="input-group">
+                  <label>Disciplina *</label>
+                  <input
+                    type="text"
+                    required
+                    value={teacherFormData.disciplina}
+                    onChange={(e) => setTeacherFormData({ ...teacherFormData, disciplina: e.target.value })}
+                    placeholder="Ex: Matemática"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    spellCheck={false}
+                    data-form-type="other"
+                  />
+                </div>
+              </div>
+
+              <div className="input-group" style={{ marginTop: 12 }}>
+                <label>Turmas que leciona</label>
+                <div
+                  style={{
+                    border: '1px solid #ddd',
+                    borderRadius: 8,
+                    padding: 10,
+                    maxHeight: 220,
+                    overflowY: 'auto',
+                    background: '#fff',
+                  }}
+                >
+                  {classesList.length === 0 ? (
+                    <div style={{ color: 'gray', fontSize: '0.9em' }}>
+                      Nenhuma turma cadastrada para a escola/ano selecionados.
+                    </div>
+                  ) : (
+                    classesList
+                      .slice()
+                      .sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'))
+                      .map((turma) => {
+                        const checked = (teacherFormData.turmas_ids || []).some((id) => String(id) === String(turma.id));
+                        return (
+                          <label
+                            key={turma.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 10,
+                              padding: '6px 4px',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                const current = Array.isArray(teacherFormData.turmas_ids)
+                                  ? teacherFormData.turmas_ids
+                                  : [];
+                                const next = e.target.checked
+                                  ? [...current, turma.id]
+                                  : current.filter((x) => String(x) !== String(turma.id));
+                                setTeacherFormData({ ...teacherFormData, turmas_ids: next });
+                              }}
+                            />
+                            <span>
+                              {turma.nome} {turma.codigo ? `- ${turma.codigo}` : ''}
+                            </span>
+                          </label>
+                        );
+                      })
+                  )}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowTeacherModal(false);
+                    setEditingTeacher(null);
+                    setTeacherFormData({ nome: '', disciplina: '', turmas_ids: [] });
+                  }}
+                  style={{
+                    padding: '10px 20px',
+                    border: '1px solid #ddd',
+                    borderRadius: 6,
+                    background: 'white',
+                    cursor: 'pointer',
+                    color: 'var(--text)',
+                  }}
+                  disabled={savingTeacher}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  style={{ width: 'auto', padding: '10px 20px' }}
+                  disabled={savingTeacher}
+                >
+                  {savingTeacher ? 'Salvando...' : 'Salvar'}
                 </button>
               </div>
             </form>
