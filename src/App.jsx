@@ -33,6 +33,8 @@ function App() {
   const [recoveryNewPassword, setRecoveryNewPassword] = useState('');
   const [recoveryConfirmPassword, setRecoveryConfirmPassword] = useState('');
   const [authUser, setAuthUser] = useState(null); // usuário logado (Supabase auth)
+  const [navHydrated, setNavHydrated] = useState(false);
+  const isLoggedInRef = useRef(false);
   // Inicializar estados - serão carregados do localStorage quando houver sessão
   const [currentView, setCurrentView] = useState('dashboard');
   const [selectedSchool, setSelectedSchool] = useState('');
@@ -42,6 +44,8 @@ function App() {
   const [selectedStudentId, setSelectedStudentId] = useState(null);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [currentTab, setCurrentTab] = useState('resumo');
+  const currentViewRef = useRef(currentView);
+  const selectedClassIdRef = useRef(selectedClassId);
 
   const [schools, setSchools] = useState([]);
   const [schoolsLoading, setSchoolsLoading] = useState(false);
@@ -216,6 +220,36 @@ function App() {
   });
   const [savingTeacher, setSavingTeacher] = useState(false);
   const [teacherSearchTerm, setTeacherSearchTerm] = useState('');
+  const [selectedTeacherId, setSelectedTeacherId] = useState(null);
+  const [selectedTeacher, setSelectedTeacher] = useState(null);
+  const [teacherProfileTab, setTeacherProfileTab] = useState('entregas');
+  const [entregasDocentes, setEntregasDocentes] = useState([]);
+  const [entregasLoading, setEntregasLoading] = useState(false);
+  const [entregasError, setEntregasError] = useState(null);
+  const [entregaFilter, setEntregaFilter] = useState('todos');
+  const [showEntregaModal, setShowEntregaModal] = useState(false);
+  const [editingEntrega, setEditingEntrega] = useState(null);
+  const [entregaFormData, setEntregaFormData] = useState({
+    tipo_documento: 'Plano de Aula',
+    referencia: '',
+    status: 'pendente',
+    prazo: '',
+    observacoes: '',
+  });
+  const [savingEntrega, setSavingEntrega] = useState(false);
+  const [registrosCoordenacao, setRegistrosCoordenacao] = useState([]);
+  const [registrosCoordLoading, setRegistrosCoordLoading] = useState(false);
+  const [registrosCoordError, setRegistrosCoordError] = useState(null);
+  const [showRegistroCoordModal, setShowRegistroCoordModal] = useState(false);
+  const [editingRegistroCoord, setEditingRegistroCoord] = useState(null);
+  const [registroCoordFormData, setRegistroCoordFormData] = useState({
+    data_conversa: '',
+    assunto: '',
+    relato: '',
+    encaminhamentos: '',
+  });
+  const [savingRegistroCoord, setSavingRegistroCoord] = useState(false);
+  const [teacherProfileMissing, setTeacherProfileMissing] = useState(false);
 
   // Biblioteca / Empréstimos de livros (estado apenas em memória)
   const [libraryBooks, setLibraryBooks] = useState([]);
@@ -290,12 +324,19 @@ function App() {
         const savedSchoolId = localStorage.getItem('sacp_selectedSchoolId');
         const savedClassId = localStorage.getItem('sacp_selectedClassId');
         const savedStudentId = localStorage.getItem('sacp_selectedStudentId');
+        const savedTeacherId = localStorage.getItem('sacp_selectedTeacherId');
         const savedTab = localStorage.getItem('sacp_currentTab');
+        const savedTeacherTab = localStorage.getItem('sacp_teacherProfileTab');
         if (savedView) setCurrentView(savedView);
         if (savedSchoolId) setSelectedSchoolId(parseInt(savedSchoolId, 10));
         if (savedClassId) setSelectedClassId(parseInt(savedClassId, 10));
         if (savedStudentId) setSelectedStudentId(savedStudentId);
+        if (savedTeacherId) setSelectedTeacherId(savedTeacherId);
         if (savedTab) setCurrentTab(savedTab);
+        if (savedTeacherTab === 'entregas' || savedTeacherTab === 'acompanhamento') {
+          setTeacherProfileTab(savedTeacherTab);
+        }
+        setNavHydrated(true);
       }
     };
 
@@ -305,6 +346,8 @@ function App() {
       // Carregar estado salvo do localStorage quando houver sessão
       if (session) {
         loadSavedState();
+      } else {
+        setNavHydrated(false);
       }
     });
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -313,10 +356,111 @@ function App() {
       // Carregar estado salvo do localStorage quando houver sessão
       if (session) {
         loadSavedState();
+      } else {
+        setNavHydrated(false);
       }
     });
     return () => subscription?.unsubscribe();
   }, []);
+
+  // Mantém refs sincronizadas (para handlers fora do React lifecycle)
+  useEffect(() => {
+    isLoggedInRef.current = isLoggedIn;
+  }, [isLoggedIn]);
+  useEffect(() => {
+    currentViewRef.current = currentView;
+  }, [currentView]);
+  useEffect(() => {
+    selectedClassIdRef.current = selectedClassId;
+  }, [selectedClassId]);
+
+  // Ao voltar para a aba (focus/visibilidade), tenta restaurar a turma aberta a partir do localStorage
+  // Útil quando o navegador descarta a aba ou algum estado foi resetado em memória.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const readUrlState = () => {
+      try {
+        const url = new URL(window.location.href);
+        const view = url.searchParams.get('view');
+        const classId = url.searchParams.get('classId');
+        return { view, classId };
+      } catch {
+        return { view: null, classId: null };
+      }
+    };
+
+    const restoreNavFromStorage = () => {
+      if (!isLoggedInRef.current) return;
+      try {
+        // 1) URL tem prioridade (sobrevive a descarte/reload sem depender de storage)
+        const { view: urlView, classId: urlClassId } = readUrlState();
+        if (urlView && currentViewRef.current !== urlView) {
+          setCurrentView(urlView);
+        }
+        if (urlClassId && !selectedClassIdRef.current) {
+          const parsedUrlClassId = parseInt(urlClassId, 10);
+          if (!Number.isNaN(parsedUrlClassId)) setSelectedClassId(parsedUrlClassId);
+        }
+
+        // 2) Fallback: localStorage
+        const savedView = localStorage.getItem('sacp_currentView');
+        const savedClassId = localStorage.getItem('sacp_selectedClassId');
+
+        if (savedView && currentViewRef.current !== savedView) {
+          setCurrentView(savedView);
+        }
+
+        if (savedClassId && !selectedClassIdRef.current) {
+          const parsed = parseInt(savedClassId, 10);
+          if (!Number.isNaN(parsed)) setSelectedClassId(parsed);
+        }
+      } catch {
+        // Se o storage falhar, não quebrar a navegação
+      }
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') restoreNavFromStorage();
+    };
+    const onFocus = () => restoreNavFromStorage();
+    const onPageShow = () => restoreNavFromStorage();
+
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('pageshow', onPageShow);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('pageshow', onPageShow);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, []);
+
+  // Sincroniza URL com a navegação atual para sobreviver a descarte/reload da aba
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!isLoggedIn) return;
+    if (!navHydrated) return;
+
+    try {
+      const url = new URL(window.location.href);
+
+      // Persistir apenas o que interessa para "voltar na mesma turma"
+      if (currentView) url.searchParams.set('view', currentView);
+
+      if (currentView === 'classes' && selectedClassId) {
+        url.searchParams.set('classId', String(selectedClassId));
+      } else {
+        url.searchParams.delete('classId');
+      }
+
+      // Não poluir o histórico (evita "voltar" ficar estranho)
+      window.history.replaceState(null, '', url.toString());
+    } catch {
+      // ignore
+    }
+  }, [currentView, selectedClassId, isLoggedIn, navHydrated]);
 
   // Carregar estado do localStorage quando isLoggedIn mudar para true (para garantir que seja carregado)
   useEffect(() => {
@@ -325,58 +469,81 @@ function App() {
       const savedSchoolId = localStorage.getItem('sacp_selectedSchoolId');
       const savedClassId = localStorage.getItem('sacp_selectedClassId');
       const savedStudentId = localStorage.getItem('sacp_selectedStudentId');
+      const savedTeacherId = localStorage.getItem('sacp_selectedTeacherId');
       const savedTab = localStorage.getItem('sacp_currentTab');
+      const savedTeacherTab = localStorage.getItem('sacp_teacherProfileTab');
       if (savedView) setCurrentView(savedView);
       if (savedSchoolId) setSelectedSchoolId(parseInt(savedSchoolId, 10));
       if (savedClassId) setSelectedClassId(parseInt(savedClassId, 10));
       if (savedStudentId) setSelectedStudentId(savedStudentId);
+      if (savedTeacherId) setSelectedTeacherId(savedTeacherId);
       if (savedTab) setCurrentTab(savedTab);
+      if (savedTeacherTab === 'entregas' || savedTeacherTab === 'acompanhamento') {
+        setTeacherProfileTab(savedTeacherTab);
+      }
+      setNavHydrated(true);
+    } else if (!isLoggedIn) {
+      setNavHydrated(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoggedIn]);
 
   // Salvar estado de navegação no localStorage quando mudar
   useEffect(() => {
-    if (isLoggedIn && typeof window !== 'undefined') {
+    if (isLoggedIn && navHydrated && typeof window !== 'undefined') {
       localStorage.setItem('sacp_currentView', currentView);
     }
-  }, [currentView, isLoggedIn]);
+  }, [currentView, isLoggedIn, navHydrated]);
 
   useEffect(() => {
-    if (isLoggedIn && typeof window !== 'undefined') {
+    if (isLoggedIn && navHydrated && typeof window !== 'undefined') {
       if (selectedSchoolId) {
         localStorage.setItem('sacp_selectedSchoolId', selectedSchoolId.toString());
       } else {
         localStorage.removeItem('sacp_selectedSchoolId');
       }
     }
-  }, [selectedSchoolId, isLoggedIn]);
+  }, [selectedSchoolId, isLoggedIn, navHydrated]);
 
   useEffect(() => {
-    if (isLoggedIn && typeof window !== 'undefined') {
+    if (isLoggedIn && navHydrated && typeof window !== 'undefined') {
       if (selectedClassId) {
         localStorage.setItem('sacp_selectedClassId', selectedClassId.toString());
-      } else {
-        localStorage.removeItem('sacp_selectedClassId');
       }
     }
-  }, [selectedClassId, isLoggedIn]);
+  }, [selectedClassId, isLoggedIn, navHydrated]);
 
   useEffect(() => {
-    if (isLoggedIn && typeof window !== 'undefined') {
+    if (isLoggedIn && navHydrated && typeof window !== 'undefined') {
       if (selectedStudentId) {
         localStorage.setItem('sacp_selectedStudentId', selectedStudentId.toString());
       } else {
         localStorage.removeItem('sacp_selectedStudentId');
       }
     }
-  }, [selectedStudentId, isLoggedIn]);
+  }, [selectedStudentId, isLoggedIn, navHydrated]);
 
   useEffect(() => {
-    if (isLoggedIn && typeof window !== 'undefined') {
+    if (isLoggedIn && navHydrated && typeof window !== 'undefined') {
+      if (selectedTeacherId) {
+        localStorage.setItem('sacp_selectedTeacherId', selectedTeacherId.toString());
+      } else {
+        localStorage.removeItem('sacp_selectedTeacherId');
+      }
+    }
+  }, [selectedTeacherId, isLoggedIn, navHydrated]);
+
+  useEffect(() => {
+    if (isLoggedIn && navHydrated && typeof window !== 'undefined') {
+      localStorage.setItem('sacp_teacherProfileTab', teacherProfileTab);
+    }
+  }, [teacherProfileTab, isLoggedIn, navHydrated]);
+
+  useEffect(() => {
+    if (isLoggedIn && navHydrated && typeof window !== 'undefined') {
       localStorage.setItem('sacp_currentTab', currentTab);
     }
-  }, [currentTab, isLoggedIn]);
+  }, [currentTab, isLoggedIn, navHydrated]);
 
   const clearAuthMessages = () => {
     setAuthError('');
@@ -546,6 +713,7 @@ function App() {
       classes: 'Gestão de Turmas',
       students: 'Gestão de Alunos',
       teachers: 'Gestão de Professores',
+      'teacher-detail': 'Perfil do Professor',
       'student-detail': 'Detalhes do Aluno',
       reports: 'Relatórios',
       emprestimos: 'Biblioteca e Empréstimos',
@@ -565,6 +733,7 @@ function App() {
 
   const getActiveNav = () => {
     if (currentView === 'student-detail') return 'students';
+    if (currentView === 'teacher-detail') return 'teachers';
     return currentView;
   };
 
@@ -752,6 +921,76 @@ function App() {
       fetchTeachers();
     }
   }, [currentView, activeSchoolId, selectedSchoolId, selectedYear]);
+
+  // Restaurar dados do professor ao reabrir o perfil (ex.: após recarregar a página)
+  useEffect(() => {
+    if (currentView !== 'teacher-detail') {
+      setTeacherProfileMissing(false);
+      return;
+    }
+    if (!selectedTeacherId || selectedTeacher) return;
+    let cancelled = false;
+    const fetchOne = async () => {
+      setTeacherProfileMissing(false);
+      const { data } = await supabase.from('professores').select('*').eq('id', selectedTeacherId).maybeSingle();
+      if (cancelled) return;
+      if (data) {
+        setSelectedTeacher(data);
+        setTeacherProfileMissing(false);
+      } else {
+        setTeacherProfileMissing(true);
+      }
+    };
+    fetchOne();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentView, selectedTeacherId, selectedTeacher]);
+
+  // Entregas e registros de coordenação no perfil do professor
+  useEffect(() => {
+    if (currentView !== 'teacher-detail' || !selectedTeacherId) return;
+
+    let cancelled = false;
+
+    const loadEntregas = async () => {
+      setEntregasLoading(true);
+      setEntregasError(null);
+      const { data, error } = await supabase
+        .from('entregas_docentes')
+        .select('*')
+        .eq('professor_id', selectedTeacherId)
+        .order('created_at', { ascending: false });
+      if (cancelled) return;
+      if (error) setEntregasError('Erro ao carregar entregas pedagógicas.');
+      else setEntregasDocentes(data || []);
+      setEntregasLoading(false);
+    };
+
+    const loadRegistros = async () => {
+      setRegistrosCoordLoading(true);
+      setRegistrosCoordError(null);
+      const { data, error } = await supabase
+        .from('registros_coordenacao')
+        .select('*')
+        .eq('professor_id', selectedTeacherId)
+        .order('data_conversa', { ascending: false })
+        .order('created_at', { ascending: false });
+      if (cancelled) return;
+      if (error) setRegistrosCoordError('Erro ao carregar registros de coordenação.');
+      else setRegistrosCoordenacao(data || []);
+      setRegistrosCoordLoading(false);
+    };
+
+    loadEntregas();
+    loadRegistros();
+
+    return () => {
+      cancelled = true;
+      setEntregasLoading(false);
+      setRegistrosCoordLoading(false);
+    };
+  }, [currentView, selectedTeacherId]);
 
   // Carregar turmas para relatórios e gráficos (da escola selecionada ou de todas as escolas)
   useEffect(() => {
@@ -1119,6 +1358,13 @@ function App() {
   const formatDate = (dateStr) => {
     if (!dateStr) return 'Sem data';
     try {
+      // Se vier como "YYYY-MM-DD" (input type="date") ou ISO, tratar como data pura
+      // para evitar deslocamento por fuso horário na exibição.
+      const ymd = String(dateStr).split('T')[0];
+      if (/^\d{4}-\d{2}-\d{2}$/.test(ymd)) {
+        const [yyyy, mm, dd] = ymd.split('-');
+        return `${dd}/${mm}/${yyyy}`;
+      }
       return new Date(dateStr).toLocaleDateString('pt-BR');
     } catch {
       return dateStr;
@@ -1239,17 +1485,75 @@ function App() {
     });
   };
 
-  // Extrai série (Pré I, Pré II, 1º... 9º) do nome da turma
+  // Extrai série (Pré I, Pré II, 1º... 9º) do nome da turma.
+  // Aceita variações comuns: "9º Ano" (título de turma), "9° ano", "nono ano", "série 9".
   const getGradeFromTurmaNome = (nome) => {
-    if (!nome) return null;
-    const n = (nome || '').toLowerCase();
-    if (n.includes('pré i') || n.includes('pre i') || n.includes('pré 1') || n.includes('pre 1')) return 'Pré I';
-    if (n.includes('pré ii') || n.includes('pre ii') || n.includes('pré 2') || n.includes('pre 2')) return 'Pré II';
+    if (!nome || typeof nome !== 'string') return null;
+    const n = nome.trim().toLowerCase();
+
+    if (/\b(pré|pre)\s*(i|1)\b/.test(n)) return 'Pré I';
+    if (/\b(pré|pre)\s*(ii|2)\b/.test(n)) return 'Pré II';
+
+    const palavrasAno = [
+      ['primeiro', 1],
+      ['segundo', 2],
+      ['terceiro', 3],
+      ['quarto', 4],
+      ['quinto', 5],
+      ['sexto', 6],
+      ['sétimo', 7],
+      ['setimo', 7],
+      ['oitavo', 8],
+      ['nono', 9],
+      ['nona', 9],
+    ];
+    for (const [w, ano] of palavrasAno) {
+      if (new RegExp(`\\b${w}\\b(?:\\s*ano)?`, 'i').test(n)) return `${ano}º`;
+    }
+
     for (let ano = 1; ano <= 9; ano++) {
-      if (n.includes(`${ano}º`) || n.includes(ano + 'º')) return `${ano}º`;
+      if (new RegExp(`\\b(?:serie|seria)\\s*${ano}(?![0-9])\\b`, 'i').test(n)) return `${ano}º`;
+      if (new RegExp(`(?<![0-9])${ano}(?![0-9])\\s*ª(?:\\s*ano)?\\b`, 'i').test(n)) return `${ano}º`;
+      if (
+        new RegExp(`(?<![0-9])${ano}(?![0-9])\\s*[\\u00BA\\u00B0°ºo]?\\s*(?:ano)?\\b`, 'iu').test(n)
+      ) {
+        return `${ano}º`;
+      }
     }
     return null;
   };
+
+  /** Valores típicos em turmas.ano_escolar no cadastro: "9º Ano", "Pré I", etc. */
+  const normalizeAnoEscolarToGrade = (value) => {
+    if (value == null) return null;
+    const s = String(value).trim();
+    if (!s) return null;
+    if (/^pré\s*i$|^pre\s*i$/i.test(s)) return 'Pré I';
+    if (/^pré\s*ii$|^pre\s*ii$/i.test(s)) return 'Pré II';
+    // Delegar para o parser completo (aceita º/°/o e outras variações)
+    return getGradeFromTurmaNome(s);
+  };
+
+  /** Séries canônicas da turma: usa ano_escolar (principal) + nome. */
+  const getCanonicalGradesForTurma = (turma) => {
+    const set = new Set();
+    if (turma?.nome) {
+      const g = getGradeFromTurmaNome(turma.nome);
+      if (g) set.add(g);
+    }
+    const raw = turma?.ano_escolar ?? turma?.ano;
+    const arr = Array.isArray(raw) ? raw : raw != null && String(raw).trim() !== '' ? [raw] : [];
+    for (const item of arr) {
+      const g1 = normalizeAnoEscolarToGrade(item);
+      if (g1) set.add(g1);
+      const g2 = getGradeFromTurmaNome(String(item));
+      if (g2) set.add(g2);
+    }
+    return [...set];
+  };
+
+  const teacherGradeCellLabel = (g) =>
+    g === 'Pré I' || g === 'Pré II' ? g : `${String(g).replace(/º$/, '')}º ano`;
 
   // Turmas/séries disponíveis: sempre mostra Pré I, Pré II, 1º... 9º
   const GRADE_ORDER = ['Pré I', 'Pré II', '1º', '2º', '3º', '4º', '5º', '6º', '7º', '8º', '9º'];
@@ -1260,7 +1564,10 @@ function App() {
     const list = reportClasses || [];
     if (reportGradeLevels === null) return list;
     if (!reportGradeLevels || reportGradeLevels.length === 0) return [];
-    return list.filter((t) => reportGradeLevels.includes(getGradeFromTurmaNome(t.nome)));
+    return list.filter((t) => {
+      const grades = getCanonicalGradesForTurma(t);
+      return grades.some((g) => reportGradeLevels.includes(g));
+    });
   })();
 
   // Gerar lista de alunos para relatório
@@ -3167,17 +3474,207 @@ function App() {
       return;
     }
     setTeachers((prev) => prev.filter((t) => String(t.id) !== String(teacherId)));
+    if (String(selectedTeacherId) === String(teacherId)) {
+      setSelectedTeacherId(null);
+      setSelectedTeacher(null);
+      if (currentView === 'teacher-detail') setCurrentView('teachers');
+    }
+  };
+
+  const getEntregaDisplayStatus = (row) => {
+    const s = (row.status || 'pendente').toLowerCase();
+    if (s === 'entregue') return 'entregue';
+    if (s === 'atrasado') return 'atrasado';
+    const prazo = row.prazo ? String(row.prazo).split('T')[0] : '';
+    if (prazo && prazo < getLocalDateString()) return 'atrasado';
+    return 'pendente';
+  };
+
+  const selectTeacher = (prof) => {
+    setSelectedTeacherId(prof.id);
+    setSelectedTeacher(prof);
+    setTeacherProfileMissing(false);
+    setTeacherProfileTab('entregas');
+    setEntregaFilter('todos');
+    setCurrentView('teacher-detail');
+  };
+
+  const openEntregaModal = (entrega = null) => {
+    if (entrega) {
+      setEditingEntrega(entrega);
+      setEntregaFormData({
+        tipo_documento: entrega.tipo_documento || 'Plano de Aula',
+        referencia: entrega.referencia || '',
+        status: (entrega.status || 'pendente').toLowerCase(),
+        prazo: entrega.prazo ? String(entrega.prazo).split('T')[0] : '',
+        observacoes: entrega.observacoes || '',
+      });
+    } else {
+      setEditingEntrega(null);
+      setEntregaFormData({
+        tipo_documento: 'Plano de Aula',
+        referencia: '',
+        status: 'pendente',
+        prazo: '',
+        observacoes: '',
+      });
+    }
+    setShowEntregaModal(true);
+  };
+
+  const handleSaveEntrega = async (e) => {
+    e.preventDefault();
+    if (!selectedTeacherId || !selectedTeacher) {
+      alert('Professor não selecionado.');
+      return;
+    }
+    const schoolId = selectedTeacher.escola_id || activeSchoolId || selectedSchoolId;
+    if (!schoolId) {
+      alert('Escola não identificada.');
+      return;
+    }
+    setSavingEntrega(true);
+    const payload = {
+      professor_id: selectedTeacherId,
+      escola_id: schoolId,
+      ano_letivo: selectedTeacher.ano_letivo ?? selectedYear,
+      tipo_documento: entregaFormData.tipo_documento?.trim() || 'Documento',
+      referencia: entregaFormData.referencia?.trim() || '',
+      status: entregaFormData.status,
+      prazo: entregaFormData.prazo || null,
+      observacoes: entregaFormData.observacoes?.trim() || null,
+    };
+
+    let err;
+    if (editingEntrega?.id) {
+      const { error } = await supabase.from('entregas_docentes').update(payload).eq('id', editingEntrega.id);
+      err = error;
+    } else {
+      const { error } = await supabase.from('entregas_docentes').insert([payload]);
+      err = error;
+    }
+
+    setSavingEntrega(false);
+    if (err) {
+      alert('Erro ao salvar entrega: ' + err.message);
+      return;
+    }
+    setShowEntregaModal(false);
+    setEditingEntrega(null);
+    const { data: refreshed } = await supabase
+      .from('entregas_docentes')
+      .select('*')
+      .eq('professor_id', selectedTeacherId)
+      .order('created_at', { ascending: false });
+    setEntregasDocentes(refreshed || []);
+    setEntregasError(null);
+  };
+
+  const handleDeleteEntrega = async (row) => {
+    if (!row?.id || !confirm('Excluir esta exigência de entrega?')) return;
+    const { error } = await supabase.from('entregas_docentes').delete().eq('id', row.id);
+    if (error) {
+      alert('Erro ao excluir: ' + error.message);
+      return;
+    }
+    setEntregasDocentes((prev) => prev.filter((x) => x.id !== row.id));
+  };
+
+  const openRegistroCoordModal = (reg = null) => {
+    if (reg) {
+      setEditingRegistroCoord(reg);
+      setRegistroCoordFormData({
+        data_conversa: reg.data_conversa ? String(reg.data_conversa).split('T')[0] : getLocalDateString(),
+        assunto: reg.assunto || '',
+        relato: reg.relato || '',
+        encaminhamentos: reg.encaminhamentos || '',
+      });
+    } else {
+      setEditingRegistroCoord(null);
+      setRegistroCoordFormData({
+        data_conversa: getLocalDateString(),
+        assunto: '',
+        relato: '',
+        encaminhamentos: '',
+      });
+    }
+    setShowRegistroCoordModal(true);
+  };
+
+  const handleSaveRegistroCoord = async (e) => {
+    e.preventDefault();
+    if (!selectedTeacherId || !selectedTeacher) {
+      alert('Professor não selecionado.');
+      return;
+    }
+    if (!registroCoordFormData.assunto?.trim()) {
+      alert('Informe o assunto da conversa.');
+      return;
+    }
+    const schoolId = selectedTeacher.escola_id || activeSchoolId || selectedSchoolId;
+    if (!schoolId) {
+      alert('Escola não identificada.');
+      return;
+    }
+    setSavingRegistroCoord(true);
+    const payload = {
+      professor_id: selectedTeacherId,
+      escola_id: schoolId,
+      ano_letivo: selectedTeacher.ano_letivo ?? selectedYear,
+      data_conversa: registroCoordFormData.data_conversa || getLocalDateString(),
+      assunto: registroCoordFormData.assunto.trim(),
+      relato: registroCoordFormData.relato?.trim() || null,
+      encaminhamentos: registroCoordFormData.encaminhamentos?.trim() || null,
+    };
+
+    let err;
+    if (editingRegistroCoord?.id) {
+      const { error } = await supabase.from('registros_coordenacao').update(payload).eq('id', editingRegistroCoord.id);
+      err = error;
+    } else {
+      const { error } = await supabase.from('registros_coordenacao').insert([payload]);
+      err = error;
+    }
+
+    setSavingRegistroCoord(false);
+    if (err) {
+      alert('Erro ao salvar registro: ' + err.message);
+      return;
+    }
+    setShowRegistroCoordModal(false);
+    setEditingRegistroCoord(null);
+    const { data: refreshed } = await supabase
+      .from('registros_coordenacao')
+      .select('*')
+      .eq('professor_id', selectedTeacherId)
+      .order('data_conversa', { ascending: false })
+      .order('created_at', { ascending: false });
+    setRegistrosCoordenacao(refreshed || []);
+    setRegistrosCoordError(null);
+  };
+
+  const handleDeleteRegistroCoord = async (row) => {
+    if (!row?.id || !confirm('Excluir este registro de acompanhamento?')) return;
+    const { error } = await supabase.from('registros_coordenacao').delete().eq('id', row.id);
+    if (error) {
+      alert('Erro ao excluir: ' + error.message);
+      return;
+    }
+    setRegistrosCoordenacao((prev) => prev.filter((x) => x.id !== row.id));
   };
 
   // Ordem crescente: Pré I, Pré II, 1º ao 9º ano (para ordenar turmas e alunos por turma)
   const getTurmaSortOrder = (nome) => {
     if (!nome) return 999;
-    const n = (nome || '').toLowerCase();
-    if (n.includes('pré i') || n.includes('pre i')) return 0;
-    if (n.includes('pré ii') || n.includes('pre ii')) return 1;
+    const n = String(nome).trim().toLowerCase();
+    if (/\b(pré|pre)\s*(i|1)\b/.test(n)) return 0;
+    if (/\b(pré|pre)\s*(ii|2)\b/.test(n)) return 1;
     for (let ano = 1; ano <= 9; ano++) {
-      if (n.includes(`${ano}º`) || n.includes(ano + 'º')) return ano + 1;
+      // aceita: 9º, 9° , 9o, "9 ano", "9º ano", etc.
+      if (new RegExp(`\\b${ano}\\s*(º|°|o)?\\s*(ano)?\\b`, 'i').test(n)) return ano + 1;
     }
+    // Fallback por extenso (ex.: "Nono Ano")
+    if (/\bnono\b/.test(n)) return 10;
     return 999;
   };
 
@@ -3192,6 +3689,13 @@ function App() {
   const filteredClassesSorted = [...filteredClasses].sort(
     (a, b) => getTurmaSortOrder(a.nome) - getTurmaSortOrder(b.nome)
   );
+
+  // Se a turma foi restaurada pelo ID (storage) mas ainda não temos o nome em memória, preencher a partir da lista carregada
+  useEffect(() => {
+    if (!selectedClassId || selectedClassName) return;
+    const found = classesList.find((t) => String(t.id) === String(selectedClassId));
+    if (found?.nome) setSelectedClassName(found.nome);
+  }, [selectedClassId, selectedClassName, classesList]);
 
   const filteredStudents = students
     .filter((aluno) =>
@@ -3221,6 +3725,17 @@ function App() {
     (p.nome || '').toLowerCase().includes(teacherSearchTerm.toLowerCase()) ||
     (p.disciplina || '').toLowerCase().includes(teacherSearchTerm.toLowerCase())
   );
+
+  const entregasFiltradas = entregasDocentes.filter((e) => {
+    const st = getEntregaDisplayStatus(e);
+    if (entregaFilter === 'todos') return true;
+    return st === entregaFilter;
+  });
+  const entregaCounts = {
+    pendente: entregasDocentes.filter((e) => getEntregaDisplayStatus(e) === 'pendente').length,
+    entregue: entregasDocentes.filter((e) => getEntregaDisplayStatus(e) === 'entregue').length,
+    atrasado: entregasDocentes.filter((e) => getEntregaDisplayStatus(e) === 'atrasado').length,
+  };
 
   return (
     <>
@@ -3479,6 +3994,9 @@ function App() {
                 </li>
                 <li
                   onClick={() => {
+                    setSelectedTeacherId(null);
+                    setSelectedTeacher(null);
+                    setTeacherProfileMissing(false);
                     navigate('teachers');
                     setMobileMenuOpen(false);
                   }}
@@ -3531,6 +4049,8 @@ function App() {
                       localStorage.removeItem('sacp_selectedSchoolId');
                       localStorage.removeItem('sacp_selectedClassId');
                       localStorage.removeItem('sacp_selectedStudentId');
+                      localStorage.removeItem('sacp_selectedTeacherId');
+                      localStorage.removeItem('sacp_teacherProfileTab');
                       localStorage.removeItem('sacp_currentTab');
                     }
                     setMobileMenuOpen(false);
@@ -4592,7 +5112,12 @@ function App() {
                         .filter(Boolean);
 
                       return (
-                        <div key={p.id} className="list-item">
+                        <div
+                          key={p.id}
+                          className="list-item"
+                          onClick={() => selectTeacher(p)}
+                          title="Abrir perfil do professor"
+                        >
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
                             <i className="fas fa-chalkboard-teacher" style={{ color: 'var(--primary)', fontSize: '1.2em', width: 24, textAlign: 'center' }} />
                             <div>
@@ -4605,7 +5130,11 @@ function App() {
                           </div>
                           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                             <button
-                              onClick={() => handleEditTeacher(p)}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditTeacher(p);
+                              }}
                               style={{
                                 background: 'var(--accent)',
                                 color: 'white',
@@ -4618,7 +5147,11 @@ function App() {
                               <i className="fas fa-edit" />
                             </button>
                             <button
-                              onClick={() => handleDeleteTeacher(p.id)}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteTeacher(p.id);
+                              }}
                               style={{
                                 background: 'var(--danger)',
                                 color: 'white',
@@ -5471,8 +6004,8 @@ function App() {
                         <thead>
                           <tr style={{ background: '#eee', textAlign: 'left' }}>
                             <th style={{ padding: 10 }}>Data</th>
-                            <th style={{ padding: 10 }}>Nível de escrita</th>
                             <th style={{ padding: 10 }}>Nível de leitura</th>
+                            <th style={{ padding: 10 }}>Nível de escrita</th>
                             <th style={{ padding: 10, width: 180 }}>Anexos</th>
                             <th style={{ padding: 10, width: 100 }}>Ações</th>
                           </tr>
@@ -5488,10 +6021,10 @@ function App() {
                             sondagens.map((s) => (
                               <tr key={s.id} style={{ borderBottom: '1px solid #eee' }}>
                                 <td style={{ padding: 10 }}>
-                                  {s.data ? new Date(s.data).toLocaleDateString('pt-BR') : '-'}
+                                  {s.data ? formatDate(s.data) : '-'}
                                 </td>
-                                <td style={{ padding: 10 }}>{s.nivel_escrita || '-'}</td>
                                 <td style={{ padding: 10 }}>{s.nivel_leitura || '-'}</td>
+                                <td style={{ padding: 10 }}>{s.nivel_escrita || '-'}</td>
                                 <td style={{ padding: 10 }}>
                                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                                     {s.foto_escrita_url ? (
@@ -5798,6 +6331,425 @@ function App() {
                       </div>
                     </div>
                   </div>
+                )}
+              </div>
+            )}
+
+            {/* Perfil do Professor */}
+            {currentView === 'teacher-detail' && (
+              <div id="view-teacher-detail" className="view-section">
+                <div
+                  className="breadcrumb"
+                  onClick={() => {
+                    setSelectedTeacherId(null);
+                    setSelectedTeacher(null);
+                    setTeacherProfileMissing(false);
+                    navigate('teachers');
+                  }}
+                >
+                  <i className="fas fa-arrow-left" /> Voltar para Professores
+                </div>
+
+                {teacherProfileMissing && (
+                  <div
+                    style={{
+                      background: 'white',
+                      padding: 24,
+                      borderRadius: 8,
+                      border: '1px solid #eee',
+                    }}
+                  >
+                    <p style={{ marginTop: 0 }}>Não foi possível carregar este professor. Ele pode ter sido removido.</p>
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      onClick={() => {
+                        setSelectedTeacherId(null);
+                        setSelectedTeacher(null);
+                        setTeacherProfileMissing(false);
+                        navigate('teachers');
+                      }}
+                    >
+                      Voltar à lista
+                    </button>
+                  </div>
+                )}
+
+                {!teacherProfileMissing && !selectedTeacher && (
+                  <div className="list-container" style={{ marginTop: 12 }}>
+                    <div className="list-item">
+                      <span>Carregando professor...</span>
+                    </div>
+                  </div>
+                )}
+
+                {!teacherProfileMissing && selectedTeacher && (
+                  <>
+                    <div className="student-header">
+                      <div
+                        style={{
+                          width: 60,
+                          height: 60,
+                          background: 'linear-gradient(135deg, var(--primary), var(--accent))',
+                          borderRadius: '50%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '1.5em',
+                          color: 'white',
+                        }}
+                      >
+                        <i className="fas fa-chalkboard-teacher" />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <h2 style={{ margin: 0 }}>{selectedTeacher.nome || 'Professor'}</h2>
+                        <span style={{ color: 'gray' }}>
+                          {selectedTeacher.disciplina || 'Disciplina não informada'}
+                          {activeSchool?.nome ? ` • ${activeSchool.nome}` : ''}
+                          {selectedTeacher.ano_letivo ? ` • ${selectedTeacher.ano_letivo}` : ''}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="student-tabs">
+                      <div
+                        className={`tab ${teacherProfileTab === 'entregas' ? 'active' : ''}`}
+                        onClick={() => setTeacherProfileTab('entregas')}
+                      >
+                        Entregas pedagógicas
+                      </div>
+                      <div
+                        className={`tab ${teacherProfileTab === 'acompanhamento' ? 'active' : ''}`}
+                        onClick={() => setTeacherProfileTab('acompanhamento')}
+                      >
+                        Acompanhamento pedagógico
+                      </div>
+                    </div>
+
+                    {teacherProfileTab === 'entregas' && (
+                      <div className="tab-content active">
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: 16,
+                            flexWrap: 'wrap',
+                            gap: 12,
+                          }}
+                        >
+                          <h3 style={{ margin: 0 }}>Entregas pedagógicas</h3>
+                          <button
+                            type="button"
+                            className="btn-primary"
+                            style={{ width: 'auto', padding: '10px 20px' }}
+                            onClick={() => openEntregaModal()}
+                          >
+                            <i className="fas fa-plus" style={{ marginRight: 6 }} />
+                            Nova exigência
+                          </button>
+                        </div>
+                        <p style={{ color: 'var(--text-light)', marginTop: 0, marginBottom: 16, fontSize: '0.95em' }}>
+                          Acompanhe planos, diários e demais documentos. O status &quot;Atrasado&quot; também aparece quando o prazo
+                          venceu e a entrega ainda está pendente.
+                        </p>
+
+                        <div className="cards-grid" style={{ marginBottom: 18 }}>
+                          <div className="card">
+                            <h4>Pendentes</h4>
+                            <div className="number" style={{ color: 'var(--warning)' }}>
+                              {entregaCounts.pendente}
+                            </div>
+                          </div>
+                          <div className="card">
+                            <h4>Entregues</h4>
+                            <div className="number" style={{ color: 'var(--success)' }}>
+                              {entregaCounts.entregue}
+                            </div>
+                          </div>
+                          <div className="card">
+                            <h4>Atrasados</h4>
+                            <div className="number" style={{ color: 'var(--danger)' }}>
+                              {entregaCounts.atrasado}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                          {[
+                            { id: 'todos', label: 'Todos' },
+                            { id: 'pendente', label: 'Pendente' },
+                            { id: 'entregue', label: 'Entregue' },
+                            { id: 'atrasado', label: 'Atrasado' },
+                          ].map((f) => (
+                            <button
+                              key={f.id}
+                              type="button"
+                              onClick={() => setEntregaFilter(f.id)}
+                              style={{
+                                padding: '8px 14px',
+                                borderRadius: 20,
+                                border: entregaFilter === f.id ? '2px solid var(--primary)' : '1px solid #ddd',
+                                background: entregaFilter === f.id ? 'rgba(13, 110, 253, 0.08)' : 'white',
+                                cursor: 'pointer',
+                                fontSize: '0.9em',
+                              }}
+                            >
+                              {f.label}
+                            </button>
+                          ))}
+                        </div>
+
+                        {entregasLoading && (
+                          <div className="list-container">
+                            <div className="list-item">
+                              <span>Carregando entregas...</span>
+                            </div>
+                          </div>
+                        )}
+                        {entregasError && (
+                          <div className="list-container">
+                            <div className="list-item">
+                              <span>{entregasError}</span>
+                            </div>
+                          </div>
+                        )}
+                        {!entregasLoading && !entregasError && entregasFiltradas.length === 0 && (
+                          <div className="list-container">
+                            <div className="list-item">
+                              <span>Nenhuma exigência neste filtro.</span>
+                            </div>
+                          </div>
+                        )}
+                        {!entregasLoading && !entregasError && entregasFiltradas.length > 0 && (
+                          <div className="list-container">
+                            {entregasFiltradas.map((e) => {
+                              const st = getEntregaDisplayStatus(e);
+                              const badgeBg =
+                                st === 'entregue' ? 'var(--success)' : st === 'atrasado' ? 'var(--danger)' : 'var(--warning)';
+                              const badgeText =
+                                st === 'entregue' ? 'Entregue' : st === 'atrasado' ? 'Atrasado' : 'Pendente';
+                              return (
+                                <div key={e.id} className="list-item" style={{ cursor: 'default', alignItems: 'flex-start' }}>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
+                                      <strong>{e.tipo_documento || 'Documento'}</strong>
+                                      <span
+                                        className="badge"
+                                        style={{
+                                          background: badgeBg,
+                                          fontSize: '0.75em',
+                                        }}
+                                      >
+                                        {badgeText}
+                                      </span>
+                                    </div>
+                                    <div style={{ fontSize: '0.9em', color: '#555', marginBottom: 4 }}>
+                                      <i className="fas fa-bookmark" style={{ marginRight: 6, opacity: 0.7 }} />
+                                      {e.referencia || 'Sem referência'}
+                                    </div>
+                                    {e.prazo && (
+                                      <div style={{ fontSize: '0.85em', color: 'var(--text-light)' }}>
+                                        Prazo: {formatDate(e.prazo)}
+                                      </div>
+                                    )}
+                                    {e.observacoes && (
+                                      <div style={{ fontSize: '0.85em', color: '#666', marginTop: 8, lineHeight: 1.45 }}>
+                                        {e.observacoes}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => openEntregaModal(e)}
+                                      style={{
+                                        padding: '6px 12px',
+                                        border: '1px solid #0d6efd',
+                                        borderRadius: 6,
+                                        background: 'white',
+                                        color: '#0d6efd',
+                                        cursor: 'pointer',
+                                        fontSize: 13,
+                                      }}
+                                    >
+                                      Editar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteEntrega(e)}
+                                      style={{
+                                        padding: '6px 12px',
+                                        border: '1px solid #dc3545',
+                                        borderRadius: 6,
+                                        background: 'white',
+                                        color: '#dc3545',
+                                        cursor: 'pointer',
+                                        fontSize: 13,
+                                      }}
+                                    >
+                                      Excluir
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {teacherProfileTab === 'acompanhamento' && (
+                      <div className="tab-content active">
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: 16,
+                            flexWrap: 'wrap',
+                            gap: 12,
+                          }}
+                        >
+                          <h3 style={{ margin: 0 }}>Acompanhamento pedagógico</h3>
+                          <button
+                            type="button"
+                            className="btn-primary"
+                            style={{ width: 'auto', padding: '10px 20px' }}
+                            onClick={() => openRegistroCoordModal()}
+                          >
+                            <i className="fas fa-plus" style={{ marginRight: 6 }} />
+                            Registrar conversa
+                          </button>
+                        </div>
+                        <p style={{ color: 'var(--text-light)', marginTop: 0, marginBottom: 20, fontSize: '0.95em' }}>
+                          Reuniões, feedbacks e observações de sala — em ordem da data mais recente.
+                        </p>
+
+                        {registrosCoordLoading && (
+                          <div className="list-container">
+                            <div className="list-item">
+                              <span>Carregando registros...</span>
+                            </div>
+                          </div>
+                        )}
+                        {registrosCoordError && (
+                          <div className="list-container">
+                            <div className="list-item">
+                              <span>{registrosCoordError}</span>
+                            </div>
+                          </div>
+                        )}
+                        {!registrosCoordLoading && !registrosCoordError && registrosCoordenacao.length === 0 && (
+                          <div className="list-container">
+                            <div className="list-item">
+                              <span>Nenhum registro ainda. Use &quot;Registrar conversa&quot; para começar.</span>
+                            </div>
+                          </div>
+                        )}
+                        {!registrosCoordLoading && !registrosCoordError && registrosCoordenacao.length > 0 && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                            {registrosCoordenacao.map((r) => (
+                              <div
+                                key={r.id}
+                                style={{
+                                  display: 'grid',
+                                  gridTemplateColumns: '120px 1fr',
+                                  gap: 16,
+                                  background: 'white',
+                                  borderRadius: 8,
+                                  border: '1px solid #eee',
+                                  boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
+                                  overflow: 'hidden',
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    background: '#f8f9fa',
+                                    padding: 16,
+                                    textAlign: 'center',
+                                    borderRight: '1px solid #eee',
+                                  }}
+                                >
+                                  <div style={{ fontSize: '0.75em', color: 'var(--text-light)', textTransform: 'uppercase' }}>
+                                    Data
+                                  </div>
+                                  <div style={{ fontWeight: 'bold', color: 'var(--primary)', marginTop: 4 }}>
+                                    {r.data_conversa
+                                      ? (() => {
+                                          const d = String(r.data_conversa).split('T')[0];
+                                          const [y, m, day] = d.split('-');
+                                          return `${day}/${m}/${y}`;
+                                        })()
+                                      : '—'}
+                                  </div>
+                                </div>
+                                <div style={{ padding: 16 }}>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                                    <strong style={{ fontSize: '1.05em', color: 'var(--primary)' }}>{r.assunto || 'Sem assunto'}</strong>
+                                    <div style={{ display: 'flex', gap: 8 }}>
+                                      <button
+                                        type="button"
+                                        onClick={() => openRegistroCoordModal(r)}
+                                        style={{
+                                          padding: '4px 10px',
+                                          border: '1px solid #0d6efd',
+                                          borderRadius: 6,
+                                          background: 'white',
+                                          color: '#0d6efd',
+                                          cursor: 'pointer',
+                                          fontSize: 12,
+                                        }}
+                                      >
+                                        Editar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteRegistroCoord(r)}
+                                        style={{
+                                          padding: '4px 10px',
+                                          border: '1px solid #dc3545',
+                                          borderRadius: 6,
+                                          background: 'white',
+                                          color: '#dc3545',
+                                          cursor: 'pointer',
+                                          fontSize: 12,
+                                        }}
+                                      >
+                                        Excluir
+                                      </button>
+                                    </div>
+                                  </div>
+                                  {r.relato && (
+                                    <div style={{ marginTop: 12 }}>
+                                      <div style={{ fontSize: '0.8em', color: 'var(--text-light)', marginBottom: 4 }}>Relato</div>
+                                      <div style={{ fontSize: '0.95em', lineHeight: 1.5, color: '#333' }}>{r.relato}</div>
+                                    </div>
+                                  )}
+                                  {r.encaminhamentos && (
+                                    <div
+                                      style={{
+                                        marginTop: 12,
+                                        padding: 12,
+                                        background: '#f0f7ff',
+                                        borderRadius: 6,
+                                        borderLeft: '3px solid var(--accent)',
+                                      }}
+                                    >
+                                      <div style={{ fontSize: '0.8em', color: 'var(--text-light)', marginBottom: 4 }}>
+                                        Encaminhamentos
+                                      </div>
+                                      <div style={{ fontSize: '0.95em', lineHeight: 1.5, color: '#333' }}>{r.encaminhamentos}</div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -6986,28 +7938,6 @@ function App() {
                   />
                 </div>
                 <div className="input-group" style={{ marginBottom: 12 }}>
-                  <label style={{ fontSize: 13 }}>Nível de escrita *</label>
-                  <select
-                    required
-                    value={sondagemFormData.nivel_escrita}
-                    onChange={(e) =>
-                      setSondagemFormData({ ...sondagemFormData, nivel_escrita: e.target.value })
-                    }
-                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #ddd', fontSize: 13 }}
-                  >
-                    <option value="">Selecione...</option>
-                    {(() => {
-                      const nivelSet = getSondagemNivelSet();
-                      const opcoes = nivelSet === '3-5' ? NIVEL_ESCRITA_OPCOES_3_5 : nivelSet === '6-9' ? NIVEL_ESCRITA_OPCOES_FUNDAMENTAL2 : NIVEL_ESCRITA_OPCOES_1_2;
-                      return opcoes.map((op) => (
-                        <option key={op} value={op}>
-                          {op}
-                        </option>
-                      ));
-                    })()}
-                  </select>
-                </div>
-                <div className="input-group" style={{ marginBottom: 12 }}>
                   <label style={{ fontSize: 13 }}>Nível de leitura *</label>
                   <select
                     required
@@ -7021,6 +7951,28 @@ function App() {
                     {(() => {
                       const nivelSet = getSondagemNivelSet();
                       const opcoes = nivelSet === '3-5' ? NIVEL_LEITURA_OPCOES_3_5 : nivelSet === '6-9' ? NIVEL_LEITURA_OPCOES_FUNDAMENTAL2 : NIVEL_LEITURA_OPCOES_1_2;
+                      return opcoes.map((op) => (
+                        <option key={op} value={op}>
+                          {op}
+                        </option>
+                      ));
+                    })()}
+                  </select>
+                </div>
+                <div className="input-group" style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 13 }}>Nível de escrita *</label>
+                  <select
+                    required
+                    value={sondagemFormData.nivel_escrita}
+                    onChange={(e) =>
+                      setSondagemFormData({ ...sondagemFormData, nivel_escrita: e.target.value })
+                    }
+                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #ddd', fontSize: 13 }}
+                  >
+                    <option value="">Selecione...</option>
+                    {(() => {
+                      const nivelSet = getSondagemNivelSet();
+                      const opcoes = nivelSet === '3-5' ? NIVEL_ESCRITA_OPCOES_3_5 : nivelSet === '6-9' ? NIVEL_ESCRITA_OPCOES_FUNDAMENTAL2 : NIVEL_ESCRITA_OPCOES_1_2;
                       return opcoes.map((op) => (
                         <option key={op} value={op}>
                           {op}
@@ -7963,6 +8915,7 @@ function App() {
                   display: 'grid',
                   gridTemplateColumns: '1fr 1fr',
                   gap: '15px',
+                  alignItems: 'start',
                 }}
               >
                 <div className="input-group">
@@ -7998,60 +8951,111 @@ function App() {
                 </div>
               </div>
 
+              {/* Linha 2: Turmas (igual ao seletor de anos do modal de turma) */}
               <div className="input-group" style={{ marginTop: 12 }}>
-                <label>Turmas que leciona</label>
+                <label style={{ fontSize: '0.9em' }}>Turmas * (selecione um ou mais)</label>
                 <div
                   style={{
+                    display: 'flex',
+                    flexWrap: 'nowrap',
+                    gap: '2px',
+                    marginTop: 4,
+                    padding: '4px',
                     border: '1px solid #ddd',
-                    borderRadius: 8,
-                    padding: 10,
-                    maxHeight: 220,
-                    overflowY: 'auto',
-                    background: '#fff',
+                    borderRadius: 6,
+                    background: '#f9f9f9',
+                    overflowX: 'auto',
                   }}
                 >
-                  {classesList.length === 0 ? (
-                    <div style={{ color: 'gray', fontSize: '0.9em' }}>
-                      Nenhuma turma cadastrada para a escola/ano selecionados.
-                    </div>
-                  ) : (
-                    classesList
-                      .slice()
-                      .sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'))
-                      .map((turma) => {
-                        const checked = (teacherFormData.turmas_ids || []).some((id) => String(id) === String(turma.id));
-                        return (
-                          <label
-                            key={turma.id}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 10,
-                              padding: '6px 4px',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={(e) => {
-                                const current = Array.isArray(teacherFormData.turmas_ids)
-                                  ? teacherFormData.turmas_ids
-                                  : [];
-                                const next = e.target.checked
-                                  ? [...current, turma.id]
-                                  : current.filter((x) => String(x) !== String(turma.id));
-                                setTeacherFormData({ ...teacherFormData, turmas_ids: next });
-                              }}
-                            />
-                            <span>
-                              {turma.nome} {turma.codigo ? `- ${turma.codigo}` : ''}
-                            </span>
-                          </label>
-                        );
-                      })
-                  )}
+                  {[
+                    'Pré I',
+                    'Pré II',
+                    '1º Ano',
+                    '2º Ano',
+                    '3º Ano',
+                    '4º Ano',
+                    '5º Ano',
+                    '6º Ano',
+                    '7º Ano',
+                    '8º Ano',
+                    '9º Ano',
+                  ].map((anoOption) => {
+                    const gradeCanonical =
+                      anoOption === 'Pré I'
+                        ? 'Pré I'
+                        : anoOption === 'Pré II'
+                          ? 'Pré II'
+                          : `${parseInt(anoOption, 10)}º`;
+
+                    const turmasDaGrade = classesList.filter((t) =>
+                      getCanonicalGradesForTurma(t).includes(gradeCanonical)
+                    );
+                    const idsGrade = turmasDaGrade.map((t) => t.id);
+                    const current = Array.isArray(teacherFormData.turmas_ids) ? teacherFormData.turmas_ids : [];
+                    const idGradeSet = new Set(idsGrade.map(String));
+                    const checked =
+                      turmasDaGrade.length > 0 &&
+                      turmasDaGrade.every((t) => current.some((id) => String(id) === String(t.id)));
+                    const disabled = turmasDaGrade.length === 0;
+
+                    return (
+                      <label
+                        key={anoOption}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: 4,
+                          cursor: disabled ? 'not-allowed' : 'pointer',
+                          padding: '4px',
+                          borderRadius: 4,
+                          transition: 'background 0.2s',
+                          fontSize: '0.75em',
+                          flex: '1 1 0',
+                          minWidth: 0,
+                          opacity: disabled ? 0.6 : 1,
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!disabled) e.currentTarget.style.background = '#f0f0f0';
+                        }}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                        title={
+                          disabled
+                            ? 'Sem turmas cadastradas nesta série'
+                            : turmasDaGrade.length === 1
+                              ? turmasDaGrade[0].nome
+                              : `${turmasDaGrade.length} turmas`
+                        }
+                      >
+                        <input
+                          type="checkbox"
+                          disabled={disabled}
+                          checked={checked}
+                          onChange={(e) => {
+                            const cur = Array.isArray(teacherFormData.turmas_ids) ? teacherFormData.turmas_ids : [];
+                            const next = e.target.checked
+                              ? [...cur, ...idsGrade.filter((id) => !cur.some((c) => String(c) === String(id)))]
+                              : cur.filter((c) => !idGradeSet.has(String(c)));
+                            setTeacherFormData({ ...teacherFormData, turmas_ids: next });
+                          }}
+                          style={{
+                            cursor: disabled ? 'not-allowed' : 'pointer',
+                            width: '14px',
+                            height: '14px',
+                            margin: 0,
+                            flexShrink: 0,
+                          }}
+                        />
+                        <span style={{ textAlign: 'center', lineHeight: '1.2' }}>{anoOption}</span>
+                      </label>
+                    );
+                  })}
                 </div>
+                {classesList.length === 0 ? (
+                  <div style={{ color: 'gray', fontSize: '0.8em', marginTop: 6 }}>
+                    Nenhuma turma cadastrada para a escola/ano selecionados.
+                  </div>
+                ) : null}
               </div>
 
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
@@ -8081,6 +9085,260 @@ function App() {
                   disabled={savingTeacher}
                 >
                   {savingTeacher ? 'Salvando...' : 'Salvar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: entrega pedagógica (entregas_docentes) */}
+      {showEntregaModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 2000,
+          }}
+          onMouseDown={handleBackdropMouseDown}
+          onClick={(e) =>
+            handleBackdropClick(e, () => {
+              if (!savingEntrega) {
+                setShowEntregaModal(false);
+                setEditingEntrega(null);
+              }
+            })
+          }
+        >
+          <div
+            style={{
+              background: 'white',
+              padding: 30,
+              borderRadius: 12,
+              width: '90%',
+              maxWidth: 560,
+              boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ marginTop: 0, marginBottom: 20, color: 'var(--primary)' }}>
+              {editingEntrega ? 'Editar exigência' : 'Nova exigência de entrega'}
+            </h2>
+            <form onSubmit={handleSaveEntrega}>
+              <div className="input-group">
+                <label>Tipo de documento *</label>
+                <input
+                  type="text"
+                  required
+                  list="tipos-entrega-docente"
+                  value={entregaFormData.tipo_documento}
+                  onChange={(e) => setEntregaFormData({ ...entregaFormData, tipo_documento: e.target.value })}
+                  placeholder="Ex.: Plano de Aula, Diário de Classe..."
+                />
+                <datalist id="tipos-entrega-docente">
+                  <option value="Plano de Aula" />
+                  <option value="Plano de Curso" />
+                  <option value="Sondagem Alfabetiza Pará" />
+                  <option value="Diário de Classe" />
+                  <option value="Planejamento anual" />
+                </datalist>
+              </div>
+              <div className="input-group">
+                <label>Referência *</label>
+                <input
+                  type="text"
+                  required
+                  value={entregaFormData.referencia}
+                  onChange={(e) => setEntregaFormData({ ...entregaFormData, referencia: e.target.value })}
+                  placeholder="Ex.: 2º Bimestre - Turma 5º A"
+                />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 15 }}>
+                <div className="input-group">
+                  <label>Status</label>
+                  <select
+                    value={entregaFormData.status}
+                    onChange={(e) => setEntregaFormData({ ...entregaFormData, status: e.target.value })}
+                    style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #ddd' }}
+                  >
+                    <option value="pendente">Pendente</option>
+                    <option value="entregue">Entregue</option>
+                    <option value="atrasado">Atrasado</option>
+                  </select>
+                </div>
+                <div className="input-group">
+                  <label>Prazo (opcional)</label>
+                  <input
+                    type="date"
+                    value={entregaFormData.prazo}
+                    onChange={(e) => setEntregaFormData({ ...entregaFormData, prazo: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="input-group">
+                <label>Observações</label>
+                <textarea
+                  value={entregaFormData.observacoes}
+                  onChange={(e) => setEntregaFormData({ ...entregaFormData, observacoes: e.target.value })}
+                  rows={3}
+                  placeholder="Notas internas..."
+                  style={{
+                    width: '100%',
+                    padding: 10,
+                    border: '1px solid #ddd',
+                    borderRadius: 6,
+                    fontFamily: 'inherit',
+                    resize: 'vertical',
+                  }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 20 }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={savingEntrega}
+                  onClick={() => {
+                    setShowEntregaModal(false);
+                    setEditingEntrega(null);
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button type="submit" className="btn-primary" disabled={savingEntrega}>
+                  {savingEntrega ? 'Salvando...' : 'Salvar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: registro de coordenação (registros_coordenacao) */}
+      {showRegistroCoordModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 2000,
+          }}
+          onMouseDown={handleBackdropMouseDown}
+          onClick={(e) =>
+            handleBackdropClick(e, () => {
+              if (!savingRegistroCoord) {
+                setShowRegistroCoordModal(false);
+                setEditingRegistroCoord(null);
+              }
+            })
+          }
+        >
+          <div
+            style={{
+              background: 'white',
+              padding: 30,
+              borderRadius: 12,
+              width: '90%',
+              maxWidth: 560,
+              boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ marginTop: 0, marginBottom: 20, color: 'var(--primary)' }}>
+              {editingRegistroCoord ? 'Editar registro' : 'Nova conversa / registro'}
+            </h2>
+            <form onSubmit={handleSaveRegistroCoord}>
+              <div className="input-group">
+                <label>Data *</label>
+                <input
+                  type="date"
+                  required
+                  value={registroCoordFormData.data_conversa}
+                  onChange={(e) =>
+                    setRegistroCoordFormData({ ...registroCoordFormData, data_conversa: e.target.value })
+                  }
+                />
+              </div>
+              <div className="input-group">
+                <label>Assunto *</label>
+                <input
+                  type="text"
+                  required
+                  value={registroCoordFormData.assunto}
+                  onChange={(e) =>
+                    setRegistroCoordFormData({ ...registroCoordFormData, assunto: e.target.value })
+                  }
+                  placeholder="Ex.: Reunião de feedback, Observação de sala..."
+                />
+              </div>
+              <div className="input-group">
+                <label>Relato (o que foi discutido)</label>
+                <textarea
+                  value={registroCoordFormData.relato}
+                  onChange={(e) =>
+                    setRegistroCoordFormData({ ...registroCoordFormData, relato: e.target.value })
+                  }
+                  rows={4}
+                  placeholder="Resumo da conversa..."
+                  style={{
+                    width: '100%',
+                    padding: 10,
+                    border: '1px solid #ddd',
+                    borderRadius: 6,
+                    fontFamily: 'inherit',
+                    resize: 'vertical',
+                  }}
+                />
+              </div>
+              <div className="input-group">
+                <label>Encaminhamentos (combinados)</label>
+                <textarea
+                  value={registroCoordFormData.encaminhamentos}
+                  onChange={(e) =>
+                    setRegistroCoordFormData({ ...registroCoordFormData, encaminhamentos: e.target.value })
+                  }
+                  rows={3}
+                  placeholder="Próximos passos acordados..."
+                  style={{
+                    width: '100%',
+                    padding: 10,
+                    border: '1px solid #ddd',
+                    borderRadius: 6,
+                    fontFamily: 'inherit',
+                    resize: 'vertical',
+                  }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 20 }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={savingRegistroCoord}
+                  onClick={() => {
+                    setShowRegistroCoordModal(false);
+                    setEditingRegistroCoord(null);
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button type="submit" className="btn-primary" disabled={savingRegistroCoord}>
+                  {savingRegistroCoord ? 'Salvando...' : 'Salvar'}
                 </button>
               </div>
             </form>
