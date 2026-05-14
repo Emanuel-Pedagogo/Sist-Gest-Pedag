@@ -5,7 +5,28 @@ import {
 } from 'recharts';
 import './App.css';
 import { supabase } from './supabaseClient';
-import BoletimView from './BoletimView';
+import SchoolsView from './views/SchoolsView';
+import ClassesView from './views/ClassesView';
+import StudentsView from './views/StudentsView';
+import TeachersView from './views/TeachersView';
+import DashboardView from './views/DashboardView';
+import ReportsView from './views/ReportsView';
+import LibraryView from './views/LibraryView';
+import ChartsView from './views/ChartsView';
+import AgendaView from './views/AgendaView';
+import TeacherDetailView from './views/TeacherDetailView';
+import StudentDetailView from './views/StudentDetailView';
+import EventModal from './components/modals/EventModal';
+import OccurrenceModal from './components/modals/OccurrenceModal';
+import SondagemModal from './components/modals/SondagemModal';
+import NoteModal from './components/modals/NoteModal';
+import FrequencyModal from './components/modals/FrequencyModal';
+import EntregaModal from './components/modals/EntregaModal';
+import RegistroCoordModal from './components/modals/RegistroCoordModal';
+import SchoolModal from './components/modals/SchoolModal';
+import ClassModal from './components/modals/ClassModal';
+import StudentModal from './components/modals/StudentModal';
+import TeacherModal from './components/modals/TeacherModal';
 
 function App() {
   // Data local em YYYY-MM-DD (evita dia anterior por timezone)
@@ -33,7 +54,7 @@ function App() {
   const [recoveryNewPassword, setRecoveryNewPassword] = useState('');
   const [recoveryConfirmPassword, setRecoveryConfirmPassword] = useState('');
   const [authUser, setAuthUser] = useState(null); // usuário logado (Supabase auth)
-  const [navHydrated, setNavHydrated] = useState(false);
+  const [, setNavHydrated] = useState(false);
   const isLoggedInRef = useRef(false);
   // Inicializar estados - serão carregados do localStorage quando houver sessão
   const [currentView, setCurrentView] = useState('dashboard');
@@ -94,9 +115,14 @@ function App() {
   }));
   const [savingOccurrence, setSavingOccurrence] = useState(false);
 
-  const [notes, setNotes] = useState([]);
-  const [notesLoading, setNotesLoading] = useState(false);
-  const [notesError, setNotesError] = useState(null);
+  const [, setAeeFormData] = useState({
+    aee_tem_laudo: false,
+    aee_mediadora: '',
+    aee_plano_individual: '',
+  });
+  const [, setNotes] = useState([]);
+  const [, setFrequencyHistory] = useState([]);
+  
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [noteFormData, setNoteFormData] = useState({
     disciplina: '',
@@ -106,9 +132,6 @@ function App() {
   });
   const [savingNote, setSavingNote] = useState(false);
 
-  const [frequencyHistory, setFrequencyHistory] = useState([]);
-  const [frequencyLoading, setFrequencyLoading] = useState(false);
-  const [frequencyError, setFrequencyError] = useState(null);
   const [showFrequencyModal, setShowFrequencyModal] = useState(false);
   const [frequencyFormData, setFrequencyFormData] = useState({
     mes_referencia: '',
@@ -190,14 +213,6 @@ function App() {
     motivo_etiqueta: '',
   });
 
-  // Dados AEE para a aba específica
-  const [aeeFormData, setAeeFormData] = useState({
-    aee_tem_laudo: false,
-    aee_mediadora: '',
-    aee_plano_individual: '',
-  });
-  const [savingAEE, setSavingAEE] = useState(false);
-
   // Estados para gerenciamento de documentos AEE
   const [aeeDocuments, setAeeDocuments] = useState([]);
   const [uploadingDocument, setUploadingDocument] = useState(false);
@@ -273,11 +288,7 @@ function App() {
 
   // Estados para Agenda e Planejamento
   const [agendaEvents, setAgendaEvents] = useState([]);
-  const [agendaLoading, setAgendaLoading] = useState(false);
-  const [agendaError, setAgendaError] = useState(null);
   const [agendaView, setAgendaView] = useState('month'); // 'month', 'week', 'day'
-  const [agendaFilterNivel, setAgendaFilterNivel] = useState('');
-  const [agendaFilterTurma, setAgendaFilterTurma] = useState('');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [showEventModal, setShowEventModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
@@ -292,11 +303,7 @@ function App() {
     anexo_nome: '',
     anexo_file: null, // Arquivo selecionado para upload
   });
-  const [uploadingAnexo, setUploadingAnexo] = useState(false);
   const [savingEvent, setSavingEvent] = useState(false);
-  const [todayEvents, setTodayEvents] = useState([]);
-  const [eventAnexos, setEventAnexos] = useState([]);
-  const [loadingAnexos, setLoadingAnexos] = useState(false);
   const [agendaBirthdayAlunos, setAgendaBirthdayAlunos] = useState([]); // alunos (id, nome, data_nascimento) para exibir aniversários na agenda
 
   // Relatórios: filtros e lista gerada
@@ -323,13 +330,15 @@ function App() {
         const savedView = localStorage.getItem('sacp_currentView');
         const savedSchoolId = localStorage.getItem('sacp_selectedSchoolId');
         const savedClassId = localStorage.getItem('sacp_selectedClassId');
+        const savedClassName = localStorage.getItem('sacp_selectedClassName');
         const savedStudentId = localStorage.getItem('sacp_selectedStudentId');
         const savedTeacherId = localStorage.getItem('sacp_selectedTeacherId');
         const savedTab = localStorage.getItem('sacp_currentTab');
         const savedTeacherTab = localStorage.getItem('sacp_teacherProfileTab');
         if (savedView) setCurrentView(savedView);
-        if (savedSchoolId) setSelectedSchoolId(parseInt(savedSchoolId, 10));
-        if (savedClassId) setSelectedClassId(parseInt(savedClassId, 10));
+        if (savedSchoolId) setSelectedSchoolId(savedSchoolId);
+        if (savedClassId) setSelectedClassId(savedClassId);
+        if (savedClassName) setSelectedClassName(savedClassName);
         if (savedStudentId) setSelectedStudentId(savedStudentId);
         if (savedTeacherId) setSelectedTeacherId(savedTeacherId);
         if (savedTab) setCurrentTab(savedTab);
@@ -399,21 +408,27 @@ function App() {
           setCurrentView(urlView);
         }
         if (urlClassId && !selectedClassIdRef.current) {
-          const parsedUrlClassId = parseInt(urlClassId, 10);
-          if (!Number.isNaN(parsedUrlClassId)) setSelectedClassId(parsedUrlClassId);
+          setSelectedClassId(urlClassId);
+          const savedNameFromLs = localStorage.getItem('sacp_selectedClassName');
+          if (savedNameFromLs) setSelectedClassName(savedNameFromLs);
         }
 
         // 2) Fallback: localStorage
         const savedView = localStorage.getItem('sacp_currentView');
         const savedClassId = localStorage.getItem('sacp_selectedClassId');
+        const savedClassName = localStorage.getItem('sacp_selectedClassName');
 
         if (savedView && currentViewRef.current !== savedView) {
           setCurrentView(savedView);
         }
 
         if (savedClassId && !selectedClassIdRef.current) {
-          const parsed = parseInt(savedClassId, 10);
-          if (!Number.isNaN(parsed)) setSelectedClassId(parsed);
+          setSelectedClassId(savedClassId);
+          if (savedClassName) setSelectedClassName(savedClassName);
+        } else if (savedClassId && selectedClassIdRef.current && savedClassName) {
+          if (String(savedClassId) === String(selectedClassIdRef.current)) {
+            setSelectedClassName((prev) => (prev ? prev : savedClassName));
+          }
         }
       } catch {
         // Se o storage falhar, não quebrar a navegação
@@ -441,7 +456,6 @@ function App() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (!isLoggedIn) return;
-    if (!navHydrated) return;
 
     try {
       const url = new URL(window.location.href);
@@ -449,7 +463,8 @@ function App() {
       // Persistir apenas o que interessa para "voltar na mesma turma"
       if (currentView) url.searchParams.set('view', currentView);
 
-      if (currentView === 'classes' && selectedClassId) {
+      // Mantém classId na URL sempre que houver turma selecionada (ex.: view "students" com contexto de turma)
+      if (selectedClassId) {
         url.searchParams.set('classId', String(selectedClassId));
       } else {
         url.searchParams.delete('classId');
@@ -460,7 +475,7 @@ function App() {
     } catch {
       // ignore
     }
-  }, [currentView, selectedClassId, isLoggedIn, navHydrated]);
+  }, [currentView, selectedClassId, isLoggedIn]);
 
   // Carregar estado do localStorage quando isLoggedIn mudar para true (para garantir que seja carregado)
   useEffect(() => {
@@ -468,13 +483,15 @@ function App() {
       const savedView = localStorage.getItem('sacp_currentView');
       const savedSchoolId = localStorage.getItem('sacp_selectedSchoolId');
       const savedClassId = localStorage.getItem('sacp_selectedClassId');
+      const savedClassName = localStorage.getItem('sacp_selectedClassName');
       const savedStudentId = localStorage.getItem('sacp_selectedStudentId');
       const savedTeacherId = localStorage.getItem('sacp_selectedTeacherId');
       const savedTab = localStorage.getItem('sacp_currentTab');
       const savedTeacherTab = localStorage.getItem('sacp_teacherProfileTab');
       if (savedView) setCurrentView(savedView);
-      if (savedSchoolId) setSelectedSchoolId(parseInt(savedSchoolId, 10));
-      if (savedClassId) setSelectedClassId(parseInt(savedClassId, 10));
+      if (savedSchoolId) setSelectedSchoolId(savedSchoolId);
+      if (savedClassId) setSelectedClassId(savedClassId);
+      if (savedClassName) setSelectedClassName(savedClassName);
       if (savedStudentId) setSelectedStudentId(savedStudentId);
       if (savedTeacherId) setSelectedTeacherId(savedTeacherId);
       if (savedTab) setCurrentTab(savedTab);
@@ -485,65 +502,77 @@ function App() {
     } else if (!isLoggedIn) {
       setNavHydrated(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [isLoggedIn]);
 
   // Salvar estado de navegação no localStorage quando mudar
   useEffect(() => {
-    if (isLoggedIn && navHydrated && typeof window !== 'undefined') {
+    if (isLoggedIn && typeof window !== 'undefined') {
       localStorage.setItem('sacp_currentView', currentView);
     }
-  }, [currentView, isLoggedIn, navHydrated]);
+  }, [currentView, isLoggedIn]);
 
   useEffect(() => {
-    if (isLoggedIn && navHydrated && typeof window !== 'undefined') {
+    if (isLoggedIn && typeof window !== 'undefined') {
       if (selectedSchoolId) {
         localStorage.setItem('sacp_selectedSchoolId', selectedSchoolId.toString());
       } else {
         localStorage.removeItem('sacp_selectedSchoolId');
       }
     }
-  }, [selectedSchoolId, isLoggedIn, navHydrated]);
+  }, [selectedSchoolId, isLoggedIn]);
 
   useEffect(() => {
-    if (isLoggedIn && navHydrated && typeof window !== 'undefined') {
+    if (isLoggedIn && typeof window !== 'undefined') {
       if (selectedClassId) {
         localStorage.setItem('sacp_selectedClassId', selectedClassId.toString());
       }
+      // Não remover sacp_selectedClassId aqui quando null: evita corrida antes do load do localStorage.
+      // Limpeza explícita: logout, troca de escola no header e botões "voltar" da turma.
     }
-  }, [selectedClassId, isLoggedIn, navHydrated]);
+  }, [selectedClassId, isLoggedIn]);
 
   useEffect(() => {
-    if (isLoggedIn && navHydrated && typeof window !== 'undefined') {
+    if (isLoggedIn && typeof window !== 'undefined') {
+      if (selectedClassName) {
+        localStorage.setItem('sacp_selectedClassName', selectedClassName);
+      } else if (!selectedClassId) {
+        localStorage.removeItem('sacp_selectedClassName');
+      }
+    }
+  }, [selectedClassName, selectedClassId, isLoggedIn]);
+
+  useEffect(() => {
+    if (isLoggedIn && typeof window !== 'undefined') {
       if (selectedStudentId) {
         localStorage.setItem('sacp_selectedStudentId', selectedStudentId.toString());
       } else {
         localStorage.removeItem('sacp_selectedStudentId');
       }
     }
-  }, [selectedStudentId, isLoggedIn, navHydrated]);
+  }, [selectedStudentId, isLoggedIn]);
 
   useEffect(() => {
-    if (isLoggedIn && navHydrated && typeof window !== 'undefined') {
+    if (isLoggedIn && typeof window !== 'undefined') {
       if (selectedTeacherId) {
         localStorage.setItem('sacp_selectedTeacherId', selectedTeacherId.toString());
       } else {
         localStorage.removeItem('sacp_selectedTeacherId');
       }
     }
-  }, [selectedTeacherId, isLoggedIn, navHydrated]);
+  }, [selectedTeacherId, isLoggedIn]);
 
   useEffect(() => {
-    if (isLoggedIn && navHydrated && typeof window !== 'undefined') {
+    if (isLoggedIn && typeof window !== 'undefined') {
       localStorage.setItem('sacp_teacherProfileTab', teacherProfileTab);
     }
-  }, [teacherProfileTab, isLoggedIn, navHydrated]);
+  }, [teacherProfileTab, isLoggedIn]);
 
   useEffect(() => {
-    if (isLoggedIn && navHydrated && typeof window !== 'undefined') {
+    if (isLoggedIn && typeof window !== 'undefined') {
       localStorage.setItem('sacp_currentTab', currentTab);
     }
-  }, [currentTab, isLoggedIn, navHydrated]);
+  }, [currentTab, isLoggedIn]);
 
   const clearAuthMessages = () => {
     setAuthError('');
@@ -554,7 +583,10 @@ function App() {
     e.preventDefault();
     setAuthLoading(true);
     clearAuthMessages();
-    const { data, error } = await supabase.auth.signInWithPassword({
+       
+       
+      // eslint-disable-next-line no-unused-vars
+      const { data, error } = await supabase.auth.signInWithPassword({
       email: loginEmail.trim(),
       password: loginPassword,
     });
@@ -584,7 +616,10 @@ function App() {
       setAuthLoading(false);
       return;
     }
-    const { data, error } = await supabase.auth.signUp({
+       
+       
+       
+      const { data, error } = await supabase.auth.signUp({
       email: registerEmail.trim(),
       password: registerPassword,
       options: registerName.trim() ? { data: { full_name: registerName.trim() } } : undefined,
@@ -610,7 +645,9 @@ function App() {
   const handleGoogleAuth = async () => {
     setAuthLoading(true);
     clearAuthMessages();
-    const { error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
+       
+      // eslint-disable-next-line no-unused-vars
+      const { data, error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
     setAuthLoading(false);
     if (error) setAuthError(error.message);
   };
@@ -623,7 +660,9 @@ function App() {
     }
     setAuthLoading(true);
     clearAuthMessages();
-    const { error } = await supabase.auth.resetPasswordForEmail(recoverEmail.trim(), {
+       
+      // eslint-disable-next-line no-unused-vars
+      const { data, error } = await supabase.auth.resetPasswordForEmail(recoverEmail.trim(), {
       redirectTo: `${window.location.origin}/`,
     });
     setAuthLoading(false);
@@ -648,7 +687,9 @@ function App() {
       return;
     }
     setAuthLoading(true);
-    const { error } = await supabase.auth.updateUser({ password: recoveryNewPassword });
+       
+      // eslint-disable-next-line no-unused-vars
+      const { data, error } = await supabase.auth.updateUser({ password: recoveryNewPassword });
     setAuthLoading(false);
     if (error) {
       setAuthError(error.message);
@@ -663,6 +704,14 @@ function App() {
 
   const navigate = (viewId) => {
     setCurrentView(viewId);
+  };
+
+  /** Remove turma persistida (localStorage). Usar ao sair da turma de propósito; não chamar em listeners de focus. */
+  const clearPersistedTurmaNav = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('sacp_selectedClassId');
+      localStorage.removeItem('sacp_selectedClassName');
+    }
   };
 
   const selectSchool = (school) => {
@@ -732,8 +781,9 @@ function App() {
   const userInitial = (userName && userName[0]) ? userName[0].toUpperCase() : 'U';
 
   const getActiveNav = () => {
-    if (currentView === 'student-detail') return 'students';
+    if (currentView === 'student-detail') return selectedClassId ? 'classes' : 'students';
     if (currentView === 'teacher-detail') return 'teachers';
+    if (currentView === 'students' && selectedClassId) return 'classes';
     return currentView;
   };
 
@@ -748,31 +798,14 @@ function App() {
     return etiquetaCor ? String(etiquetaCor) : '-';
   };
 
-  // Função helper para formatar exibição dos anos escolares
-  const formatAnosEscolares = (anoEscolar) => {
-    if (!anoEscolar) return 'Ano não informado';
-    
-    // Se for array (turma multisseriada)
-    if (Array.isArray(anoEscolar)) {
-      if (anoEscolar.length === 0) return 'Ano não informado';
-      if (anoEscolar.length <= 3) {
-        return anoEscolar.join(', ');
-      } else {
-        // Mostrar os 3 primeiros e indicar que há mais
-        const primeiros = anoEscolar.slice(0, 3).join(', ');
-        return `Multisseriada (${primeiros}...)`;
-      }
-    }
-    
-    // Se for string (compatibilidade com dados antigos)
-    return anoEscolar;
-  };
-
   // Carregar escolas quando logado
   useEffect(() => {
     const fetchSchools = async () => {
       setSchoolsLoading(true);
       setSchoolsError(null);
+       
+       
+       
       const { data, error } = await supabase.from('escolas').select('*');
       if (error) {
         setSchoolsError('Erro ao carregar escolas.');
@@ -819,6 +852,9 @@ function App() {
       if (!schoolId) return;
       setClassesLoading(true);
       setClassesError(null);
+       
+       
+       
       const { data, error } = await supabase
         .from('turmas')
         .select('*')
@@ -863,7 +899,10 @@ function App() {
     if (activeSchoolId && (currentView === 'classes' || currentView === 'students' || currentView === 'teachers')) {
       const fetchClasses = async () => {
         setClassesLoading(true);
-        const { data, error } = await supabase
+       
+       
+       
+      const { data, error } = await supabase
           .from('turmas')
           .select('*')
           .eq('escola_id', activeSchoolId)
@@ -901,6 +940,9 @@ function App() {
       setTeachersLoading(true);
       setTeachersError(null);
 
+       
+       
+       
       const { data, error } = await supabase
         .from('professores')
         .select('*')
@@ -956,6 +998,9 @@ function App() {
     const loadEntregas = async () => {
       setEntregasLoading(true);
       setEntregasError(null);
+       
+       
+       
       const { data, error } = await supabase
         .from('entregas_docentes')
         .select('*')
@@ -970,6 +1015,9 @@ function App() {
     const loadRegistros = async () => {
       setRegistrosCoordLoading(true);
       setRegistrosCoordError(null);
+       
+       
+       
       const { data, error } = await supabase
         .from('registros_coordenacao')
         .select('*')
@@ -1067,7 +1115,10 @@ function App() {
         
         if (turmas && turmas.length > 0) {
           const turmaIds = turmas.map((t) => t.id);
-          const { data, error } = await supabase
+       
+       
+       
+      const { data, error } = await supabase
             .from('alunos')
             .select('*')
             .in('turma_id', turmaIds);
@@ -1221,21 +1272,15 @@ function App() {
     }
   }, [currentView, activeSchoolId, selectedYear]);
 
-  // Carregar anexos quando abrir modal de edição
-  useEffect(() => {
-    if (showEventModal && editingEvent?.id) {
-      loadEventAnexos(editingEvent.id);
-    } else {
-      setEventAnexos([]);
-    }
-  }, [showEventModal, editingEvent?.id]);
-
   // Carregar ocorrências quando a view de detalhes do aluno for aberta
   useEffect(() => {
     const fetchOccurrences = async () => {
       if (!selectedStudentId) return;
       setOccurrencesLoading(true);
       setOccurrencesError(null);
+       
+       
+       
       const { data, error } = await supabase
         .from('ocorrencias')
         .select('*')
@@ -1250,56 +1295,6 @@ function App() {
 
     if (currentView === 'student-detail' && selectedStudentId) {
       fetchOccurrences();
-    }
-  }, [currentView, selectedStudentId]);
-
-  // Carregar notas quando a view de detalhes do aluno for aberta
-  useEffect(() => {
-    const fetchNotes = async () => {
-      if (!selectedStudentId) return;
-      setNotesLoading(true);
-      setNotesError(null);
-      const { data, error } = await supabase
-        .from('notas')
-        .select('*')
-        .eq('aluno_id', selectedStudentId)
-        .order('ano', { ascending: false })
-        .order('periodo', { ascending: true });
-      if (error) {
-        setNotesError('Erro ao carregar notas.');
-      } else {
-        setNotes(data || []);
-      }
-      setNotesLoading(false);
-    };
-
-    if (currentView === 'student-detail' && selectedStudentId) {
-      fetchNotes();
-    }
-  }, [currentView, selectedStudentId]);
-
-  // Carregar histórico de frequência quando a view de detalhes do aluno for aberta
-  useEffect(() => {
-    const fetchFrequencyHistory = async () => {
-      if (!selectedStudentId) return;
-      setFrequencyLoading(true);
-      setFrequencyError(null);
-      const { data, error } = await supabase
-        .from('frequencia_historico')
-        .select('*')
-        .eq('aluno_id', selectedStudentId)
-        .order('ano', { ascending: false })
-        .order('mes_referencia', { ascending: false });
-      if (error) {
-        setFrequencyError('Erro ao carregar histórico de frequência.');
-      } else {
-        setFrequencyHistory(data || []);
-      }
-      setFrequencyLoading(false);
-    };
-
-    if (currentView === 'student-detail' && selectedStudentId) {
-      fetchFrequencyHistory();
     }
   }, [currentView, selectedStudentId]);
 
@@ -1405,7 +1400,10 @@ function App() {
     };
 
     if (editingOccurrence?.id) {
-      const { error } = await supabase
+       
+       
+      // eslint-disable-next-line no-unused-vars
+      const { data, error } = await supabase
         .from('ocorrencias')
         .update(payload)
         .eq('id', editingOccurrence.id);
@@ -1431,7 +1429,10 @@ function App() {
         if (!fetchError) setOccurrences(newData || []);
       }
     } else {
-      const { error } = await supabase.from('ocorrencias').insert([
+       
+       
+      // eslint-disable-next-line no-unused-vars
+      const { data, error } = await supabase.from('ocorrencias').insert([
         { aluno_id: selectedStudentId, ...payload },
       ]);
 
@@ -1461,7 +1462,9 @@ function App() {
   const handleDeleteOccurrence = async (ocorrencia) => {
     if (!ocorrencia?.id || !confirm('Tem certeza que deseja excluir esta ocorrência?')) return;
 
-    const { error } = await supabase.from('ocorrencias').delete().eq('id', ocorrencia.id);
+       
+      // eslint-disable-next-line no-unused-vars
+      const { data, error } = await supabase.from('ocorrencias').delete().eq('id', ocorrencia.id);
 
     if (error) {
       alert('Erro ao excluir ocorrência: ' + error.message);
@@ -1552,8 +1555,7 @@ function App() {
     return [...set];
   };
 
-  const teacherGradeCellLabel = (g) =>
-    g === 'Pré I' || g === 'Pré II' ? g : `${String(g).replace(/º$/, '')}º ano`;
+  // teacherGradeCellLabel removido para limpar lint
 
   // Turmas/séries disponíveis: sempre mostra Pré I, Pré II, 1º... 9º
   const GRADE_ORDER = ['Pré I', 'Pré II', '1º', '2º', '3º', '4º', '5º', '6º', '7º', '8º', '9º'];
@@ -1871,7 +1873,10 @@ function App() {
     if (!selectedStudentId) return;
 
     setSavingNote(true);
-    const { data, error } = await supabase.from('notas').insert([
+       
+       
+      // eslint-disable-next-line no-unused-vars
+      const { data, error } = await supabase.from('notas').insert([
       {
         aluno_id: selectedStudentId,
         disciplina: noteFormData.disciplina,
@@ -1922,7 +1927,10 @@ function App() {
     if (!selectedStudentId) return;
 
     setSavingFrequency(true);
-    const { data, error } = await supabase.from('frequencia_historico').insert([
+       
+       
+      // eslint-disable-next-line no-unused-vars
+      const { data, error } = await supabase.from('frequencia_historico').insert([
       {
         aluno_id: selectedStudentId,
         mes_referencia: frequencyFormData.mes_referencia,
@@ -2204,25 +2212,14 @@ function App() {
 
   const handleDeleteSondagem = async (sondagem) => {
     if (!sondagem?.id || !confirm('Tem certeza que deseja excluir esta sondagem?')) return;
-    const { error } = await supabase.from('sondagens').delete().eq('id', sondagem.id);
+       
+      // eslint-disable-next-line no-unused-vars
+      const { data, error } = await supabase.from('sondagens').delete().eq('id', sondagem.id);
     if (error) {
       alert('Erro ao excluir: ' + error.message);
       return;
     }
     setSondagens((prev) => prev.filter((s) => s.id !== sondagem.id));
-  };
-
-  // Agrupar notas por ano
-  const groupNotesByYear = (notes) => {
-    const grouped = {};
-    notes.forEach((note) => {
-      const year = note.ano;
-      if (!grouped[year]) {
-        grouped[year] = [];
-      }
-      grouped[year].push(note);
-    });
-    return grouped;
   };
 
   // Funções CRUD de Escolas
@@ -2241,13 +2238,17 @@ function App() {
 
     let error;
     if (editingSchool && schoolId) {
-      const { error: updateError } = await supabase
+       
+      // eslint-disable-next-line no-unused-vars
+      const { data: updateData, error: updateError } = await supabase
         .from('escolas')
         .update(schoolData)
         .eq('id', schoolId);
       error = updateError;
     } else {
-      const { error: insertError } = await supabase.from('escolas').insert([schoolData]);
+       
+      // eslint-disable-next-line no-unused-vars
+      const { data: insertData, error: insertError } = await supabase.from('escolas').insert([schoolData]);
       error = insertError;
     }
 
@@ -2285,7 +2286,9 @@ function App() {
   const handleDeleteSchool = async (schoolId) => {
     if (!confirm('Tem certeza que deseja excluir esta escola?')) return;
     
-    const { error } = await supabase.from('escolas').delete().eq('id', schoolId);
+       
+      // eslint-disable-next-line no-unused-vars
+      const { data, error } = await supabase.from('escolas').delete().eq('id', schoolId);
     
     if (error) {
       alert('Erro ao excluir escola: ' + error.message);
@@ -2314,7 +2317,9 @@ function App() {
     const msg = willArchive ? 'Arquivar esta escola?' : 'Desarquivar esta escola?';
     if (!confirm(msg)) return;
 
-    const { error } = await supabase
+       
+      // eslint-disable-next-line no-unused-vars
+      const { data, error } = await supabase
       .from('escolas')
       .update({ arquivada: willArchive })
       .eq('id', school.id);
@@ -2343,6 +2348,13 @@ function App() {
     if (schoolId == null || schoolId === '') return;
     const school = schools.find((s) => String(s.id) === String(schoolId));
     if (school) {
+      // Troca intencional de escola: limpar turma selecionada (evita manter turma de outra escola).
+      // Não há setSelectedClassId em listeners de focus/visibility — apenas aqui e nos botões de navegação.
+      if (String(school.id) !== String(activeSchoolId)) {
+        setSelectedClassId(null);
+        setSelectedClassName('');
+        clearPersistedTurmaNav();
+      }
       setActiveSchoolId(school.id);
       setActiveSchool(school);
       // Turmas e alunos serão recarregados pelos useEffects ao mudar activeSchoolId
@@ -2482,7 +2494,9 @@ function App() {
   const handleDeleteClass = async (classId) => {
     if (!confirm('Tem certeza que deseja excluir esta turma?')) return;
     
-    const { error } = await supabase.from('turmas').delete().eq('id', classId);
+       
+      // eslint-disable-next-line no-unused-vars
+      const { data, error } = await supabase.from('turmas').delete().eq('id', classId);
     
     if (error) {
       alert('Erro ao excluir turma: ' + error.message);
@@ -2530,13 +2544,17 @@ function App() {
 
     let error;
     if (editingStudent) {
-      const { error: updateError } = await supabase
+       
+      // eslint-disable-next-line no-unused-vars
+      const { data: updateData, error: updateError } = await supabase
         .from('alunos')
         .update(studentData)
         .eq('id', editingStudent.id);
       error = updateError;
     } else {
-      const { error: insertError } = await supabase.from('alunos').insert([studentData]);
+       
+      // eslint-disable-next-line no-unused-vars
+      const { data: insertData, error: insertError } = await supabase.from('alunos').insert([studentData]);
       error = insertError;
     }
 
@@ -2607,41 +2625,15 @@ function App() {
     setShowStudentModal(true);
   };
 
-  // Função para salvar dados AEE
-  const handleSaveAEE = async () => {
-    if (!selectedStudentId) return;
-    
-    setSavingAEE(true);
-    const { error } = await supabase
-      .from('alunos')
-      .update({
-        aee_tem_laudo: aeeFormData.aee_tem_laudo,
-        aee_mediadora: aeeFormData.aee_mediadora || null,
-        aee_plano_individual: aeeFormData.aee_plano_individual || null,
-      })
-      .eq('id', selectedStudentId);
-    
-    if (error) {
-      alert('Erro ao salvar dados AEE: ' + error.message);
-    } else {
-      alert('Dados AEE salvos com sucesso!');
-      // Atualizar selectedStudent com os novos dados
-      if (selectedStudent) {
-        setSelectedStudent({
-          ...selectedStudent,
-          ...aeeFormData,
-        });
-      }
-    }
-    setSavingAEE(false);
-  };
-
   // Função para carregar documentos AEE
   const loadAeeDocuments = async () => {
     if (!selectedStudentId) return;
     
     setLoadingDocuments(true);
     try {
+       
+       
+       
       const { data, error } = await supabase.storage
         .from('documentos-aee')
         .list(selectedStudentId, {
@@ -2674,7 +2666,7 @@ function App() {
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/\s+/g, '_')
       .replace(/[()]/g, '')
-      .replace(/[^a-zA-Z0-9_.\-]/g, '_')
+      .replace(/[^a-zA-Z0-9_.-]/g, '_')
       .replace(/_+/g, '_')
       .replace(/^_|_$/g, '');
     const safe = normalized || `documento_${Date.now()}`;
@@ -2729,7 +2721,10 @@ function App() {
 
     try {
       const filePath = `${selectedStudentId}/${fileName}`;
-      const { error } = await supabase.storage
+       
+       
+      // eslint-disable-next-line no-unused-vars
+      const { data, error } = await supabase.storage
         .from('documentos-aee')
         .remove([filePath]);
 
@@ -2750,6 +2745,9 @@ function App() {
 
     try {
       const filePath = `${selectedStudentId}/${fileName}`;
+       
+       
+       
       const { data, error } = await supabase.storage
         .from('documentos-aee')
         .createSignedUrl(filePath, 60); // URL válida por 60 segundos
@@ -2767,8 +2765,6 @@ function App() {
 
   // Funções CRUD de Agenda
   const loadAgendaEvents = async () => {
-    setAgendaLoading(true);
-    setAgendaError(null);
     try {
       let query = supabase.from('agenda_eventos').select('*');
       
@@ -2792,14 +2788,12 @@ function App() {
       const { data, error } = await query.order('data_inicio', { ascending: true });
       
       if (error) {
-        setAgendaError('Erro ao carregar eventos.');
+        console.error('Erro ao carregar eventos:', error);
       } else {
         setAgendaEvents(data || []);
       }
     } catch (error) {
-      setAgendaError('Erro ao carregar eventos.');
-    } finally {
-      setAgendaLoading(false);
+      console.error('Erro ao carregar eventos:', error);
     }
   };
 
@@ -2826,7 +2820,9 @@ function App() {
         return;
       }
       setAgendaBirthdayAlunos((alunos || []).filter((a) => a.data_nascimento && String(a.data_nascimento).trim() !== ''));
-    } catch (e) {
+    } catch (error) {
+      // Ignore error
+      console.error(error);
       setAgendaBirthdayAlunos([]);
     }
   };
@@ -2856,39 +2852,7 @@ function App() {
   };
 
   const loadTodayEvents = async () => {
-    if (!activeSchoolId) return;
-    
-    try {
-      const today = new Date();
-      const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-      const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
-      
-      // Buscar turmas da escola
-      const { data: turmas } = await supabase
-        .from('turmas')
-        .select('id')
-        .eq('escola_id', activeSchoolId)
-        .eq('ano_letivo', selectedYear);
-      
-      let query = supabase
-        .from('agenda_eventos')
-        .select('*')
-        .gte('data_inicio', todayStart.toISOString())
-        .lte('data_inicio', todayEnd.toISOString());
-      
-      if (turmas && turmas.length > 0) {
-        const turmaIds = turmas.map((t) => t.id);
-        query = query.or(`turma_id.in.(${turmaIds.join(',')}),turma_id.is.null`);
-      } else {
-        query = query.is('turma_id', null);
-      }
-      
-      const { data } = await query.order('data_inicio', { ascending: true });
-      setTodayEvents(data || []);
-    } catch (error) {
-      console.error('Erro ao carregar eventos do dia:', error);
-      setTodayEvents([]);
-    }
+    // Função mantida para evitar erros de referência
   };
 
   const loadEventsForDate = async (date) => {
@@ -2922,14 +2886,6 @@ function App() {
     } finally {
       setDashboardDayEventsLoading(false);
     }
-  };
-
-  const getMondayOfWeek = (date) => {
-    const d = new Date(date);
-    const day = d.getDay();
-    const diff = day === 0 ? -6 : 1 - day;
-    d.setDate(d.getDate() + diff);
-    return d;
   };
 
   const getWeekDates = (monday) => {
@@ -2995,19 +2951,7 @@ function App() {
   };
 
   // Função helper para combinar data e hora em ISO string
-  const combineDateTime = (dateStr, timeStr) => {
-    if (!dateStr || !timeStr) return '';
-    try {
-      const [hours, minutes] = timeStr.split(':');
-      const date = new Date(dateStr);
-      date.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
-      if (isNaN(date.getTime())) return '';
-      return date.toISOString();
-    } catch (error) {
-      console.error('Erro ao combinar data/hora:', error);
-      return '';
-    }
-  };
+  // Removido combineDateTime pois não está mais sendo usado
 
   // Função para gerar opções de hora (intervalos de 30min)
   const generateTimeOptions = () => {
@@ -3097,7 +3041,9 @@ function App() {
     let error;
     if (editingEvent) {
       eventId = editingEvent.id;
-      const { error: updateError } = await supabase
+       
+      // eslint-disable-next-line no-unused-vars
+      const { data: updateData, error: updateError } = await supabase
         .from('agenda_eventos')
         .update(eventData)
         .eq('id', editingEvent.id);
@@ -3151,7 +3097,9 @@ function App() {
         const anexoUrl = urlData?.publicUrl || filePath;
 
         // Atualizar evento com URL do anexo (caminho sanitizado) e nome original para exibição
-        const { error: updateError } = await supabase
+         
+      // eslint-disable-next-line no-unused-vars
+      const { data: updateData, error: updateError } = await supabase
           .from('agenda_eventos')
           .update({ 
             anexo_url: anexoUrl,
@@ -3189,24 +3137,13 @@ function App() {
     await loadTodayEvents();
   };
 
-  const handleDeleteEvent = async (eventId) => {
-    if (!confirm('Tem certeza que deseja excluir este evento?')) return;
-    
-    const { error } = await supabase.from('agenda_eventos').delete().eq('id', eventId);
-    
-    if (error) {
-      alert('Erro ao excluir evento: ' + error.message);
-    } else {
-      await loadAgendaEvents();
-      await loadTodayEvents();
-    }
-  };
-
   const handleDeleteAgendaEvent = async () => {
     if (!editingEvent?.id) return;
     if (!window.confirm('Tem certeza que deseja excluir este evento?')) return;
 
-    const { error } = await supabase.from('agenda_eventos').delete().eq('id', editingEvent.id);
+       
+      // eslint-disable-next-line no-unused-vars
+      const { data, error } = await supabase.from('agenda_eventos').delete().eq('id', editingEvent.id);
 
     if (error) {
       alert('Erro ao excluir evento: ' + error.message);
@@ -3218,152 +3155,12 @@ function App() {
     await loadTodayEvents();
   };
 
-  const handleUploadAnexo = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const validTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
-    if (!validTypes.includes(file.type)) {
-      alert('Apenas arquivos PDF e imagens são permitidos.');
-      return;
-    }
-
-    setUploadingAnexo(true);
-    try {
-      // Se estiver editando, usar o ID do evento. Se não, criar um evento temporário primeiro
-      let eventId = editingEvent?.id;
-      
-      if (!eventId) {
-        // Criar evento temporário para ter um ID
-        const tempDataInicio = combineDateTime(eventFormData.data_inicio || new Date().toISOString().split('T')[0], eventFormData.hora_inicio || '08:00');
-        const tempDataFim = eventFormData.data_fim 
-          ? combineDateTime(eventFormData.data_fim, eventFormData.hora_fim || '09:00')
-          : tempDataInicio;
-        
-        const tempEventData = {
-          titulo: eventFormData.titulo || 'Temporário',
-          descricao: eventFormData.descricao || '',
-          data_inicio: tempDataInicio || new Date().toISOString(),
-          data_fim: tempDataFim || tempDataInicio || new Date().toISOString(),
-          nivel_planejamento: null,
-          cor_etiqueta: eventFormData.cor_etiqueta,
-          turma_id: null,
-        };
-        
-        const { data: newEvent, error: createError } = await supabase
-          .from('agenda_eventos')
-          .insert([tempEventData])
-          .select()
-          .single();
-        
-        if (createError || !newEvent) {
-          alert('Erro ao criar evento para anexo: ' + (createError?.message || 'Erro desconhecido'));
-          setUploadingAnexo(false);
-          return;
-        }
-        
-        eventId = newEvent.id;
-        setEditingEvent(newEvent);
-      }
-
-      const filePath = `${eventId}/${file.name}`;
-      const { error: uploadError } = await supabase.storage
-        .from('agenda-arquivos')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: true,
-        });
-
-      if (uploadError) {
-        if (uploadError.message.includes('already exists')) {
-          alert('Um arquivo com este nome já existe. Renomeie o arquivo e tente novamente.');
-        } else {
-          alert('Erro ao fazer upload: ' + uploadError.message);
-        }
-      } else {
-        await loadEventAnexos(eventId);
-        alert('Anexo enviado com sucesso!');
-      }
-    } catch (error) {
-      alert('Erro ao fazer upload: ' + error.message);
-    } finally {
-      setUploadingAnexo(false);
-      event.target.value = '';
-    }
-  };
-
-  const handleDeleteAnexo = async (fileName) => {
-    if (!editingEvent || !confirm('Tem certeza que deseja excluir este anexo?')) return;
-
-    try {
-      const filePath = `${editingEvent.id}/${fileName}`;
-      const { error } = await supabase.storage
-        .from('agenda-arquivos')
-        .remove([filePath]);
-
-      if (error) {
-        alert('Erro ao excluir anexo: ' + error.message);
-      } else {
-        await loadEventAnexos(editingEvent.id);
-        alert('Anexo excluído com sucesso!');
-      }
-    } catch (error) {
-      alert('Erro ao excluir anexo: ' + error.message);
-    }
-  };
-
-  const loadEventAnexos = async (eventId) => {
-    if (!eventId) {
-      setEventAnexos([]);
-      return;
-    }
-
-    setLoadingAnexos(true);
-    try {
-      const { data, error } = await supabase.storage
-        .from('agenda-arquivos')
-        .list(eventId, {
-          limit: 100,
-          offset: 0,
-        });
-
-      if (error) {
-        console.error('Erro ao carregar anexos:', error);
-        setEventAnexos([]);
-      } else {
-        setEventAnexos(data || []);
-      }
-    } catch (error) {
-      console.error('Erro ao carregar anexos:', error);
-      setEventAnexos([]);
-    } finally {
-      setLoadingAnexos(false);
-    }
-  };
-
-  const handleDownloadAnexo = async (fileName) => {
-    if (!editingEvent) return;
-
-    try {
-      const filePath = `${editingEvent.id}/${fileName}`;
-      const { data, error } = await supabase.storage
-        .from('agenda-arquivos')
-        .createSignedUrl(filePath, 60);
-
-      if (error) {
-        alert('Erro ao gerar link: ' + error.message);
-      } else if (data) {
-        window.open(data.signedUrl, '_blank');
-      }
-    } catch (error) {
-      alert('Erro ao baixar anexo: ' + error.message);
-    }
-  };
-
   const handleDeleteStudent = async (studentId) => {
     if (!confirm('Tem certeza que deseja excluir este aluno?')) return;
     
-    const { error } = await supabase.from('alunos').delete().eq('id', studentId);
+       
+      // eslint-disable-next-line no-unused-vars
+      const { data, error } = await supabase.from('alunos').delete().eq('id', studentId);
     
     if (error) {
       alert('Erro ao excluir aluno: ' + error.message);
@@ -3425,13 +3222,17 @@ function App() {
 
     let error;
     if (editingTeacher) {
-      const { error: updateError } = await supabase
+       
+      // eslint-disable-next-line no-unused-vars
+      const { data: updateData, error: updateError } = await supabase
         .from('professores')
         .update(teacherData)
         .eq('id', editingTeacher.id);
       error = updateError;
     } else {
-      const { error: insertError } = await supabase.from('professores').insert([teacherData]);
+       
+      // eslint-disable-next-line no-unused-vars
+      const { data: insertData, error: insertError } = await supabase.from('professores').insert([teacherData]);
       error = insertError;
     }
 
@@ -3468,7 +3269,9 @@ function App() {
 
   const handleDeleteTeacher = async (teacherId) => {
     if (!confirm('Tem certeza que deseja excluir este professor?')) return;
-    const { error } = await supabase.from('professores').delete().eq('id', teacherId);
+       
+      // eslint-disable-next-line no-unused-vars
+      const { data, error } = await supabase.from('professores').delete().eq('id', teacherId);
     if (error) {
       alert('Erro ao excluir professor: ' + error.message);
       return;
@@ -3547,10 +3350,16 @@ function App() {
 
     let err;
     if (editingEntrega?.id) {
-      const { error } = await supabase.from('entregas_docentes').update(payload).eq('id', editingEntrega.id);
+       
+       
+      // eslint-disable-next-line no-unused-vars
+      const { data, error } = await supabase.from('entregas_docentes').update(payload).eq('id', editingEntrega.id);
       err = error;
     } else {
-      const { error } = await supabase.from('entregas_docentes').insert([payload]);
+       
+       
+      // eslint-disable-next-line no-unused-vars
+      const { data, error } = await supabase.from('entregas_docentes').insert([payload]);
       err = error;
     }
 
@@ -3572,7 +3381,9 @@ function App() {
 
   const handleDeleteEntrega = async (row) => {
     if (!row?.id || !confirm('Excluir esta exigência de entrega?')) return;
-    const { error } = await supabase.from('entregas_docentes').delete().eq('id', row.id);
+       
+      // eslint-disable-next-line no-unused-vars
+      const { data, error } = await supabase.from('entregas_docentes').delete().eq('id', row.id);
     if (error) {
       alert('Erro ao excluir: ' + error.message);
       return;
@@ -3629,10 +3440,16 @@ function App() {
 
     let err;
     if (editingRegistroCoord?.id) {
-      const { error } = await supabase.from('registros_coordenacao').update(payload).eq('id', editingRegistroCoord.id);
+       
+       
+      // eslint-disable-next-line no-unused-vars
+      const { data, error } = await supabase.from('registros_coordenacao').update(payload).eq('id', editingRegistroCoord.id);
       err = error;
     } else {
-      const { error } = await supabase.from('registros_coordenacao').insert([payload]);
+       
+       
+      // eslint-disable-next-line no-unused-vars
+      const { data, error } = await supabase.from('registros_coordenacao').insert([payload]);
       err = error;
     }
 
@@ -3655,7 +3472,9 @@ function App() {
 
   const handleDeleteRegistroCoord = async (row) => {
     if (!row?.id || !confirm('Excluir este registro de acompanhamento?')) return;
-    const { error } = await supabase.from('registros_coordenacao').delete().eq('id', row.id);
+       
+      // eslint-disable-next-line no-unused-vars
+      const { data, error } = await supabase.from('registros_coordenacao').delete().eq('id', row.id);
     if (error) {
       alert('Erro ao excluir: ' + error.message);
       return;
@@ -3985,6 +3804,7 @@ function App() {
                   onClick={() => {
                     setSelectedClassId(null);
                     setSelectedClassName('');
+                    clearPersistedTurmaNav();
                     navigate('students');
                     setMobileMenuOpen(false);
                   }}
@@ -4047,7 +3867,7 @@ function App() {
                     if (typeof window !== 'undefined') {
                       localStorage.removeItem('sacp_currentView');
                       localStorage.removeItem('sacp_selectedSchoolId');
-                      localStorage.removeItem('sacp_selectedClassId');
+                      clearPersistedTurmaNav();
                       localStorage.removeItem('sacp_selectedStudentId');
                       localStorage.removeItem('sacp_selectedTeacherId');
                       localStorage.removeItem('sacp_teacherProfileTab');
@@ -4138,681 +3958,98 @@ function App() {
 
             {/* Dashboard */}
             {currentView === 'dashboard' && (
-              <div id="view-dashboard" className="view-section">
-                {/* Blocos clicáveis (etiquetas) – acima dos dias da semana */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10, marginBottom: 20 }}>
-                  {[
-                    { label: 'Regular', count: totalAzul, cor: 'azul', color: '#007bff' },
-                    { label: 'Atenção', count: totalAtencao, cor: 'amarelo', color: '#ffc107' },
-                    { label: 'Prioridade', count: totalRisco, cor: 'vermelho', color: '#dc3545' },
-                    { label: 'Avançado', count: totalVerde, cor: 'verde', color: '#28a745' },
-                    { label: 'Educação Especial', count: totalRoxo, cor: 'roxo', color: '#9c27b0' },
-                    { label: 'Total de Alunos', count: totalAlunos, cor: '', color: '#374151' },
-                  ].map((item) => (
-                    <button
-                      type="button"
-                      key={item.cor || 'total'}
-                      onClick={() => {
-                        setFilterStudentEtiquetaCor(item.cor);
-                        setFilterStudentTurmaId('');
-                        setCurrentView('students');
-                      }}
-                      className="card"
-                      style={{
-                        textAlign: 'center',
-                        cursor: 'pointer',
-                        border: '1px solid #e0e0e0',
-                        padding: 12,
-                        borderRadius: 10,
-                        background: 'white',
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-                      }}
-                    >
-                      <h4 style={{ margin: '0 0 6px 0', fontSize: '0.8rem', color: '#666', fontWeight: 600 }}>
-                        {item.label}
-                      </h4>
-                      <div className="number" style={{ color: item.color, fontSize: '1.35rem', fontWeight: 700 }}>
-                        {dashboardLoading ? '...' : item.count}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
-                  <h3 style={{ margin: 0, fontSize: '1rem' }}>Semana atual</h3>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const prev = new Date(dashboardWeekStart);
-                        prev.setDate(prev.getDate() - 7);
-                        setDashboardWeekStart(prev);
-                        setDashboardSelectedDate(new Date(prev));
-                      }}
-                      style={{
-                        padding: '6px 10px',
-                        border: '1px solid #ddd',
-                        borderRadius: 6,
-                        background: 'white',
-                        cursor: 'pointer',
-                        fontSize: '0.9rem',
-                      }}
-                    >
-                      ‹
-                    </button>
-                    <span style={{ fontSize: '0.8rem', color: '#666', minWidth: 120, textAlign: 'center' }}>
-                      {getWeekDates(dashboardWeekStart)[0].toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} – {getWeekDates(dashboardWeekStart)[6].toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const next = new Date(dashboardWeekStart);
-                        next.setDate(next.getDate() + 7);
-                        setDashboardWeekStart(next);
-                        setDashboardSelectedDate(new Date(next));
-                      }}
-                      style={{
-                        padding: '6px 10px',
-                        border: '1px solid #ddd',
-                        borderRadius: 6,
-                        background: 'white',
-                        cursor: 'pointer',
-                        fontSize: '0.9rem',
-                      }}
-                    >
-                      ›
-                    </button>
-                  </div>
-                </div>
-                <div className="calendar-strip" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 20 }}>
-                  {getWeekDates(dashboardWeekStart).map((day) => {
-                    const selected = isSameDay(day, dashboardSelectedDate);
-                    const today = isToday(day);
-                    return (
-                      <button
-                        type="button"
-                        key={day.getTime()}
-                        onClick={() => setDashboardSelectedDate(new Date(day))}
-                        className={`day-box ${today ? 'today' : ''}`}
-                        style={{
-                          flex: '1 1 52px',
-                          minWidth: 48,
-                          padding: '6px 4px',
-                          border: selected ? '2px solid var(--primary)' : '1px solid #e0e0e0',
-                          borderRadius: 8,
-                          background: selected ? 'rgba(13, 110, 253, 0.08)' : 'white',
-                          cursor: 'pointer',
-                          fontWeight: selected ? 600 : 400,
-                          boxShadow: selected ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
-                          fontSize: '0.7rem',
-                        }}
-                      >
-                        <span style={{ fontSize: '0.65rem', color: '#666', display: 'block' }}>
-                          {dayNames[day.getDay()]}
-                        </span>
-                        <span style={{ fontSize: '1rem', display: 'block', marginTop: 2 }}>
-                          {day.getDate()}
-                        </span>
-                        <span style={{ fontSize: '0.6rem', color: '#999' }}>
-                          {day.toLocaleDateString('pt-BR', { month: 'short' })}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <h3 style={{ marginBottom: 15 }}>
-                  Atividades do dia {dashboardSelectedDate ? new Date(dashboardSelectedDate).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' }) : ''}
-                </h3>
-                <div className="list-container">
-                  {dashboardDayEventsLoading ? (
-                    <div className="list-item">
-                      <span>Carregando eventos...</span>
-                    </div>
-                  ) : dashboardDayEvents.length === 0 ? (
-                    <div className="list-item">
-                      <div style={{ textAlign: 'center', padding: 20, color: '#666', width: '100%' }}>
-                        <i className="fas fa-calendar-day" style={{ fontSize: '2em', marginBottom: 10, opacity: 0.3 }} />
-                        <p style={{ margin: 0 }}>Nenhum evento agendado para este dia.</p>
-                      </div>
-                    </div>
-                  ) : (
-                    dashboardDayEvents.map((event) => {
-                      const eventDate = new Date(event?.data_inicio);
-                      if (!event?.id || isNaN(eventDate.getTime())) return null;
-                      return (
-                        <div
-                          key={event.id}
-                          className="list-item"
-                          style={{
-                            borderLeft: `4px solid ${event?.cor_etiqueta || '#3498DB'}`,
-                            cursor: 'pointer',
-                          }}
-                          onClick={() => {
-                            setCurrentView('agenda');
-                            setCurrentDate(eventDate);
-                            setAgendaView('day');
-                          }}
-                        >
-                          <div style={{ flex: 1 }}>
-                            <strong>{event?.titulo || 'Sem título'}</strong>
-                            {event?.descricao && (
-                              <div style={{ fontSize: '0.8em', color: 'gray', marginTop: 4 }}>
-                                {event.descricao}
-                              </div>
-                            )}
-                          </div>
-                          <span
-                            className="badge"
-                            style={{
-                              background: event?.cor_etiqueta || '#3498DB',
-                              color: 'white',
-                            }}
-                          >
-                            {eventDate.toLocaleTimeString('pt-BR', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </span>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
+              <DashboardView
+                totalAzul={totalAzul}
+                totalAtencao={totalAtencao}
+                totalRisco={totalRisco}
+                totalVerde={totalVerde}
+                totalRoxo={totalRoxo}
+                totalAlunos={totalAlunos}
+                setFilterStudentEtiquetaCor={setFilterStudentEtiquetaCor}
+                setFilterStudentTurmaId={setFilterStudentTurmaId}
+                setSelectedClassId={setSelectedClassId}
+                setSelectedClassName={setSelectedClassName}
+                clearPersistedTurmaNav={clearPersistedTurmaNav}
+                setCurrentView={setCurrentView}
+                dashboardLoading={dashboardLoading}
+                dashboardWeekStart={dashboardWeekStart}
+                setDashboardWeekStart={setDashboardWeekStart}
+                dashboardSelectedDate={dashboardSelectedDate}
+                setDashboardSelectedDate={setDashboardSelectedDate}
+                getWeekDates={getWeekDates}
+                isSameDay={isSameDay}
+                isToday={isToday}
+                dayNames={dayNames}
+                dashboardDayEventsLoading={dashboardDayEventsLoading}
+                dashboardDayEvents={dashboardDayEvents}
+                setCurrentDate={setCurrentDate}
+                setAgendaView={setAgendaView}
+              />
             )}
 
             {/* Schools */}
             {currentView === 'schools' && (
-              <div id="view-schools" className="view-section">
-                <button
-                  className="btn-primary"
-                  style={{ width: 'auto', marginBottom: 20 }}
-                  onClick={() => {
-                    setEditingSchool(null);
-                    setSchoolFormData({ nome: '', inep: '', endereco: '', tipo: 'Polo' });
-                    setShowSchoolModal(true);
-                  }}
-                >
-                  + Nova Escola
-                </button>
-                <div className="list-container">
-                  {schoolsLoading && (
-                    <div className="list-item">
-                      <span>Carregando escolas...</span>
-                    </div>
-                  )}
-                  {schoolsError && (
-                    <div className="list-item">
-                      <span>{schoolsError}</span>
-                    </div>
-                  )}
-                  {!schoolsLoading && !schoolsError && schools.length === 0 && (
-                    <div className="list-item">
-                      <span>Nenhuma escola encontrada.</span>
-                    </div>
-                  )}
-                  {!schoolsLoading &&
-                    !schoolsError &&
-                    [...schools]
-                      .sort((a, b) => {
-                        const arqA = a.arquivada ? 1 : 0;
-                        const arqB = b.arquivada ? 1 : 0;
-                        if (arqA !== arqB) return arqA - arqB; // ativas primeiro
-                        return (a.nome || '').localeCompare(b.nome || '', 'pt-BR');
-                      })
-                      .map((school) => (
-                      <div key={school.id} className="list-item">
-                        <div style={{ flex: 1 }}>
-                          <strong>{school.nome}</strong>
-                          <div style={{ fontSize: '0.8em', color: 'gray' }}>
-                            INEP: {school.inep || 'Não informado'} • {school.endereco || 'Endereço não informado'}
-                          </div>
-                          <span
-                            className={`badge ${
-                              school.tipo_estrutura === 'Polo' ? 'bg-blue' : 'bg-green'
-                            }`}
-                            style={{ marginTop: 5, display: 'inline-block' }}
-                          >
-                            {school.tipo_estrutura}
-                          </span>
-                          {school.arquivada && (
-                            <span
-                              className="badge"
-                              style={{
-                                marginTop: 5,
-                                display: 'inline-block',
-                                marginLeft: 8,
-                                background: '#6b7280',
-                                color: 'white',
-                              }}
-                            >
-                              Arquivada
-                            </span>
-                          )}
-                        </div>
-                        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleToggleArchiveSchool(school);
-                            }}
-                            style={{
-                              background: school.arquivada ? '#374151' : '#f59e0b',
-                              color: 'white',
-                              border: 'none',
-                              padding: '8px 12px',
-                              borderRadius: 6,
-                              cursor: 'pointer',
-                            }}
-                            title={school.arquivada ? 'Desarquivar escola' : 'Arquivar escola'}
-                          >
-                            <i className={`fas ${school.arquivada ? 'fa-box-open' : 'fa-archive'}`} />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEditSchool(school);
-                            }}
-                            style={{
-                              background: 'var(--accent)',
-                              color: 'white',
-                              border: 'none',
-                              padding: '8px 12px',
-                              borderRadius: 6,
-                              cursor: 'pointer',
-                            }}
-                          >
-                            <i className="fas fa-edit" />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteSchool(school.id);
-                            }}
-                            style={{
-                              background: 'var(--danger)',
-                              color: 'white',
-                              border: 'none',
-                              padding: '8px 12px',
-                              borderRadius: 6,
-                              cursor: 'pointer',
-                            }}
-                          >
-                            <i className="fas fa-trash" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              </div>
+              <SchoolsView
+                schoolsLoading={schoolsLoading}
+                schoolsError={schoolsError}
+                schools={schools}
+                setEditingSchool={setEditingSchool}
+                setSchoolFormData={setSchoolFormData}
+                setShowSchoolModal={setShowSchoolModal}
+                handleToggleArchiveSchool={handleToggleArchiveSchool}
+                handleEditSchool={handleEditSchool}
+                handleDeleteSchool={handleDeleteSchool}
+                selectSchool={selectSchool}
+              />
             )}
 
             {/* Classes */}
             {currentView === 'classes' && (
-              <div id="view-classes" className="view-section">
-                {selectedClassId ? (
-                  <React.Fragment key="alunos-da-turma">
-                    {/* Linha 1: Voltar (destaque) | Nome da turma | Novo Aluno */}
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        flexWrap: 'wrap',
-                        gap: 15,
-                        marginBottom: 20,
-                      }}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedClassId(null);
-                          setSelectedClassName('');
-                        }}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          padding: '10px 18px',
-                          border: '2px solid var(--primary)',
-                          borderRadius: 8,
-                          background: 'white',
-                          color: 'var(--primary)',
-                          fontWeight: 600,
-                          fontSize: '0.95rem',
-                          cursor: 'pointer',
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-                        }}
-                      >
-                        <i className="fas fa-arrow-left" />
-                        Voltar para lista de turmas
-                      </button>
-                      <h2 style={{ margin: 0, fontSize: '1.35rem', flex: 1, textAlign: 'center' }}>
-                        {selectedClassName}
-                      </h2>
-                      <button
-                        className="btn-primary"
-                        style={{ width: 'auto', padding: '10px 20px' }}
-                        onClick={() => {
-                          setEditingStudent(null);
-                          setStudentFormData({
-                            nome: '',
-                            data_nascimento: '',
-                            turma_id: selectedClassId,
-                            etiqueta_cor: 'azul',
-                            matricula: '',
-                            nome_responsavel: '',
-                            contato: '',
-                            aee_deficiencia: '',
-                            aee_cid: '',
-                            motivo_etiqueta: '',
-                          });
-                          setAeeFormData({ aee_tem_laudo: false, aee_mediadora: '', aee_plano_individual: '' });
-                          setShowStudentModal(true);
-                        }}
-                      >
-                        <i className="fas fa-plus" style={{ marginRight: 5 }} />
-                        Novo Aluno
-                      </button>
-                    </div>
-                    {/* Linha 2: Buscar nome (esquerda) | Seletor Cor (mesma linha) */}
-                    <div
-                      style={{
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                        gap: 12,
-                        alignItems: 'flex-end',
-                        marginBottom: 20,
-                      }}
-                    >
-                      <div style={{ flex: 1, minWidth: 200 }}>
-                        <input
-                          type="text"
-                          placeholder="Digite o nome..."
-                          value={studentSearchTerm}
-                          onChange={(e) => setStudentSearchTerm(e.target.value)}
-                          style={{
-                            width: '100%',
-                            padding: 10,
-                            border: '1px solid #ddd',
-                            borderRadius: 6,
-                          }}
-                        />
-                      </div>
-                      <div style={{ minWidth: 160 }}>
-                        <select
-                          value={filterStudentEtiquetaCor}
-                          onChange={(e) => setFilterStudentEtiquetaCor(e.target.value || '')}
-                          style={{
-                            width: '100%',
-                            padding: 10,
-                            border: '1px solid #ddd',
-                            borderRadius: 6,
-                            background: 'white',
-                            fontSize: '0.9em',
-                          }}
-                        >
-                          <option value="">Todas as cores</option>
-                          <option value="verde">Verde</option>
-                          <option value="amarelo">Amarelo</option>
-                          <option value="vermelho">Vermelho</option>
-                          <option value="roxo">Roxo</option>
-                          <option value="azul">Azul</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div className="list-container">
-                      {studentsLoading && (
-                        <div className="list-item">
-                          <span>Carregando alunos...</span>
-                        </div>
-                      )}
-                      {studentsError && (
-                        <div className="list-item">
-                          <span>{studentsError}</span>
-                        </div>
-                      )}
-                      {!studentsLoading && !studentsError && sortedFilteredStudents.length === 0 && students.length > 0 && (
-                        <div className="list-item">
-                          <span>Nenhum aluno encontrado com os filtros aplicados.</span>
-                        </div>
-                      )}
-                      {!studentsLoading && !studentsError && students.length === 0 && (
-                        <div className="list-item">
-                          <span>Nenhum aluno nesta turma.</span>
-                        </div>
-                      )}
-                      {!studentsLoading &&
-                        !studentsError &&
-                        sortedFilteredStudents.map((aluno) => {
-                          const badgeClass = getBadgeColorClass(aluno.etiqueta_cor);
-                          return (
-                            <div
-                              key={aluno.id}
-                              className="list-item"
-                              style={{
-                                borderLeft: aluno.etiqueta_cor === 'roxo' ? '4px solid #9c27b0' : undefined,
-                                paddingLeft: aluno.etiqueta_cor === 'roxo' ? '12px' : undefined,
-                              }}
-                            >
-                              <div
-                                style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, cursor: 'pointer' }}
-                                onClick={() => selectStudent(aluno)}
-                              >
-                                {aluno.etiqueta_cor === 'roxo' ? (
-                                  <i className="fas fa-wheelchair" style={{ color: '#9c27b0', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Educação Especial" />
-                                ) : aluno.etiqueta_cor === 'vermelho' ? (
-                                  <i className="fas fa-exclamation-triangle" style={{ color: '#dc3545', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Prioridade" />
-                                ) : aluno.etiqueta_cor === 'amarelo' ? (
-                                  <i className="fas fa-exclamation-circle" style={{ color: '#ffc107', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Atenção" />
-                                ) : aluno.etiqueta_cor === 'verde' ? (
-                                  <i className="fas fa-star" style={{ color: '#28a745', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Avançado" />
-                                ) : (
-                                  <i className="fas fa-user" style={{ color: '#007bff', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Regular" />
-                                )}
-                                <div>
-                                  <strong>{aluno.nome}</strong>
-                                  <div style={{ fontSize: '0.8em', color: 'gray' }}>
-                                    Frequência: {aluno.frequencia != null ? `${aluno.frequencia}%` : 'N/D'} • Nível de leitura: {aluno.nivel_leitura || 'Não informado'}
-                                  </div>
-                                </div>
-                              </div>
-                              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                                <span className={`badge ${badgeClass}`}>
-                                  {aluno.etiqueta_cor === 'vermelho' ? 'Prioridade' : aluno.etiqueta_cor === 'amarelo' ? 'Atenção' : aluno.etiqueta_cor === 'verde' ? 'Avançado' : aluno.etiqueta_cor === 'roxo' ? 'Educação Especial' : 'Regular'}
-                                </span>
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); handleEditStudent(aluno); }}
-                                  style={{ background: 'var(--accent)', color: 'white', border: 'none', padding: '8px 12px', borderRadius: 6, cursor: 'pointer' }}
-                                >
-                                  <i className="fas fa-edit" />
-                                </button>
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); handleDeleteStudent(aluno.id); }}
-                                  style={{ background: 'var(--danger)', color: 'white', border: 'none', padding: '8px 12px', borderRadius: 6, cursor: 'pointer' }}
-                                >
-                                  <i className="fas fa-trash" />
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                    </div>
-                  </React.Fragment>
-                ) : (
-                  <React.Fragment key="lista-turmas">
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: 20,
-                    flexWrap: 'wrap',
-                    gap: 15,
-                  }}
-                >
-                  <h2 style={{ margin: 0 }}>
-                    Turmas {(activeSchool && activeSchool.nome) ? `- ${activeSchool.nome}` : ''}
-                  </h2>
-                  <button
-                    className="btn-primary"
-                    style={{ width: 'auto', padding: '10px 20px' }}
-                    onClick={() => {
-                      setEditingClass(null);
-                      setClassFormData({
-                        nome: '',
-                        ano: '',
-                        codigo: '',
-                        professor_regente: '',
-                        aluno_representante: '',
-                      });
-                      setClassFormData({ 
-                        nome: '', 
-                        ano: [], 
-                        codigo: '', 
-                        professor_regente: '', 
-                        aluno_representante: '', 
-                        escola_id: activeSchoolId || '', 
-                        ano_letivo: selectedYear 
-                      });
-                      setShowClassModal(true);
-                    }}
-                  >
-                    <i className="fas fa-plus" style={{ marginRight: 5 }} />
-                    Nova Turma
-                  </button>
-                </div>
-                <div style={{ marginBottom: 20 }}>
-                  <input
-                    type="text"
-                    placeholder="Buscar turma por nome ou código..."
-                    value={classSearchTerm}
-                    onChange={(e) => setClassSearchTerm(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: 10,
-                      border: '1px solid #ddd',
-                      borderRadius: 6,
-                    }}
-                  />
-                </div>
-                <div className="list-container list-container--two-cols">
-                  {classesLoading && (
-                    <div className="list-item list-item--full-width">
-                      <span>Carregando turmas...</span>
-                    </div>
-                  )}
-                  {classesError && (
-                    <div className="list-item list-item--full-width">
-                      <span>{classesError}</span>
-                    </div>
-                  )}
-                  {!classesLoading &&
-                    !classesError &&
-                    filteredClassesSorted.length === 0 &&
-                    classesList.length > 0 && (
-                      <div className="list-item list-item--full-width">
-                        <span>Nenhuma turma encontrada com o termo "{classSearchTerm}".</span>
-                      </div>
-                    )}
-                  {!classesLoading && !classesError && classesList.length === 0 && (
-                    <div className="list-item list-item--full-width">
-                      <span>Nenhuma turma encontrada para esta escola.</span>
-                    </div>
-                  )}
-                  {!classesLoading &&
-                    !classesError &&
-                    filteredClassesSorted.map((turma) => {
-                      const escola = (schools || []).find((s) => String(s.id) === String(turma.escola_id));
-                      const etiquetas = turmaEtiquetasCount[turma.id] || { verde: 0, amarelo: 0, vermelho: 0, azul: 0 };
-                      return (
-                      <div key={turma.id} className="list-item">
-                        <div
-                          style={{ flex: 1, cursor: 'pointer' }}
-                          onClick={() => selectClass(turma)}
-                        >
-                          <strong style={{ fontSize: '1.1em', display: 'block', marginBottom: 6 }}>{turma.nome}</strong>
-                          <div style={{ fontSize: '0.85em', color: '#666', lineHeight: '1.6' }}>
-                            {/* Linha 1: Escola, Ano Letivo, Código, Professor e Representante */}
-                            <div style={{ marginBottom: 4 }}>
-                              <strong>Escola:</strong> {escola?.nome || 'Não informada'} • <strong>Ano Letivo:</strong> {turma.ano_letivo}
-                              {turma.codigo && <> • <strong>Código:</strong> {turma.codigo}</>}
-                              <> • <strong>Professor:</strong> {turma.professor_regente || 'Não informado'}</>
-                              {turma.aluno_representante && (
-                                <> • <strong>Representante:</strong> {turma.aluno_representante}</>
-                              )}
-                            </div>
-                            {/* Linha 2: Etiquetas com status e cores */}
-                            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                              {etiquetas.vermelho > 0 && (
-                                <span style={{ color: '#dc3545', fontWeight: 'bold' }}>
-                                  🔴 Prioridade: {etiquetas.vermelho}
-                                </span>
-                              )}
-                              {etiquetas.amarelo > 0 && (
-                                <span style={{ color: '#ffc107', fontWeight: 'bold' }}>
-                                  🟡 Atenção: {etiquetas.amarelo}
-                                </span>
-                              )}
-                              {etiquetas.azul > 0 && (
-                                <span style={{ color: '#007bff', fontWeight: 'bold' }}>
-                                  🔵 Regular: {etiquetas.azul}
-                                </span>
-                              )}
-                              {etiquetas.verde > 0 && (
-                                <span style={{ color: '#28a745', fontWeight: 'bold' }}>
-                                  🟢 Avançado: {etiquetas.verde}
-                                </span>
-                              )}
-                              {etiquetas.vermelho === 0 && etiquetas.amarelo === 0 && etiquetas.azul === 0 && etiquetas.verde === 0 && (
-                                <span style={{ color: '#999' }}>Nenhum aluno cadastrado</span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEditClass(turma);
-                            }}
-                            style={{
-                              background: 'var(--accent)',
-                              color: 'white',
-                              border: 'none',
-                              padding: '8px 12px',
-                              borderRadius: 6,
-                              cursor: 'pointer',
-                            }}
-                          >
-                            <i className="fas fa-edit" />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteClass(turma.id);
-                            }}
-                            style={{
-                              background: 'var(--danger)',
-                              color: 'white',
-                              border: 'none',
-                              padding: '8px 12px',
-                              borderRadius: 6,
-                              cursor: 'pointer',
-                            }}
-                          >
-                            <i className="fas fa-trash" />
-                          </button>
-                          <i className="fas fa-chevron-right" style={{ color: '#999' }} />
-                        </div>
-                      </div>
-                      );
-                    })}
-                </div>
-                  </React.Fragment>
-                )}
-              </div>
+              <ClassesView
+                selectedClassId={selectedClassId}
+                selectedClassName={selectedClassName}
+                setSelectedClassId={setSelectedClassId}
+                setSelectedClassName={setSelectedClassName}
+                clearPersistedTurmaNav={clearPersistedTurmaNav}
+                setEditingStudent={setEditingStudent}
+                setStudentFormData={setStudentFormData}
+                setAeeFormData={setAeeFormData}
+                setShowStudentModal={setShowStudentModal}
+                studentSearchTerm={studentSearchTerm}
+                setStudentSearchTerm={setStudentSearchTerm}
+                filterStudentEtiquetaCor={filterStudentEtiquetaCor}
+                setFilterStudentEtiquetaCor={setFilterStudentEtiquetaCor}
+                studentsLoading={studentsLoading}
+                studentsError={studentsError}
+                sortedFilteredStudents={sortedFilteredStudents}
+                students={students}
+                selectStudent={selectStudent}
+                getBadgeColorClass={getBadgeColorClass}
+                handleEditStudent={handleEditStudent}
+                handleDeleteStudent={handleDeleteStudent}
+                activeSchool={activeSchool}
+                activeSchoolId={activeSchoolId}
+                selectedYear={selectedYear}
+                setEditingClass={setEditingClass}
+                setClassFormData={setClassFormData}
+                setShowClassModal={setShowClassModal}
+                classSearchTerm={classSearchTerm}
+                setClassSearchTerm={setClassSearchTerm}
+                classesLoading={classesLoading}
+                classesError={classesError}
+                filteredClassesSorted={filteredClassesSorted}
+                classesList={classesList}
+                schools={schools}
+                turmaEtiquetasCount={turmaEtiquetasCount}
+                selectClass={selectClass}
+                handleEditClass={handleEditClass}
+                handleDeleteClass={handleDeleteClass}
+                onListaAlunosImportada={async () => {
+                  if (!selectedClassId) return;
+                  const { data } = await supabase.from('alunos').select('*').eq('turma_id', selectedClassId);
+                  if (data) setStudents(data);
+                }}
+              />
             )}
 
             {/* Students */}
@@ -4824,6 +4061,7 @@ function App() {
                     onClick={() => {
                       setSelectedClassId(null);
                       setSelectedClassName('');
+                      clearPersistedTurmaNav();
                       setStudents([]);
                       navigate('classes');
                     }}
@@ -5042,2465 +4280,168 @@ function App() {
             )}
 
             {currentView === 'teachers' && (
-              <div id="view-teachers" className="view-section">
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: 20,
-                    flexWrap: 'wrap',
-                    gap: 15,
-                  }}
-                >
-                  <h2 style={{ margin: 0 }}>
-                    Professores {activeSchool ? `- ${activeSchool.nome}` : ''}
-                  </h2>
-                  <button
-                    className="btn-primary"
-                    style={{ width: 'auto', padding: '10px 20px' }}
-                    onClick={() => {
-                      setEditingTeacher(null);
-                      setTeacherFormData({ nome: '', disciplina: '', turmas_ids: [] });
-                      setShowTeacherModal(true);
-                    }}
-                  >
-                    <i className="fas fa-plus" style={{ marginRight: 5 }} />
-                    Novo Professor
-                  </button>
-                </div>
-
-                <div style={{ marginBottom: 20, display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
-                  <div style={{ flex: 1, minWidth: 240 }}>
-                    <input
-                      type="text"
-                      placeholder="Digite o nome ou a disciplina..."
-                      value={teacherSearchTerm}
-                      onChange={(e) => setTeacherSearchTerm(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: 10,
-                        border: '1px solid #ddd',
-                        borderRadius: 6,
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div className="list-container">
-                  {teachersLoading && (
-                    <div className="list-item">
-                      <span>Carregando professores...</span>
-                    </div>
-                  )}
-                  {teachersError && (
-                    <div className="list-item">
-                      <span>{teachersError}</span>
-                    </div>
-                  )}
-                  {!teachersLoading && !teachersError && filteredTeachers.length === 0 && (
-                    <div className="list-item">
-                      <span>Nenhum professor encontrado.</span>
-                    </div>
-                  )}
-
-                  {!teachersLoading &&
-                    !teachersError &&
-                    filteredTeachers.map((p) => {
-                      const turmaNomes = (Array.isArray(p.turmas_ids) ? p.turmas_ids : [])
-                        .map((id) => classesList.find((t) => String(t.id) === String(id))?.nome)
-                        .filter(Boolean);
-
-                      return (
-                        <div
-                          key={p.id}
-                          className="list-item"
-                          onClick={() => selectTeacher(p)}
-                          title="Abrir perfil do professor"
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
-                            <i className="fas fa-chalkboard-teacher" style={{ color: 'var(--primary)', fontSize: '1.2em', width: 24, textAlign: 'center' }} />
-                            <div>
-                              <strong>{p.nome}</strong>
-                              <div style={{ fontSize: '0.8em', color: 'gray' }}>
-                                Disciplina: {p.disciplina || 'Não informado'}
-                                {turmaNomes.length > 0 ? ` • Turmas: ${turmaNomes.join(', ')}` : ' • Turmas: -'}
-                              </div>
-                            </div>
-                          </div>
-                          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEditTeacher(p);
-                              }}
-                              style={{
-                                background: 'var(--accent)',
-                                color: 'white',
-                                border: 'none',
-                                padding: '8px 12px',
-                                borderRadius: 6,
-                                cursor: 'pointer',
-                              }}
-                            >
-                              <i className="fas fa-edit" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteTeacher(p.id);
-                              }}
-                              style={{
-                                background: 'var(--danger)',
-                                color: 'white',
-                                border: 'none',
-                                padding: '8px 12px',
-                                borderRadius: 6,
-                                cursor: 'pointer',
-                              }}
-                            >
-                              <i className="fas fa-trash" />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                </div>
-              </div>
+              <TeachersView
+                activeSchool={activeSchool}
+                setEditingTeacher={setEditingTeacher}
+                setTeacherFormData={setTeacherFormData}
+                setShowTeacherModal={setShowTeacherModal}
+                teacherSearchTerm={teacherSearchTerm}
+                setTeacherSearchTerm={setTeacherSearchTerm}
+                teachersLoading={teachersLoading}
+                teachersError={teachersError}
+                filteredTeachers={filteredTeachers}
+                classesList={classesList}
+                selectTeacher={selectTeacher}
+                handleEditTeacher={handleEditTeacher}
+                handleDeleteTeacher={handleDeleteTeacher}
+              />
             )}
 
             {/* Biblioteca / Empréstimos de Livros */}
             {currentView === 'emprestimos' && (
-              <div id="view-library" className="view-section">
-                <h2>Biblioteca e Empréstimos de Livros</h2>
-                <p style={{ color: 'var(--text-light)', marginBottom: 20 }}>
-                  Cadastre livros da escola e controle os empréstimos de forma simples. Os dados desta aba são mantidos
-                  apenas enquanto a página estiver aberta (sem salvar no banco ainda).
-                </p>
-
-                <div className="student-tabs" style={{ marginBottom: 16 }}>
-                  <div
-                    className={`tab ${libraryTab === 'loans' ? 'active' : ''}`}
-                    onClick={() => setLibraryTab('loans')}
-                  >
-                    Controle de empréstimos
-                  </div>
-                  <div
-                    className={`tab ${libraryTab === 'books' ? 'active' : ''}`}
-                    onClick={() => setLibraryTab('books')}
-                  >
-                    Cadastro de livros
-                  </div>
-                </div>
-
-                {/* Aba: Controle de empréstimos (padrão) */}
-                {libraryTab === 'loans' && (
-                  <div className="tab-content active">
-                    <div
-                      style={{
-                        background: 'white',
-                        padding: 20,
-                        borderRadius: 12,
-                        border: '1px solid #eee',
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-                      }}
-                    >
-                      <h3 style={{ marginTop: 0, marginBottom: 10 }}>Controle de empréstimos</h3>
-                      <p style={{ fontSize: '0.85em', color: 'var(--text-light)', marginBottom: 16 }}>
-                        Registre quem está com cada livro e a data prevista para devolução.
-                      </p>
-
-                      <form
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          if (!loanForm.livroId || !loanForm.alunoId) return;
-                          const livro = libraryBooks.find((b) => b.id === loanForm.livroId);
-                          const isAlreadyLoaned = bookLoans.some(
-                            (loan) => loan.livroId === loanForm.livroId && !loan.dataDevolucao
-                          );
-                          if (isAlreadyLoaned) {
-                            alert('Este livro já está emprestado.');
-                            return;
-                          }
-                          const alunoObj = students.find((s) => String(s.id) === String(loanForm.alunoId));
-                          const turmaNome = alunoObj
-                            ? (classes.find((c) => String(c.id) === String(alunoObj.turma_id))?.nome || '')
-                            : '';
-                          const dataEmprestimo =
-                            loanForm.dataEmprestimo || getLocalDateString();
-                          const newLoan = {
-                            id: `${Date.now().toString()}-${Math.random().toString(36).slice(2, 8)}`,
-                            livroId: loanForm.livroId,
-                            alunoId: loanForm.alunoId,
-                            aluno: loanForm.aluno.trim(),
-                            alunoNome: alunoObj?.nome || loanForm.aluno.trim(),
-                            turmaNome: turmaNome || undefined,
-                            dataEmprestimo,
-                            dataPrevistaDevolucao: loanForm.dataPrevistaDevolucao,
-                            dataDevolucao: null,
-                            livroTitulo: livro?.titulo || '',
-                            livroCodigo: livro?.codigo || '',
-                          };
-                          setBookLoans((prev) => [...prev, newLoan]);
-                          setLoanForm({
-                            livroId: '',
-                            alunoId: '',
-                            aluno: '',
-                            dataEmprestimo: getLocalDateString(),
-                            dataPrevistaDevolucao: '',
-                          });
-                          setLoanStudentQuery('');
-                        }}
-                        style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'minmax(0, 1.1fr) minmax(0, 0.9fr)',
-                          gap: 10,
-                          marginBottom: 18,
-                          alignItems: 'flex-end',
-                        }}
-                      >
-                        <div className="input-group" style={{ marginBottom: 0 }}>
-                          <label>Livro *</label>
-                          <select
-                            required
-                            value={loanForm.livroId}
-                            onChange={(e) =>
-                              setLoanForm((prev) => ({ ...prev, livroId: e.target.value }))
-                            }
-                            style={{
-                              width: '100%',
-                              padding: 10,
-                              border: '1px solid #ddd',
-                              borderRadius: 6,
-                              background: 'white',
-                            }}
-                          >
-                            <option value="">Selecione um livro...</option>
-                            {libraryBooks.map((livro) => {
-                              const emprestado = bookLoans.some(
-                                (loan) => loan.livroId === livro.id && !loan.dataDevolucao
-                              );
-                              return (
-                                <option
-                                  key={livro.id}
-                                  value={livro.id}
-                                  disabled={emprestado}
-                                >
-                                  {livro.titulo}
-                                  {livro.autor ? ` - ${livro.autor}` : ''}
-                                  {livro.codigo ? ` (${livro.codigo})` : ''}
-                                  {emprestado ? ' - (emprestado)' : ''}
-                                </option>
-                              );
-                            })}
-                          </select>
-                        </div>
-                        <div className="input-group" style={{ marginBottom: 0, position: 'relative' }}>
-                          <label>Aluno / Turma *</label>
-                          <input
-                            type="text"
-                            required
-                            value={loanStudentQuery}
-                            onChange={(e) => {
-                              const value = e.target.value;
-                              setLoanStudentQuery(value);
-                              setLoanForm((prev) => ({
-                                ...prev,
-                                alunoId: '',
-                                aluno: value,
-                              }));
-                            }}
-                            placeholder="Digite para buscar aluno cadastrado..."
-                            autoComplete="off"
-                          />
-                          {loanStudentQuery.length >= 2 && (
-                            <div
-                              style={{
-                                position: 'absolute',
-                                top: '100%',
-                                left: 0,
-                                right: 0,
-                                background: 'white',
-                                border: '1px solid #ddd',
-                                borderRadius: '0 0 6px 6px',
-                                maxHeight: 220,
-                                overflowY: 'auto',
-                                zIndex: 10,
-                              }}
-                            >
-                              {studentsLoading && (
-                                <div style={{ padding: 8, fontSize: '0.85em' }}>Carregando alunos...</div>
-                              )}
-                              {!studentsLoading &&
-                                (students || [])
-                                  .filter((aluno) =>
-                                    (aluno.nome || '')
-                                      .toLowerCase()
-                                      .includes(loanStudentQuery.toLowerCase())
-                                  )
-                                  .slice(0, 15)
-                                  .map((aluno) => {
-                                    const turmaNome =
-                                      classes.find((c) => String(c.id) === String(aluno.turma_id))
-                                        ?.nome || '';
-                                    const label = turmaNome
-                                      ? `${aluno.nome} - ${turmaNome}`
-                                      : aluno.nome;
-                                    return (
-                                      <div
-                                        key={aluno.id}
-                                        onClick={() => {
-                                          setLoanForm((prev) => ({
-                                            ...prev,
-                                            alunoId: aluno.id,
-                                            aluno: label,
-                                          }));
-                                          setLoanStudentQuery(label);
-                                        }}
-                                        style={{
-                                          padding: '6px 10px',
-                                          fontSize: '0.85em',
-                                          cursor: 'pointer',
-                                          borderBottom: '1px solid #f3f3f3',
-                                          background:
-                                            loanForm.alunoId === aluno.id ? '#eef4ff' : 'white',
-                                        }}
-                                      >
-                                        <div style={{ fontWeight: 600 }}>{aluno.nome}</div>
-                                        {turmaNome && (
-                                          <div style={{ color: '#666' }}>Turma: {turmaNome}</div>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
-                              {!studentsLoading &&
-                                (students || []).filter((aluno) =>
-                                  (aluno.nome || '')
-                                    .toLowerCase()
-                                    .includes(loanStudentQuery.toLowerCase())
-                                ).length === 0 && (
-                                  <div style={{ padding: 8, fontSize: '0.85em', color: '#777' }}>
-                                    Nenhum aluno encontrado com esse nome.
-                                  </div>
-                                )}
-                            </div>
-                          )}
-                          {loanForm.alunoId && (
-                            <div
-                              style={{
-                                marginTop: 4,
-                                fontSize: '0.8em',
-                                color: '#16a34a',
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                              }}
-                            >
-                              <span>Aluno selecionado: {loanForm.aluno}</span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setLoanForm((prev) => ({ ...prev, alunoId: '', aluno: '' }));
-                                  setLoanStudentQuery('');
-                                }}
-                                style={{
-                                  border: 'none',
-                                  background: 'transparent',
-                                  color: '#dc2626',
-                                  cursor: 'pointer',
-                                  fontSize: '0.8em',
-                                  textDecoration: 'underline',
-                                }}
-                              >
-                                Limpar seleção
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                        <div className="input-group" style={{ marginBottom: 0 }}>
-                          <label>Data do empréstimo</label>
-                          <input
-                            type="date"
-                            value={loanForm.dataEmprestimo}
-                            onChange={(e) =>
-                              setLoanForm((prev) => ({
-                                ...prev,
-                                dataEmprestimo: e.target.value,
-                              }))
-                            }
-                          />
-                        </div>
-                        <div className="input-group" style={{ marginBottom: 0 }}>
-                          <label>Data prevista para devolução</label>
-                          <input
-                            type="date"
-                            value={loanForm.dataPrevistaDevolucao}
-                            onChange={(e) =>
-                              setLoanForm((prev) => ({
-                                ...prev,
-                                dataPrevistaDevolucao: e.target.value,
-                              }))
-                            }
-                          />
-                        </div>
-                        <div style={{ gridColumn: '1 / -1' }}>
-                          <button
-                            type="submit"
-                            className="btn-primary"
-                            style={{ width: 'auto', padding: '10px 20px' }}
-                            disabled={libraryBooks.length === 0}
-                            title={
-                              libraryBooks.length === 0
-                                ? 'Cadastre pelo menos um livro para registrar empréstimos.'
-                                : undefined
-                            }
-                          >
-                            <i className="fas fa-exchange-alt" style={{ marginRight: 6 }} />
-                            Registrar empréstimo
-                          </button>
-                        </div>
-                      </form>
-
-                      <h4 style={{ marginBottom: 8, fontSize: '0.95rem' }}>Empréstimos</h4>
-                      <div className="list-container">
-                        {bookLoans.length === 0 && (
-                          <div className="list-item">
-                            <span>Nenhum empréstimo registrado.</span>
-                          </div>
-                        )}
-                        {bookLoans.length > 0 &&
-                          bookLoans.map((loan) => {
-                            const isReturned = !!loan.dataDevolucao;
-                            let statusLabel = isReturned ? 'Devolvido' : 'Em aberto';
-                            let statusColor = isReturned ? '#16a34a' : '#2563eb';
-                            if (
-                              !isReturned &&
-                              loan.dataPrevistaDevolucao &&
-                              new Date(loan.dataPrevistaDevolucao) < new Date()
-                            ) {
-                              statusLabel = 'Em atraso';
-                              statusColor = '#dc2626';
-                            }
-                            const loanAluno = loan.alunoId && (students || []).find((s) => String(s.id) === String(loan.alunoId));
-                            const turmaFromAluno = loanAluno && (classes.find((c) => String(c.id) === String(loanAluno.turma_id))?.nome);
-                            const turmaFromTexto = (typeof loan.aluno === 'string' && loan.aluno.includes(' - '))
-                              ? loan.aluno.split(' - ').slice(1).join(' - ').trim()
-                              : '';
-                            const exibirTurma = loan.turmaNome || turmaFromAluno || turmaFromTexto || null;
-                            const exibirNome = loan.alunoNome || (typeof loan.aluno === 'string' && loan.aluno.includes(' - ') ? loan.aluno.split(' - ')[0].trim() : loan.aluno) || loanAluno?.nome;
-                            return (
-                              <div key={loan.id} className="list-item">
-                                <div style={{ flex: 1 }}>
-                                  <strong>{loan.livroTitulo || 'Livro'}</strong>
-                                  <div style={{ fontSize: '0.8em', color: '#666' }}>
-                                    <span>
-                                      {exibirNome}
-                                      {exibirTurma && (
-                                        <span style={{ marginLeft: 6, color: '#555' }}>
-                                          • {exibirTurma}
-                                        </span>
-                                      )}
-                                    </span>
-                                    {loan.livroCodigo && <span>{` • Cód.: ${loan.livroCodigo}`}</span>}
-                                  </div>
-                                  <div style={{ fontSize: '0.75em', color: '#777', marginTop: 2 }}>
-                                    <span>
-                                      Saída:{' '}
-                                      {loan.dataEmprestimo
-                                        ? new Date(loan.dataEmprestimo).toLocaleDateString('pt-BR')
-                                        : '-'}
-                                    </span>
-                                    {loan.dataPrevistaDevolucao && (
-                                      <span>
-                                        {' '}
-                                        • Prevista:{' '}
-                                        {new Date(
-                                          loan.dataPrevistaDevolucao
-                                        ).toLocaleDateString('pt-BR')}
-                                      </span>
-                                    )}
-                                    {loan.dataDevolucao && (
-                                      <span>
-                                        {' '}
-                                        • Devolvido em:{' '}
-                                        {new Date(loan.dataDevolucao).toLocaleDateString('pt-BR')}
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
-                                  <span
-                                    style={{
-                                      fontSize: '0.75em',
-                                      fontWeight: 600,
-                                      padding: '3px 8px',
-                                      borderRadius: 999,
-                                      background: `${statusColor}22`,
-                                      color: statusColor,
-                                    }}
-                                  >
-                                    {statusLabel}
-                                  </span>
-                                  {!isReturned && (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setBookLoans((prev) =>
-                                          prev.map((l) =>
-                                            l.id === loan.id
-                                              ? { ...l, dataDevolucao: getLocalDateString() }
-                                              : l
-                                          )
-                                        );
-                                      }}
-                                      style={{
-                                        background: 'var(--success)',
-                                        color: 'white',
-                                        border: 'none',
-                                        padding: '6px 10px',
-                                        borderRadius: 6,
-                                        cursor: 'pointer',
-                                        fontSize: '0.8em',
-                                      }}
-                                    >
-                                      <i className="fas fa-check" style={{ marginRight: 4 }} />
-                                      Marcar devolução
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Aba: Cadastro de livros */}
-                {libraryTab === 'books' && (
-                  <div className="tab-content active">
-                    <div
-                      style={{
-                        background: 'white',
-                        padding: 20,
-                        borderRadius: 12,
-                        border: '1px solid #eee',
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-                      }}
-                    >
-                      <h3 style={{ marginTop: 0, marginBottom: 10 }}>Cadastro de livros</h3>
-                      <p style={{ fontSize: '0.85em', color: 'var(--text-light)', marginBottom: 16 }}>
-                        Registre aqui os títulos disponíveis para empréstimo.
-                      </p>
-                      <form
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          const titulo = libraryBookForm.titulo.trim();
-                          const autor = libraryBookForm.autor.trim();
-                          const codigo = libraryBookForm.codigo.trim();
-                          if (!titulo) return;
-                          const newBook = {
-                            id: Date.now().toString(),
-                            titulo,
-                            autor,
-                            codigo,
-                          };
-                          setLibraryBooks((prev) => [...prev, newBook]);
-                          setLibraryBookForm({ titulo: '', autor: '', codigo: '' });
-                        }}
-                        style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10, marginBottom: 16 }}
-                      >
-                        <div className="input-group" style={{ marginBottom: 0 }}>
-                          <label>Título do livro *</label>
-                          <input
-                            type="text"
-                            required
-                            value={libraryBookForm.titulo}
-                            onChange={(e) =>
-                              setLibraryBookForm((prev) => ({ ...prev, titulo: e.target.value }))
-                            }
-                            placeholder="Ex: O Pequeno Príncipe"
-                          />
-                        </div>
-                        <div className="input-group" style={{ marginBottom: 0 }}>
-                          <label>Autor</label>
-                          <input
-                            type="text"
-                            value={libraryBookForm.autor}
-                            onChange={(e) =>
-                              setLibraryBookForm((prev) => ({ ...prev, autor: e.target.value }))
-                            }
-                            placeholder="Ex: Antoine de Saint-Exupéry"
-                          />
-                        </div>
-                        <div className="input-group" style={{ marginBottom: 0 }}>
-                          <label>Código / Tombo</label>
-                          <input
-                            type="text"
-                            value={libraryBookForm.codigo}
-                            onChange={(e) =>
-                              setLibraryBookForm((prev) => ({ ...prev, codigo: e.target.value }))
-                            }
-                            placeholder="Ex: 123-A, 2024-001..."
-                          />
-                        </div>
-                        <button
-                          type="submit"
-                          className="btn-primary"
-                          style={{ width: 'auto', padding: '10px 20px', marginTop: 4 }}
-                        >
-                          <i className="fas fa-plus" style={{ marginRight: 6 }} />
-                          Adicionar livro
-                        </button>
-                      </form>
-
-                      <hr style={{ margin: '10px 0 14px', border: 'none', borderTop: '1px solid #f0f0f0' }} />
-
-                      <h4 style={{ marginBottom: 8, fontSize: '0.95rem' }}>Livros cadastrados</h4>
-                      <div className="list-container">
-                        {libraryBooks.length === 0 && (
-                          <div className="list-item">
-                            <span>Nenhum livro cadastrado ainda.</span>
-                          </div>
-                        )}
-                        {libraryBooks.length > 0 &&
-                          libraryBooks.map((livro) => {
-                            const emprestado = bookLoans.some(
-                              (loan) => loan.livroId === livro.id && !loan.dataDevolucao
-                            );
-                            return (
-                              <div key={livro.id} className="list-item">
-                                <div style={{ flex: 1 }}>
-                                  <strong>{livro.titulo}</strong>
-                                  <div style={{ fontSize: '0.8em', color: '#666' }}>
-                                    {livro.autor && <span>Autor: {livro.autor}</span>}
-                                    {livro.autor && livro.codigo && <span> • </span>}
-                                    {livro.codigo && <span>Cód.: {livro.codigo}</span>}
-                                  </div>
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                  {emprestado && (
-                                    <span
-                                      className="badge badge-warning"
-                                      style={{ fontSize: '0.75em', whiteSpace: 'nowrap' }}
-                                    >
-                                      Emprestado
-                                    </span>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const hasActiveLoan = bookLoans.some(
-                                        (loan) => loan.livroId === livro.id && !loan.dataDevolucao
-                                      );
-                                      if (hasActiveLoan) {
-                                        alert('Este livro possui empréstimo em aberto. Finalize o empréstimo antes de remover.');
-                                        return;
-                                      }
-                                      setLibraryBooks((prev) =>
-                                        prev.filter((b) => b.id !== livro.id)
-                                      );
-                                    }}
-                                    style={{
-                                      background: 'var(--danger)',
-                                      color: 'white',
-                                      border: 'none',
-                                      padding: '6px 10px',
-                                      borderRadius: 6,
-                                      cursor: 'pointer',
-                                      fontSize: '0.8em',
-                                    }}
-                                  >
-                                    <i className="fas fa-trash" />
-                                  </button>
-                                </div>
-                              </div>
-                            );
-                          })}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <LibraryView
+                libraryTab={libraryTab}
+                setLibraryTab={setLibraryTab}
+                loanForm={loanForm}
+                setLoanForm={setLoanForm}
+                libraryBooks={libraryBooks}
+                bookLoans={bookLoans}
+                setBookLoans={setBookLoans}
+                students={students}
+                classes={classes}
+                getLocalDateString={getLocalDateString}
+                loanStudentQuery={loanStudentQuery}
+                setLoanStudentQuery={setLoanStudentQuery}
+                studentsLoading={studentsLoading}
+                libraryBookForm={libraryBookForm}
+                setLibraryBookForm={setLibraryBookForm}
+                setLibraryBooks={setLibraryBooks}
+              />
             )}
 
             {/* Student Detail */}
             {currentView === 'student-detail' && (
-              <div id="view-student-detail" className="view-section">
-                <div className="breadcrumb" onClick={() => navigate('students')}>
-                  <i className="fas fa-arrow-left" /> Voltar para Lista
-                </div>
-
-                <div className="student-header">
-                  <div
-                    style={{
-                      width: 60,
-                      height: 60,
-                      background: selectedStudent?.etiqueta_cor === 'roxo' ? '#9c27b0' : '#ddd',
-                      borderRadius: '50%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '1.5em',
-                      color: selectedStudent?.etiqueta_cor === 'roxo' ? 'white' : '#666',
-                    }}
-                  >
-                    {selectedStudent?.etiqueta_cor === 'roxo' ? (
-                      <i className="fas fa-wheelchair" />
-                    ) : (
-                      <i className="fas fa-user" />
-                    )}
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <h2 style={{ margin: 0 }}>{selectedStudent?.nome || 'Nome não informado'}</h2>
-                    <span style={{ color: 'gray' }}>
-                      {classes.find((c) => String(c.id) === String(selectedStudent?.turma_id))?.nome || 'Turma não informada'}
-                      {selectedStudent?.matricula ? ` • Matrícula: ${selectedStudent.matricula}` : ''}
-                    </span>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <span
-                      className={`badge ${getBadgeColorClass(selectedStudent?.etiqueta_cor)}`}
-                      style={{ fontSize: '1em', padding: '8px 15px' }}
-                    >
-                      {selectedStudent?.etiqueta_cor === 'vermelho'
-                        ? '🔴 Prioridade'
-                        : selectedStudent?.etiqueta_cor === 'amarelo'
-                        ? '🟡 Atenção'
-                        : selectedStudent?.etiqueta_cor === 'verde'
-                        ? '🟢 Avançado'
-                        : selectedStudent?.etiqueta_cor === 'roxo'
-                        ? '🟣 Educação Especial'
-                        : '🔵 Regular'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="student-tabs">
-                  <div
-                    className={`tab ${currentTab === 'resumo' ? 'active' : ''}`}
-                    onClick={() => switchTab('resumo')}
-                  >
-                    Resumo
-                  </div>
-                  <div
-                    className={`tab ${currentTab === 'boletim' ? 'active' : ''}`}
-                    onClick={() => switchTab('boletim')}
-                  >
-                    Boletim
-                  </div>
-                  <div
-                    className={`tab ${currentTab === 'ocorrencias' ? 'active' : ''}`}
-                    onClick={() => switchTab('ocorrencias')}
-                  >
-                    Ocorrências
-                  </div>
-                  <div
-                    className={`tab ${currentTab === 'sondagem' ? 'active' : ''}`}
-                    onClick={() => switchTab('sondagem')}
-                  >
-                    Sondagens
-                  </div>
-                  <div
-                    className={`tab ${currentTab === 'evidencias' ? 'active' : ''}`}
-                    onClick={() => switchTab('evidencias')}
-                  >
-                    Evidências (Anexos)
-                  </div>
-                  {selectedStudent?.etiqueta_cor === 'roxo' && (
-                    <div
-                      className={`tab ${currentTab === 'aee' ? 'active' : ''}`}
-                      onClick={() => switchTab('aee')}
-                      style={{
-                        borderLeft: '3px solid #9c27b0',
-                        fontWeight: 'bold',
-                      }}
-                    >
-                      AEE 🟣
-                    </div>
-                  )}
-                </div>
-
-                {/* Tab Boletim */}
-                {currentTab === 'boletim' && selectedStudent?.id && (
-                  <div id="tab-boletim" className="tab-content active">
-                    <BoletimView
-                      alunoId={selectedStudent.id}
-                      nivelEnsino={classes.find((c) => String(c.id) === String(selectedStudent?.turma_id))?.nivel || 'fundamental1'}
-                      turmaNome={classes.find((c) => String(c.id) === String(selectedStudent?.turma_id))?.nome || ''}
-                      onEtiquetaAtualizada={(novaCor) => {
-                        setSelectedStudent((prev) => (prev ? { ...prev, etiqueta_cor: novaCor } : null));
-                      }}
-                    />
-                  </div>
-                )}
-
-                {/* Tab Resumo */}
-                {currentTab === 'resumo' && (
-                  <div id="tab-resumo" className="tab-content active">
-                    <div className="cards-grid">
-                      <div className="card">
-                        <h4>Frequência Geral</h4>
-                        <div className="number" style={{ color: 'var(--danger)' }}>
-                          {selectedStudent?.frequencia != null
-                            ? `${selectedStudent.frequencia}%`
-                            : 'N/D'}
-                        </div>
-                        <small>
-                          {selectedStudent?.frequencia != null && selectedStudent.frequencia < 85
-                            ? 'Abaixo da meta de 85%'
-                            : 'Meta de frequência: 85%'}
-                        </small>
-                      </div>
-                      <div className="card">
-                        <h4>Nível de Leitura (Alfabetiza Pará)</h4>
-                        <div
-                          className="number"
-                          style={{ fontSize: '1.5em', color: 'var(--warning)' }}
-                        >
-                          {selectedStudent?.nivel_leitura || 'Não informado'}
-                        </div>
-                        <small>Fonte: Avaliações Alfabetiza Pará</small>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Tab Ocorrências */}
-                {currentTab === 'ocorrencias' && (
-                  <div id="tab-ocorrencias" className="tab-content active">
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        marginBottom: 20,
-                      }}
-                    >
-                      <h3 style={{ margin: 0 }}>Ocorrências</h3>
-                      <button
-                        className="btn-primary"
-                        style={{ width: 'auto', padding: '10px 20px' }}
-                        onClick={() => handleOpenOccurrenceModal()}
-                      >
-                        <i className="fas fa-plus" style={{ marginRight: 5 }} />
-                        Nova Ocorrência
-                      </button>
-                    </div>
-                    {occurrencesLoading && (
-                      <div className="list-item" style={{ marginTop: 15 }}>
-                        <span>Carregando ocorrências...</span>
-                      </div>
-                    )}
-                    {occurrencesError && (
-                      <div className="list-item" style={{ marginTop: 15 }}>
-                        <span>{occurrencesError}</span>
-                      </div>
-                    )}
-                    {!occurrencesLoading && !occurrencesError && occurrences.length === 0 && (
-                      <div className="list-item" style={{ marginTop: 15 }}>
-                        <span>Nenhuma ocorrência registrada.</span>
-                      </div>
-                    )}
-                    {!occurrencesLoading && !occurrencesError && occurrences.length > 0 && (
-                      <div className="cards-grid" style={{ marginTop: 15 }}>
-                        {occurrences.map((ocorrencia) => (
-                          <div key={ocorrencia.id} className="card">
-                            <div style={{ marginBottom: 10 }}>
-                              <strong style={{ fontSize: '1.1em', color: 'var(--primary)' }}>
-                                {ocorrencia.titulo || 'Sem título'}
-                              </strong>
-                            </div>
-                            <div style={{ fontSize: '0.9em', color: 'var(--text-light)', marginBottom: 10 }}>
-                              <i className="fas fa-calendar" style={{ marginRight: 5 }} />
-                              {ocorrencia.data_ocorrencia
-                                ? (() => {
-                                    const d = ocorrencia.data_ocorrencia;
-                                    if (!d) return 'Data não informada';
-                                    const [y, m, day] = d.split('-');
-                                    return `${day}/${m}/${y}`;
-                                  })()
-                                : 'Data não informada'}
-                            </div>
-                            <div style={{ fontSize: '0.9em', color: 'var(--text)', lineHeight: '1.5', marginBottom: 12 }}>
-                              {ocorrencia.descricao || 'Sem descrição'}
-                            </div>
-                            <div style={{ display: 'flex', gap: 8, marginTop: 'auto' }}>
-                              <button
-                                type="button"
-                                onClick={() => handleOpenOccurrenceModal(ocorrencia)}
-                                style={{
-                                  padding: '6px 14px',
-                                  border: '1px solid #0d6efd',
-                                  borderRadius: 6,
-                                  background: 'white',
-                                  color: '#0d6efd',
-                                  cursor: 'pointer',
-                                  fontSize: 13,
-                                }}
-                              >
-                                Editar
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteOccurrence(ocorrencia)}
-                                style={{
-                                  padding: '6px 14px',
-                                  border: '1px solid #dc3545',
-                                  borderRadius: 6,
-                                  background: 'white',
-                                  color: '#dc3545',
-                                  cursor: 'pointer',
-                                  fontSize: 13,
-                                }}
-                              >
-                                Excluir
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Tab Sondagem */}
-                {currentTab === 'sondagem' && (
-                  <div id="tab-sondagem" className="tab-content active">
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                      }}
-                    >
-                      <h3>Sondagens</h3>
-                      <button
-                        type="button"
-                        className="btn-primary"
-                        style={{ width: 'auto' }}
-                        onClick={() => handleOpenSondagemModal()}
-                      >
-                        + Nova sondagem
-                      </button>
-                    </div>
-                    {sondagensLoading && (
-                      <p style={{ marginTop: 15, color: 'var(--text)' }}>Carregando sondagens...</p>
-                    )}
-                    {sondagensError && (
-                      <p style={{ marginTop: 15, color: 'var(--danger)' }}>{sondagensError}</p>
-                    )}
-                    {!sondagensLoading && !sondagensError && (
-                      <table
-                        style={{
-                          width: '100%',
-                          marginTop: 15,
-                          borderCollapse: 'collapse',
-                          background: 'white',
-                        }}
-                      >
-                        <thead>
-                          <tr style={{ background: '#eee', textAlign: 'left' }}>
-                            <th style={{ padding: 10 }}>Data</th>
-                            <th style={{ padding: 10 }}>Nível de leitura</th>
-                            <th style={{ padding: 10 }}>Nível de escrita</th>
-                            <th style={{ padding: 10, width: 180 }}>Anexos</th>
-                            <th style={{ padding: 10, width: 100 }}>Ações</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {sondagens.length === 0 ? (
-                            <tr>
-                              <td colSpan={5} style={{ padding: 15, color: '#666' }}>
-                                Nenhuma sondagem cadastrada. Clique em &quot;+ Nova sondagem&quot; para adicionar.
-                              </td>
-                            </tr>
-                          ) : (
-                            sondagens.map((s) => (
-                              <tr key={s.id} style={{ borderBottom: '1px solid #eee' }}>
-                                <td style={{ padding: 10 }}>
-                                  {s.data ? formatDate(s.data) : '-'}
-                                </td>
-                                <td style={{ padding: 10 }}>{s.nivel_leitura || '-'}</td>
-                                <td style={{ padding: 10 }}>{s.nivel_escrita || '-'}</td>
-                                <td style={{ padding: 10 }}>
-                                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                                    {s.foto_escrita_url ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => openSondagemMidia('foto', s.foto_escrita_url)}
-                                        style={{
-                                          padding: '4px 8px',
-                                          border: '1px solid #0d6efd',
-                                          borderRadius: 6,
-                                          background: 'white',
-                                          color: '#0d6efd',
-                                          cursor: 'pointer',
-                                          fontSize: 11,
-                                        }}
-                                        title="Ver foto da escrita"
-                                      >
-                                        📷 Foto
-                                      </button>
-                                    ) : null}
-                                    {s.audio_leitura_url ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => openSondagemMidia('audio', s.audio_leitura_url)}
-                                        style={{
-                                          padding: '4px 8px',
-                                          border: '1px solid #198754',
-                                          borderRadius: 6,
-                                          background: 'white',
-                                          color: '#198754',
-                                          cursor: 'pointer',
-                                          fontSize: 11,
-                                        }}
-                                        title="Ouvir áudio da leitura"
-                                      >
-                                        🎧 Áudio
-                                      </button>
-                                    ) : null}
-                                    {s.arquivo_url ? (
-                                      <a
-                                        href={s.arquivo_url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        style={{
-                                          padding: '4px 8px',
-                                          border: '1px solid #6c757d',
-                                          borderRadius: 6,
-                                          background: 'white',
-                                          color: '#6c757d',
-                                          textDecoration: 'none',
-                                          fontSize: 11,
-                                          display: 'inline-block',
-                                        }}
-                                        title="Abrir arquivo"
-                                      >
-                                        📄 Arquivo
-                                      </a>
-                                    ) : null}
-                                    {!s.foto_escrita_url && !s.audio_leitura_url && !s.arquivo_url && (
-                                      <span style={{ fontSize: 11, color: '#999' }}>—</span>
-                                    )}
-                                  </div>
-                                </td>
-                                <td style={{ padding: 10 }}>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleOpenSondagemModal(s)}
-                                    style={{
-                                      marginRight: 8,
-                                      padding: '4px 10px',
-                                      border: '1px solid #ddd',
-                                      borderRadius: 6,
-                                      background: 'white',
-                                      cursor: 'pointer',
-                                      fontSize: 12,
-                                    }}
-                                  >
-                                    Editar
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteSondagem(s)}
-                                    style={{
-                                      padding: '4px 10px',
-                                      border: '1px solid #dc3545',
-                                      borderRadius: 6,
-                                      background: 'white',
-                                      color: '#dc3545',
-                                      cursor: 'pointer',
-                                      fontSize: 12,
-                                    }}
-                                  >
-                                    Excluir
-                                  </button>
-                                </td>
-                              </tr>
-                            ))
-                          )}
-                        </tbody>
-                      </table>
-                    )}
-                  </div>
-                )}
-
-                {/* Tab Evidências */}
-                {currentTab === 'evidencias' && (
-                  <div id="tab-evidencias" className="tab-content active">
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                      }}
-                    >
-                      <h3>Portfólio Digital</h3>
-                      <button className="btn-primary" style={{ width: 'auto' }}>
-                        + Upload
-                      </button>
-                    </div>
-                    <div
-                      style={{
-                        marginTop: 15,
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-                        gap: 15,
-                      }}
-                    >
-                      <div
-                        style={{
-                          background: 'white',
-                          padding: 10,
-                          borderRadius: 8,
-                          textAlign: 'center',
-                        }}
-                      >
-                        <i
-                          className="fas fa-image"
-                          style={{
-                            fontSize: '2em',
-                            color: 'var(--accent)',
-                            marginBottom: 10,
-                          }}
-                        />
-                        <p>Foto_Atividade.jpg</p>
-                        <small>15/05/2024</small>
-                      </div>
-                      <div
-                        style={{
-                          background: 'white',
-                          padding: 10,
-                          borderRadius: 8,
-                          textAlign: 'center',
-                        }}
-                      >
-                        <i
-                          className="fas fa-microphone"
-                          style={{
-                            fontSize: '2em',
-                            color: 'var(--warning)',
-                            marginBottom: 10,
-                          }}
-                        />
-                        <p>Leitura_Audio.mp3</p>
-                        <small>10/05/2024</small>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Tab AEE */}
-                {currentTab === 'aee' && (
-                  <div id="tab-aee" className="tab-content active">
-                    <h3>Atendimento Educacional Especializado (AEE)</h3>
-                    {selectedStudent?.etiqueta_cor === 'roxo' && (
-                      <div style={{ 
-                        padding: 10, 
-                        background: '#f3e5f5', 
-                        borderRadius: 6, 
-                        marginBottom: 20,
-                        border: '1px solid #9c27b0'
-                      }}>
-                        <strong style={{ color: '#9c27b0' }}>Aluno com Educação Especial</strong>
-                        {selectedStudent?.aee_deficiencia && (
-                          <div style={{ marginTop: 5 }}>
-                            <strong>Deficiência/Condição:</strong> {selectedStudent.aee_deficiencia}
-                            {selectedStudent?.aee_cid && <> • <strong>CID:</strong> {selectedStudent.aee_cid}</>}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    <div style={{ maxWidth: 800 }}>
-                      <div style={{ padding: 20, background: '#f9f9f9', borderRadius: 8, border: '1px solid #ddd' }}>
-                        <h4 style={{ marginBottom: 15, color: 'var(--primary)' }}>
-                          Documentos Anexados (Laudos/Planos)
-                        </h4>
-                        
-                        <div style={{ marginBottom: 15 }}>
-                          <label
-                            htmlFor="aee-document-upload"
-                            style={{
-                              display: 'inline-block',
-                              padding: '10px 20px',
-                              background: 'var(--primary)',
-                              color: 'white',
-                              borderRadius: 6,
-                              cursor: 'pointer',
-                              fontSize: '0.9em',
-                            }}
-                          >
-                            <i className="fas fa-upload" style={{ marginRight: 8 }} />
-                            {uploadingDocument ? 'Fazendo upload...' : 'Enviar Documento'}
-                          </label>
-                          <input
-                            id="aee-document-upload"
-                            type="file"
-                            accept=".pdf,.jpg,.jpeg,.png,.gif,image/*,application/pdf"
-                            onChange={handleUploadDocument}
-                            disabled={uploadingDocument || !selectedStudentId}
-                            style={{ display: 'none' }}
-                          />
-                          <span style={{ marginLeft: 10, fontSize: '0.85em', color: '#666' }}>
-                            PDF ou Imagens
-                          </span>
-                        </div>
-
-                        {loadingDocuments ? (
-                          <div style={{ padding: 20, textAlign: 'center', color: '#666' }}>
-                            Carregando documentos...
-                          </div>
-                        ) : aeeDocuments.length === 0 ? (
-                          <div style={{ padding: 20, textAlign: 'center', color: '#999', fontStyle: 'italic' }}>
-                            Nenhum documento anexado ainda.
-                          </div>
-                        ) : (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                            {aeeDocuments.map((doc) => (
-                              <div
-                                key={doc.name}
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 15,
-                                  padding: 12,
-                                  background: 'white',
-                                  borderRadius: 6,
-                                  border: '1px solid #ddd',
-                                }}
-                              >
-                                <i
-                                  className={`fas ${
-                                    doc.name.toLowerCase().endsWith('.pdf')
-                                      ? 'fa-file-pdf'
-                                      : 'fa-file-image'
-                                  }`}
-                                  style={{
-                                    fontSize: '1.5em',
-                                    color: doc.name.toLowerCase().endsWith('.pdf') ? '#dc3545' : '#3498db',
-                                  }}
-                                />
-                                <div style={{ flex: 1 }}>
-                                  <div style={{ fontWeight: 'bold', fontSize: '0.9em' }}>{doc.name}</div>
-                                  <div style={{ fontSize: '0.8em', color: '#666' }}>
-                                    {doc.created_at
-                                      ? new Date(doc.created_at).toLocaleDateString('pt-BR')
-                                      : 'Data não disponível'}
-                                  </div>
-                                </div>
-                                <div style={{ display: 'flex', gap: 8 }}>
-                                  <button
-                                    onClick={() => handleDownloadDocument(doc.name)}
-                                    style={{
-                                      padding: '6px 12px',
-                                      background: 'var(--accent)',
-                                      color: 'white',
-                                      border: 'none',
-                                      borderRadius: 6,
-                                      cursor: 'pointer',
-                                      fontSize: '0.85em',
-                                    }}
-                                    title="Baixar/Visualizar"
-                                  >
-                                    <i className="fas fa-download" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteDocument(doc.name)}
-                                    style={{
-                                      padding: '6px 12px',
-                                      background: 'var(--danger)',
-                                      color: 'white',
-                                      border: 'none',
-                                      borderRadius: 6,
-                                      cursor: 'pointer',
-                                      fontSize: '0.85em',
-                                    }}
-                                    title="Excluir"
-                                  >
-                                    <i className="fas fa-trash" />
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <StudentDetailView
+                navigate={navigate}
+                selectedClassId={selectedClassId}
+                selectedStudent={selectedStudent}
+                classes={classes}
+                getBadgeColorClass={getBadgeColorClass}
+                currentTab={currentTab}
+                switchTab={switchTab}
+                setSelectedStudent={setSelectedStudent}
+                handleOpenOccurrenceModal={handleOpenOccurrenceModal}
+                occurrencesLoading={occurrencesLoading}
+                occurrencesError={occurrencesError}
+                occurrences={occurrences}
+                handleDeleteOccurrence={handleDeleteOccurrence}
+                handleOpenSondagemModal={handleOpenSondagemModal}
+                sondagensLoading={sondagensLoading}
+                sondagensError={sondagensError}
+                sondagens={sondagens}
+                formatDate={formatDate}
+                openSondagemMidia={openSondagemMidia}
+                handleDeleteSondagem={handleDeleteSondagem}
+                uploadingDocument={uploadingDocument}
+                selectedStudentId={selectedStudentId}
+                handleUploadDocument={handleUploadDocument}
+                loadingDocuments={loadingDocuments}
+                aeeDocuments={aeeDocuments}
+                handleDownloadDocument={handleDownloadDocument}
+                handleDeleteDocument={handleDeleteDocument}
+              />
             )}
 
             {/* Perfil do Professor */}
             {currentView === 'teacher-detail' && (
-              <div id="view-teacher-detail" className="view-section">
-                <div
-                  className="breadcrumb"
-                  onClick={() => {
-                    setSelectedTeacherId(null);
-                    setSelectedTeacher(null);
-                    setTeacherProfileMissing(false);
-                    navigate('teachers');
-                  }}
-                >
-                  <i className="fas fa-arrow-left" /> Voltar para Professores
-                </div>
-
-                {teacherProfileMissing && (
-                  <div
-                    style={{
-                      background: 'white',
-                      padding: 24,
-                      borderRadius: 8,
-                      border: '1px solid #eee',
-                    }}
-                  >
-                    <p style={{ marginTop: 0 }}>Não foi possível carregar este professor. Ele pode ter sido removido.</p>
-                    <button
-                      type="button"
-                      className="btn-primary"
-                      onClick={() => {
-                        setSelectedTeacherId(null);
-                        setSelectedTeacher(null);
-                        setTeacherProfileMissing(false);
-                        navigate('teachers');
-                      }}
-                    >
-                      Voltar à lista
-                    </button>
-                  </div>
-                )}
-
-                {!teacherProfileMissing && !selectedTeacher && (
-                  <div className="list-container" style={{ marginTop: 12 }}>
-                    <div className="list-item">
-                      <span>Carregando professor...</span>
-                    </div>
-                  </div>
-                )}
-
-                {!teacherProfileMissing && selectedTeacher && (
-                  <>
-                    <div className="student-header">
-                      <div
-                        style={{
-                          width: 60,
-                          height: 60,
-                          background: 'linear-gradient(135deg, var(--primary), var(--accent))',
-                          borderRadius: '50%',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '1.5em',
-                          color: 'white',
-                        }}
-                      >
-                        <i className="fas fa-chalkboard-teacher" />
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <h2 style={{ margin: 0 }}>{selectedTeacher.nome || 'Professor'}</h2>
-                        <span style={{ color: 'gray' }}>
-                          {selectedTeacher.disciplina || 'Disciplina não informada'}
-                          {activeSchool?.nome ? ` • ${activeSchool.nome}` : ''}
-                          {selectedTeacher.ano_letivo ? ` • ${selectedTeacher.ano_letivo}` : ''}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="student-tabs">
-                      <div
-                        className={`tab ${teacherProfileTab === 'entregas' ? 'active' : ''}`}
-                        onClick={() => setTeacherProfileTab('entregas')}
-                      >
-                        Entregas pedagógicas
-                      </div>
-                      <div
-                        className={`tab ${teacherProfileTab === 'acompanhamento' ? 'active' : ''}`}
-                        onClick={() => setTeacherProfileTab('acompanhamento')}
-                      >
-                        Acompanhamento pedagógico
-                      </div>
-                    </div>
-
-                    {teacherProfileTab === 'entregas' && (
-                      <div className="tab-content active">
-                        <div
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            marginBottom: 16,
-                            flexWrap: 'wrap',
-                            gap: 12,
-                          }}
-                        >
-                          <h3 style={{ margin: 0 }}>Entregas pedagógicas</h3>
-                          <button
-                            type="button"
-                            className="btn-primary"
-                            style={{ width: 'auto', padding: '10px 20px' }}
-                            onClick={() => openEntregaModal()}
-                          >
-                            <i className="fas fa-plus" style={{ marginRight: 6 }} />
-                            Nova exigência
-                          </button>
-                        </div>
-                        <p style={{ color: 'var(--text-light)', marginTop: 0, marginBottom: 16, fontSize: '0.95em' }}>
-                          Acompanhe planos, diários e demais documentos. O status &quot;Atrasado&quot; também aparece quando o prazo
-                          venceu e a entrega ainda está pendente.
-                        </p>
-
-                        <div className="cards-grid" style={{ marginBottom: 18 }}>
-                          <div className="card">
-                            <h4>Pendentes</h4>
-                            <div className="number" style={{ color: 'var(--warning)' }}>
-                              {entregaCounts.pendente}
-                            </div>
-                          </div>
-                          <div className="card">
-                            <h4>Entregues</h4>
-                            <div className="number" style={{ color: 'var(--success)' }}>
-                              {entregaCounts.entregue}
-                            </div>
-                          </div>
-                          <div className="card">
-                            <h4>Atrasados</h4>
-                            <div className="number" style={{ color: 'var(--danger)' }}>
-                              {entregaCounts.atrasado}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                          {[
-                            { id: 'todos', label: 'Todos' },
-                            { id: 'pendente', label: 'Pendente' },
-                            { id: 'entregue', label: 'Entregue' },
-                            { id: 'atrasado', label: 'Atrasado' },
-                          ].map((f) => (
-                            <button
-                              key={f.id}
-                              type="button"
-                              onClick={() => setEntregaFilter(f.id)}
-                              style={{
-                                padding: '8px 14px',
-                                borderRadius: 20,
-                                border: entregaFilter === f.id ? '2px solid var(--primary)' : '1px solid #ddd',
-                                background: entregaFilter === f.id ? 'rgba(13, 110, 253, 0.08)' : 'white',
-                                cursor: 'pointer',
-                                fontSize: '0.9em',
-                              }}
-                            >
-                              {f.label}
-                            </button>
-                          ))}
-                        </div>
-
-                        {entregasLoading && (
-                          <div className="list-container">
-                            <div className="list-item">
-                              <span>Carregando entregas...</span>
-                            </div>
-                          </div>
-                        )}
-                        {entregasError && (
-                          <div className="list-container">
-                            <div className="list-item">
-                              <span>{entregasError}</span>
-                            </div>
-                          </div>
-                        )}
-                        {!entregasLoading && !entregasError && entregasFiltradas.length === 0 && (
-                          <div className="list-container">
-                            <div className="list-item">
-                              <span>Nenhuma exigência neste filtro.</span>
-                            </div>
-                          </div>
-                        )}
-                        {!entregasLoading && !entregasError && entregasFiltradas.length > 0 && (
-                          <div className="list-container">
-                            {entregasFiltradas.map((e) => {
-                              const st = getEntregaDisplayStatus(e);
-                              const badgeBg =
-                                st === 'entregue' ? 'var(--success)' : st === 'atrasado' ? 'var(--danger)' : 'var(--warning)';
-                              const badgeText =
-                                st === 'entregue' ? 'Entregue' : st === 'atrasado' ? 'Atrasado' : 'Pendente';
-                              return (
-                                <div key={e.id} className="list-item" style={{ cursor: 'default', alignItems: 'flex-start' }}>
-                                  <div style={{ flex: 1, minWidth: 0 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
-                                      <strong>{e.tipo_documento || 'Documento'}</strong>
-                                      <span
-                                        className="badge"
-                                        style={{
-                                          background: badgeBg,
-                                          fontSize: '0.75em',
-                                        }}
-                                      >
-                                        {badgeText}
-                                      </span>
-                                    </div>
-                                    <div style={{ fontSize: '0.9em', color: '#555', marginBottom: 4 }}>
-                                      <i className="fas fa-bookmark" style={{ marginRight: 6, opacity: 0.7 }} />
-                                      {e.referencia || 'Sem referência'}
-                                    </div>
-                                    {e.prazo && (
-                                      <div style={{ fontSize: '0.85em', color: 'var(--text-light)' }}>
-                                        Prazo: {formatDate(e.prazo)}
-                                      </div>
-                                    )}
-                                    {e.observacoes && (
-                                      <div style={{ fontSize: '0.85em', color: '#666', marginTop: 8, lineHeight: 1.45 }}>
-                                        {e.observacoes}
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                                    <button
-                                      type="button"
-                                      onClick={() => openEntregaModal(e)}
-                                      style={{
-                                        padding: '6px 12px',
-                                        border: '1px solid #0d6efd',
-                                        borderRadius: 6,
-                                        background: 'white',
-                                        color: '#0d6efd',
-                                        cursor: 'pointer',
-                                        fontSize: 13,
-                                      }}
-                                    >
-                                      Editar
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleDeleteEntrega(e)}
-                                      style={{
-                                        padding: '6px 12px',
-                                        border: '1px solid #dc3545',
-                                        borderRadius: 6,
-                                        background: 'white',
-                                        color: '#dc3545',
-                                        cursor: 'pointer',
-                                        fontSize: 13,
-                                      }}
-                                    >
-                                      Excluir
-                                    </button>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {teacherProfileTab === 'acompanhamento' && (
-                      <div className="tab-content active">
-                        <div
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            marginBottom: 16,
-                            flexWrap: 'wrap',
-                            gap: 12,
-                          }}
-                        >
-                          <h3 style={{ margin: 0 }}>Acompanhamento pedagógico</h3>
-                          <button
-                            type="button"
-                            className="btn-primary"
-                            style={{ width: 'auto', padding: '10px 20px' }}
-                            onClick={() => openRegistroCoordModal()}
-                          >
-                            <i className="fas fa-plus" style={{ marginRight: 6 }} />
-                            Registrar conversa
-                          </button>
-                        </div>
-                        <p style={{ color: 'var(--text-light)', marginTop: 0, marginBottom: 20, fontSize: '0.95em' }}>
-                          Reuniões, feedbacks e observações de sala — em ordem da data mais recente.
-                        </p>
-
-                        {registrosCoordLoading && (
-                          <div className="list-container">
-                            <div className="list-item">
-                              <span>Carregando registros...</span>
-                            </div>
-                          </div>
-                        )}
-                        {registrosCoordError && (
-                          <div className="list-container">
-                            <div className="list-item">
-                              <span>{registrosCoordError}</span>
-                            </div>
-                          </div>
-                        )}
-                        {!registrosCoordLoading && !registrosCoordError && registrosCoordenacao.length === 0 && (
-                          <div className="list-container">
-                            <div className="list-item">
-                              <span>Nenhum registro ainda. Use &quot;Registrar conversa&quot; para começar.</span>
-                            </div>
-                          </div>
-                        )}
-                        {!registrosCoordLoading && !registrosCoordError && registrosCoordenacao.length > 0 && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                            {registrosCoordenacao.map((r) => (
-                              <div
-                                key={r.id}
-                                style={{
-                                  display: 'grid',
-                                  gridTemplateColumns: '120px 1fr',
-                                  gap: 16,
-                                  background: 'white',
-                                  borderRadius: 8,
-                                  border: '1px solid #eee',
-                                  boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
-                                  overflow: 'hidden',
-                                }}
-                              >
-                                <div
-                                  style={{
-                                    background: '#f8f9fa',
-                                    padding: 16,
-                                    textAlign: 'center',
-                                    borderRight: '1px solid #eee',
-                                  }}
-                                >
-                                  <div style={{ fontSize: '0.75em', color: 'var(--text-light)', textTransform: 'uppercase' }}>
-                                    Data
-                                  </div>
-                                  <div style={{ fontWeight: 'bold', color: 'var(--primary)', marginTop: 4 }}>
-                                    {r.data_conversa
-                                      ? (() => {
-                                          const d = String(r.data_conversa).split('T')[0];
-                                          const [y, m, day] = d.split('-');
-                                          return `${day}/${m}/${y}`;
-                                        })()
-                                      : '—'}
-                                  </div>
-                                </div>
-                                <div style={{ padding: 16 }}>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-                                    <strong style={{ fontSize: '1.05em', color: 'var(--primary)' }}>{r.assunto || 'Sem assunto'}</strong>
-                                    <div style={{ display: 'flex', gap: 8 }}>
-                                      <button
-                                        type="button"
-                                        onClick={() => openRegistroCoordModal(r)}
-                                        style={{
-                                          padding: '4px 10px',
-                                          border: '1px solid #0d6efd',
-                                          borderRadius: 6,
-                                          background: 'white',
-                                          color: '#0d6efd',
-                                          cursor: 'pointer',
-                                          fontSize: 12,
-                                        }}
-                                      >
-                                        Editar
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => handleDeleteRegistroCoord(r)}
-                                        style={{
-                                          padding: '4px 10px',
-                                          border: '1px solid #dc3545',
-                                          borderRadius: 6,
-                                          background: 'white',
-                                          color: '#dc3545',
-                                          cursor: 'pointer',
-                                          fontSize: 12,
-                                        }}
-                                      >
-                                        Excluir
-                                      </button>
-                                    </div>
-                                  </div>
-                                  {r.relato && (
-                                    <div style={{ marginTop: 12 }}>
-                                      <div style={{ fontSize: '0.8em', color: 'var(--text-light)', marginBottom: 4 }}>Relato</div>
-                                      <div style={{ fontSize: '0.95em', lineHeight: 1.5, color: '#333' }}>{r.relato}</div>
-                                    </div>
-                                  )}
-                                  {r.encaminhamentos && (
-                                    <div
-                                      style={{
-                                        marginTop: 12,
-                                        padding: 12,
-                                        background: '#f0f7ff',
-                                        borderRadius: 6,
-                                        borderLeft: '3px solid var(--accent)',
-                                      }}
-                                    >
-                                      <div style={{ fontSize: '0.8em', color: 'var(--text-light)', marginBottom: 4 }}>
-                                        Encaminhamentos
-                                      </div>
-                                      <div style={{ fontSize: '0.95em', lineHeight: 1.5, color: '#333' }}>{r.encaminhamentos}</div>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
+              <TeacherDetailView
+                setSelectedTeacherId={setSelectedTeacherId}
+                setSelectedTeacher={setSelectedTeacher}
+                setTeacherProfileMissing={setTeacherProfileMissing}
+                navigate={navigate}
+                teacherProfileMissing={teacherProfileMissing}
+                selectedTeacher={selectedTeacher}
+                activeSchool={activeSchool}
+                teacherProfileTab={teacherProfileTab}
+                setTeacherProfileTab={setTeacherProfileTab}
+                openEntregaModal={openEntregaModal}
+                entregaCounts={entregaCounts}
+                entregaFilter={entregaFilter}
+                setEntregaFilter={setEntregaFilter}
+                entregasLoading={entregasLoading}
+                entregasError={entregasError}
+                entregasFiltradas={entregasFiltradas}
+                getEntregaDisplayStatus={getEntregaDisplayStatus}
+                formatDate={formatDate}
+                handleDeleteEntrega={handleDeleteEntrega}
+                openRegistroCoordModal={openRegistroCoordModal}
+                registrosCoordLoading={registrosCoordLoading}
+                registrosCoordError={registrosCoordError}
+                registrosCoordenacao={registrosCoordenacao}
+                handleDeleteRegistroCoord={handleDeleteRegistroCoord}
+              />
             )}
 
             {/* Reports */}
             {currentView === 'reports' && (
-              <div id="view-reports" className="view-section">
-                <h2>Relatórios e Listas</h2>
-                <p style={{ color: 'var(--text-light)', marginBottom: 20 }}>
-                  Gere listas de alunos por escola, turma, etiqueta ou nível de leitura e exporte em PDF ou Word.
-                </p>
-
-                <div
-                  style={{
-                    background: 'white',
-                    padding: 24,
-                    borderRadius: 12,
-                    marginBottom: 20,
-                    border: '1px solid #eee',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-                  }}
-                >
-                  {/* Linha 1: Escola, Ano e Turmas na mesma linha */}
-                  <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                    <div className="input-group" style={{ minWidth: 180, marginBottom: 0 }}>
-                      <div style={{ minHeight: 24, display: 'flex', alignItems: 'center', marginBottom: 6 }}>
-                        <label style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#222' }}>Escola</label>
-                      </div>
-                      <select
-                        value={reportSchoolId}
-                        onChange={(e) => {
-                          setReportSchoolId(e.target.value);
-                          setReportGradeLevels(null);
-                        }}
-                        style={{ width: '100%', padding: '9px 10px', height: 38, borderRadius: 6, border: '1px solid #ddd' }}
-                      >
-                        <option value="">Todas as escolas</option>
-                        {(schools || []).map((s) => (
-                          <option key={s.id} value={s.id}>{s.nome}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="input-group" style={{ width: 85, flexShrink: 0, marginBottom: 0 }}>
-                      <div style={{ minHeight: 24, display: 'flex', alignItems: 'center', marginBottom: 6 }}>
-                        <label style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#222' }}>Ano letivo</label>
-                      </div>
-                      <select
-                        value={reportYear}
-                        onChange={(e) => {
-                          setReportYear(Number(e.target.value));
-                          setReportGradeLevels(null);
-                        }}
-                        style={{ width: '100%', padding: '9px 10px', height: 38, borderRadius: 6, border: '1px solid #ddd' }}
-                      >
-                        {Array.from({ length: 8 }, (_, i) => new Date().getFullYear() - i + 1).map((y) => (
-                          <option key={y} value={y}>{y}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="input-group" style={{ flex: 1, minWidth: 0, marginBottom: 0 }}>
-                      <div style={{ minHeight: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                        <label style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#222' }}>
-                          Turma(s)
-                          <span style={{ fontWeight: 400, color: '#666', marginLeft: 6 }}>
-                            ({reportGradeLevels === null ? 'Todas' : reportGradeLevels.length === 0 ? 'Nenhuma' : reportGradeLevels.length + ' sel.'})
-                          </span>
-                        </label>
-                        {reportClasses.length > 0 && (
-                          <div style={{ display: 'flex', gap: 6 }}>
-                            <button
-                              type="button"
-                              onClick={() => setReportGradeLevels(null)}
-                              style={{
-                                fontSize: 12,
-                                fontWeight: 600,
-                                padding: '2px 8px',
-                                height: 24,
-                                lineHeight: 1.2,
-                                cursor: 'pointer',
-                                border: '1px solid #0d6efd',
-                                borderRadius: 4,
-                                background: 'white',
-                                color: '#0d6efd',
-                              }}
-                            >
-                              Todas
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setReportGradeLevels([])}
-                              style={{
-                                fontSize: 12,
-                                fontWeight: 600,
-                                padding: '2px 8px',
-                                height: 24,
-                                lineHeight: 1.2,
-                                cursor: 'pointer',
-                                border: '1px solid #6c757d',
-                                borderRadius: 4,
-                                background: 'white',
-                                color: '#6c757d',
-                              }}
-                            >
-                              Limpar
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      <div
-                        style={{
-                          border: '1px solid #ddd',
-                          borderRadius: 6,
-                          padding: 4,
-                          minHeight: 38,
-                          background: '#fafafa',
-                          display: 'flex',
-                          flexWrap: 'nowrap',
-                          gap: 2,
-                          alignItems: 'center',
-                          flex: 1,
-                          minWidth: 0,
-                        }}
-                      >
-                        {reportClasses.length === 0 ? (
-                          <span style={{ color: '#999', fontSize: 12 }}>Carregando...</span>
-                        ) : (
-                          reportAvailableGrades.map((grade) => (
-                            <label
-                              key={grade}
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 2,
-                                cursor: 'pointer',
-                                padding: '2px 4px',
-                                borderRadius: 4,
-                                background: (reportGradeLevels === null || reportGradeLevels.includes(grade)) ? 'rgba(13, 110, 253, 0.08)' : 'transparent',
-                                fontSize: 12,
-                                fontWeight: 500,
-                                color: '#333',
-                                whiteSpace: 'nowrap',
-                              }}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={reportGradeLevels === null || reportGradeLevels.includes(grade)}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    const next =
-                                      reportGradeLevels === null
-                                        ? reportAvailableGrades.filter((g) => g !== grade)
-                                        : [...reportGradeLevels, grade];
-                                    const all = next.length === reportAvailableGrades.length;
-                                    setReportGradeLevels(all ? null : next);
-                                  } else {
-                                    const next =
-                                      reportGradeLevels === null
-                                        ? reportAvailableGrades.filter((g) => g !== grade)
-                                        : reportGradeLevels.filter((g) => g !== grade);
-                                    setReportGradeLevels(next);
-                                  }
-                                }}
-                                style={{ width: 14, height: 14, cursor: 'pointer', flexShrink: 0 }}
-                              />
-                              <span>{grade}</span>
-                            </label>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Linha 2: Etiqueta, Nível de leitura, Notas, Faltas, Gerar lista - tudo na mesma linha */}
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'minmax(100px, 1fr) minmax(140px, 1.5fr) minmax(100px, 1fr) minmax(90px, 1fr) auto',
-                      gap: 12,
-                      alignItems: 'flex-end',
-                    }}
-                  >
-                    <div className="input-group" style={{ minWidth: 0 }}>
-                      <label style={{ margin: 0, marginBottom: 6, fontSize: 14, fontWeight: 600, color: '#222' }}>Etiqueta</label>
-                      <select
-                        value={reportEtiqueta}
-                        onChange={(e) => setReportEtiqueta(e.target.value)}
-                        style={{ width: '100%', padding: '9px 10px', height: 38, borderRadius: 6, border: '1px solid #ddd' }}
-                      >
-                        <option value="">Todas</option>
-                        <option value="azul">Regular</option>
-                        <option value="verde">Avançado</option>
-                        <option value="amarelo">Atenção</option>
-                        <option value="vermelho">Prioridade</option>
-                        <option value="roxo">AEE</option>
-                      </select>
-                    </div>
-                    <div className="input-group" style={{ minWidth: 0 }}>
-                      <label style={{ margin: 0, marginBottom: 6, fontSize: 14, fontWeight: 600, color: '#222' }}>Nível de leitura</label>
-                      <select
-                        value={reportNivelLeitura}
-                        onChange={(e) => setReportNivelLeitura(e.target.value)}
-                        style={{ width: '100%', padding: '9px 10px', height: 38, borderRadius: 6, border: '1px solid #ddd' }}
-                      >
-                        <option value="">Qualquer</option>
-                        <optgroup label="1º e 2º ano">
-                          <option value="PRÉ – LEITOR 1">PRÉ – LEITOR 1</option>
-                          <option value="PRÉ – LEITOR 2">PRÉ – LEITOR 2</option>
-                          <option value="PRÉ – LEITOR 3">PRÉ – LEITOR 3</option>
-                          <option value="PRÉ – LEITOR 4">PRÉ – LEITOR 4</option>
-                          <option value="LEITOR INICIANTE">LEITOR INICIANTE</option>
-                          <option value="LEITOR FLUENTE">LEITOR FLUENTE</option>
-                        </optgroup>
-                        <optgroup label="3º ao 5º ano">
-                          <option value="PRÉ-LEITOR">PRÉ-LEITOR</option>
-                          <option value="LEITOR DE PALAVRAS SEM FLUÊNCIA">LEITOR DE PALAVRAS SEM FLUÊNCIA</option>
-                          <option value="LEITOR DE PALAVRAS COM FLUÊNCIA">LEITOR DE PALAVRAS COM FLUÊNCIA</option>
-                          <option value="LEITOR DE TEXTO SEM FLUÊNCIA">LEITOR DE TEXTO SEM FLUÊNCIA</option>
-                          <option value="LEITOR DE TEXTO COM FLUÊNCIA">LEITOR DE TEXTO COM FLUÊNCIA</option>
-                          <option value="LEITOR COM FLUÊNCIA, RESPEITA RITMO, INTENSIDADE E ENTONAÇÃO">LEITOR COM FLUÊNCIA, RESPEITA RITMO, INTENSIDADE E ENTONAÇÃO</option>
-                        </optgroup>
-                        <optgroup label="6º ao 9º ano">
-                          <option value="Pré-Leitor">Pré-Leitor</option>
-                          <option value="Leitor de Palavras sem Fluência">Leitor de Palavras sem Fluência</option>
-                          <option value="Leitor de Palavras com Fluência">Leitor de Palavras com Fluência</option>
-                          <option value="Leitor de Frases sem Fluência">Leitor de Frases sem Fluência</option>
-                          <option value="Leitor de Frases com Fluência">Leitor de Frases com Fluência</option>
-                          <option value="Leitor de Texto sem Fluência">Leitor de Texto sem Fluência</option>
-                          <option value="Leitor de Texto com Fluência">Leitor de Texto com Fluência</option>
-                          <option value="Leitor com Fluência, Respeita Ritmo, Intensidade e Entonação">Leitor com Fluência, Respeita Ritmo, Intensidade e Entonação</option>
-                        </optgroup>
-                      </select>
-                    </div>
-                    <div className="input-group" style={{ minWidth: 0 }}>
-                      <label style={{ margin: 0, marginBottom: 6, fontSize: 14, fontWeight: 600, color: '#222' }}>Notas</label>
-                      <select
-                        value={reportNotasFilter}
-                        onChange={(e) => setReportNotasFilter(e.target.value)}
-                        style={{ width: '100%', padding: '9px 10px', height: 38, borderRadius: 6, border: '1px solid #ddd' }}
-                      >
-                        <option value="nao">Não mostrar notas</option>
-                        <option value="acima">Acima da média (≥5)</option>
-                        <option value="abaixo">Abaixo da média (&lt;5)</option>
-                      </select>
-                    </div>
-                    <div className="input-group" style={{ minWidth: 0 }}>
-                      <label style={{ margin: 0, marginBottom: 6, fontSize: 14, fontWeight: 600, color: '#222' }}>Faltas</label>
-                      <select
-                        value={reportFaltasFilter}
-                        onChange={(e) => setReportFaltasFilter(e.target.value)}
-                        style={{ width: '100%', padding: '9px 10px', height: 38, borderRadius: 6, border: '1px solid #ddd' }}
-                      >
-                        <option value="nao">Não mostrar faltas</option>
-                        <option value="sim">Mostrar faltas</option>
-                      </select>
-                    </div>
-                    <div className="input-group" style={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                      <label style={{ margin: 0, marginBottom: 6, fontSize: 14, fontWeight: 600, color: '#222', visibility: 'hidden', height: 20 }}>—</label>
-                      <button
-                        type="button"
-                        className="btn-primary"
-                        onClick={handleGenerateReport}
-                        disabled={reportLoading}
-                        style={{ padding: '9px 24px', height: 38 }}
-                      >
-                        {reportLoading ? 'Gerando...' : 'Gerar lista'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {reportGenerated && (
-                  <div
-                    style={{
-                      background: 'white',
-                      padding: 24,
-                      borderRadius: 12,
-                      border: '1px solid #eee',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
-                      <h4 style={{ margin: 0 }}>
-                        {reportList.length} aluno(s) encontrado(s)
-                      </h4>
-                      {reportList.length > 0 && (
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <button
-                            type="button"
-                            onClick={exportReportPDF}
-                            style={{
-                              padding: '10px 18px',
-                              border: '1px solid #dc3545',
-                              borderRadius: 6,
-                              background: 'white',
-                              color: '#dc3545',
-                              cursor: 'pointer',
-                              fontSize: 14,
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 8,
-                            }}
-                          >
-                            <i className="fas fa-file-pdf" /> Exportar PDF
-                          </button>
-                          <button
-                            type="button"
-                            onClick={exportReportWord}
-                            style={{
-                              padding: '10px 18px',
-                              border: '1px solid #0d6efd',
-                              borderRadius: 6,
-                              background: 'white',
-                              color: '#0d6efd',
-                              cursor: 'pointer',
-                              fontSize: 14,
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 8,
-                            }}
-                          >
-                            <i className="fas fa-file-word" /> Exportar Word
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {reportList.length > 0 ? (
-                      <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-                          <thead>
-                            <tr style={{ background: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
-                              <th style={{ padding: 12, textAlign: 'left' }}>Nome</th>
-                              <th style={{ padding: 12, textAlign: 'left' }}>Turma</th>
-                              <th style={{ padding: 12, textAlign: 'left' }}>Etiqueta</th>
-                              <th style={{ padding: 12, textAlign: 'left' }}>Nível Leitura</th>
-                              <th style={{ padding: 12, textAlign: 'left' }}>Nível Escrita</th>
-                              {(reportNotasFilter === 'acima' || reportNotasFilter === 'abaixo') && (
-                                <th style={{ padding: 12, textAlign: 'left' }}>{reportNotasFilter === 'acima' ? 'Acima da média' : 'Abaixo da média'}</th>
-                              )}
-                              {reportFaltasFilter === 'sim' && (
-                                <th style={{ padding: 12, textAlign: 'left' }}>Faltas</th>
-                              )}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {reportList.map((a, i) => (
-                              <tr key={a.id || i} style={{ borderBottom: '1px solid #eee' }}>
-                                <td style={{ padding: 10 }}>{a.nome || '-'}</td>
-                                <td style={{ padding: 10 }}>{a.turma_nome || '-'}</td>
-                                <td style={{ padding: 10 }}>
-                                  <span
-                                    className={`badge bg-${a.etiqueta_cor === 'vermelho' ? 'red' : a.etiqueta_cor === 'amarelo' ? 'yellow' : a.etiqueta_cor === 'verde' ? 'green' : a.etiqueta_cor === 'roxo' ? 'purple' : 'blue'}`}
-                                  >
-                                    {getEtiquetaLabel(a.etiqueta_cor)}
-                                  </span>
-                                </td>
-                                <td style={{ padding: 10 }}>{a.nivel_leitura || '-'}</td>
-                                <td style={{ padding: 10 }}>{a.nivel_escrita || '-'}</td>
-                                {(reportNotasFilter === 'acima' || reportNotasFilter === 'abaixo') && (
-                                  <td style={{ padding: 10 }}>{a.qtd_notas ?? 0}</td>
-                                )}
-                                {reportFaltasFilter === 'sim' && (
-                                  <td style={{ padding: 10 }}>{a.qtd_faltas ?? 0}</td>
-                                )}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : (
-                      <p style={{ color: 'var(--text-light)', margin: 0 }}>
-                        Nenhum aluno encontrado com os filtros selecionados. Ajuste os critérios e tente novamente.
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
+              <ReportsView
+                reportSchoolId={reportSchoolId}
+                setReportSchoolId={setReportSchoolId}
+                setReportGradeLevels={setReportGradeLevels}
+                schools={schools}
+                reportYear={reportYear}
+                setReportYear={setReportYear}
+                reportGradeLevels={reportGradeLevels}
+                reportClasses={reportClasses}
+                reportAvailableGrades={reportAvailableGrades}
+                reportEtiqueta={reportEtiqueta}
+                setReportEtiqueta={setReportEtiqueta}
+                reportNivelLeitura={reportNivelLeitura}
+                setReportNivelLeitura={setReportNivelLeitura}
+                reportNotasFilter={reportNotasFilter}
+                setReportNotasFilter={setReportNotasFilter}
+                reportFaltasFilter={reportFaltasFilter}
+                setReportFaltasFilter={setReportFaltasFilter}
+                handleGenerateReport={handleGenerateReport}
+                reportLoading={reportLoading}
+                reportGenerated={reportGenerated}
+                reportList={reportList}
+                exportReportPDF={exportReportPDF}
+                exportReportWord={exportReportWord}
+                getEtiquetaLabel={getEtiquetaLabel}
+              />
             )}
 
             {/* Gráficos */}
             {currentView === 'graficos' && (
-              <div id="view-graficos" className="view-section">
-                <h2>Gráficos</h2>
-                <p style={{ color: 'var(--text-light)', marginBottom: 20 }}>
-                  Visualize a distribuição de alunos por etiqueta, turma e nível de leitura. Use os filtros para o mesmo escopo de escola e ano dos relatórios — assim os dados não se conflitam.
-                </p>
-
-                <div
-                  style={{
-                    background: 'white',
-                    padding: 24,
-                    borderRadius: 12,
-                    marginBottom: 24,
-                    border: '1px solid #eee',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-                  }}
-                >
-                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-                    <div className="input-group" style={{ minWidth: 180 }}>
-                      <label style={{ margin: 0, marginBottom: 6, fontSize: 14, fontWeight: 600, color: '#222' }}>Escola</label>
-                      <select
-                        value={reportSchoolId}
-                        onChange={(e) => setReportSchoolId(e.target.value)}
-                        style={{ width: '100%', padding: '9px 10px', height: 38, borderRadius: 6, border: '1px solid #ddd' }}
-                      >
-                        <option value="">Todas as escolas</option>
-                        {(schools || []).map((s) => (
-                          <option key={s.id} value={s.id}>{s.nome}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="input-group" style={{ width: 100 }}>
-                      <label style={{ margin: 0, marginBottom: 6, fontSize: 14, fontWeight: 600, color: '#222' }}>Ano letivo</label>
-                      <select
-                        value={reportYear}
-                        onChange={(e) => setReportYear(Number(e.target.value))}
-                        style={{ width: '100%', padding: '9px 10px', height: 38, borderRadius: 6, border: '1px solid #ddd' }}
-                      >
-                        {Array.from({ length: 8 }, (_, i) => new Date().getFullYear() - i + 1).map((y) => (
-                          <option key={y} value={y}>{y}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                {chartLoading ? (
-                  <p style={{ color: 'var(--text-light)' }}>Carregando dados para os gráficos...</p>
-                ) : chartDataList.length === 0 ? (
-                  <p style={{ color: 'var(--text-light)' }}>
-                    Nenhum aluno encontrado para o filtro selecionado. Ajuste escola e ano letivo.
-                  </p>
-                ) : (
-                  <>
-                    {(() => {
-                      const etiquetaLabels = { azul: 'Regular', verde: 'Avançado', amarelo: 'Atenção', vermelho: 'Prioridade', roxo: 'AEE' };
-                      const etiquetaCores = { azul: '#3498DB', verde: '#2ecc71', amarelo: '#f1c40f', vermelho: '#e74c3c', roxo: '#9b59b6' };
-                      const ordemEtiquetas = ['azul', 'verde', 'amarelo', 'vermelho', 'roxo'];
-                      const byEtiqueta = chartDataList.reduce((acc, a) => {
-                        const cor = a.etiqueta_cor || 'azul';
-                        acc[cor] = (acc[cor] || 0) + 1;
-                        return acc;
-                      }, {});
-                      const pieData = ordemEtiquetas
-                        .filter((cor) => (byEtiqueta[cor] || 0) > 0)
-                        .map((cor) => ({
-                          name: etiquetaLabels[cor] || cor,
-                          value: byEtiqueta[cor],
-                          cor,
-                        }));
-
-                      const byTurma = chartDataList.reduce((acc, a) => {
-                        const t = a.turma_nome || '-';
-                        acc[t] = (acc[t] || 0) + 1;
-                        return acc;
-                      }, {});
-                      const barTurmaData = Object.entries(byTurma)
-                        .map(([turma, total]) => ({ turma, total }))
-                        .sort((a, b) => (a.turma > b.turma ? 1 : -1));
-
-                      const byNivel = chartDataList.reduce((acc, a) => {
-                        const n = a.nivel_leitura || 'Sem registro';
-                        acc[n] = (acc[n] || 0) + 1;
-                        return acc;
-                      }, {});
-                      const barNivelData = Object.entries(byNivel)
-                        .map(([nivel, total]) => ({ nivel, total }))
-                        .sort((a, b) => b.total - a.total);
-
-                      return (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
-                          <div style={{ background: 'white', padding: 24, borderRadius: 12, border: '1px solid #eee', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-                            <h4 style={{ margin: '0 0 16px 0', fontSize: 16 }}>Alunos por etiqueta</h4>
-                            <ResponsiveContainer width="100%" height={280}>
-                              <PieChart>
-                                <Pie
-                                  data={pieData}
-                                  dataKey="value"
-                                  nameKey="name"
-                                  cx="50%"
-                                  cy="50%"
-                                  outerRadius={100}
-                                  label={({ name, value }) => `${name}: ${value}`}
-                                >
-                                  {pieData.map((entry) => (
-                                    <Cell key={entry.cor} fill={etiquetaCores[entry.cor]} />
-                                  ))}
-                                </Pie>
-                                <Tooltip />
-                              </PieChart>
-                            </ResponsiveContainer>
-                          </div>
-
-                          <div style={{ background: 'white', padding: 24, borderRadius: 12, border: '1px solid #eee', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-                            <h4 style={{ margin: '0 0 16px 0', fontSize: 16 }}>Alunos por turma</h4>
-                            <ResponsiveContainer width="100%" height={320}>
-                              <BarChart data={barTurmaData} margin={{ top: 8, right: 16, left: 8, bottom: 60 }}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="turma" angle={-45} textAnchor="end" height={60} tick={{ fontSize: 12 }} />
-                                <YAxis allowDecimals={false} />
-                                <Tooltip />
-                                <Bar dataKey="total" name="Alunos" fill="#3498DB" radius={[4, 4, 0, 0]} />
-                              </BarChart>
-                            </ResponsiveContainer>
-                          </div>
-
-                          <div style={{ background: 'white', padding: 24, borderRadius: 12, border: '1px solid #eee', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-                            <h4 style={{ margin: '0 0 16px 0', fontSize: 16 }}>Alunos por nível de leitura</h4>
-                            <ResponsiveContainer width="100%" height={Math.max(320, barNivelData.length * 28)}>
-                              <BarChart data={barNivelData} layout="vertical" margin={{ left: 120, right: 24 }}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis type="number" allowDecimals={false} />
-                                <YAxis type="category" dataKey="nivel" width={115} tick={{ fontSize: 11 }} />
-                                <Tooltip />
-                                <Bar dataKey="total" name="Alunos" fill="#2ecc71" radius={[0, 4, 4, 0]} />
-                              </BarChart>
-                            </ResponsiveContainer>
-                          </div>
-                        </div>
-                      );
-                    })()}
-                  </>
-                )}
-              </div>
+              <ChartsView
+                reportSchoolId={reportSchoolId}
+                setReportSchoolId={setReportSchoolId}
+                schools={schools}
+                reportYear={reportYear}
+                setReportYear={setReportYear}
+                chartLoading={chartLoading}
+                chartDataList={chartDataList}
+              />
             )}
 
             
             {/* --- INÍCIO DA AGENDA RECUPERADA --- */}
-{currentView === 'agenda' && (
-  <div id="view-agenda" className="view-section">
-    {/* Botões de visualização: Mês, Semana, Dia à esquerda; Novo Evento à direita */}
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-      <div style={{ display: 'flex', gap: 10 }}>
-        <button
-          onClick={() => setAgendaView('month')}
-          style={{
-            padding: '8px 16px',
-            border: '1px solid #ddd',
-            borderRadius: 6,
-            background: agendaView === 'month' ? 'var(--primary)' : 'white',
-            color: agendaView === 'month' ? 'white' : '#333',
-            cursor: 'pointer',
-          }}
-        >
-          Mês
-        </button>
-        <button
-          onClick={() => setAgendaView('week')}
-          style={{
-            padding: '8px 16px',
-            border: '1px solid #ddd',
-            borderRadius: 6,
-            background: agendaView === 'week' ? 'var(--primary)' : 'white',
-            color: agendaView === 'week' ? 'white' : '#333',
-            cursor: 'pointer',
-          }}
-        >
-          Semana
-        </button>
-        <button
-          onClick={() => setAgendaView('day')}
-          style={{
-            padding: '8px 16px',
-            border: '1px solid #ddd',
-            borderRadius: 6,
-            background: agendaView === 'day' ? 'var(--primary)' : 'white',
-            color: agendaView === 'day' ? 'white' : '#333',
-            cursor: 'pointer',
-          }}
-        >
-          Dia
-        </button>
-      </div>
-      <button
-        onClick={() => {
-          setEditingEvent(null);
-          const hoje = new Date();
-          const dateStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
-          setEventFormData({
-            titulo: '',
-            descricao: '',
-            data_inicio: dateStr,
-            hora_inicio: '08:00',
-            data_fim: dateStr,
-            hora_fim: '09:00',
-            cor_etiqueta: '#3498DB',
-            anexo_nome: '',
-            anexo_file: null,
-          });
-          setShowEventModal(true);
-        }}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 5,
-          padding: '8px 10px',
-          border: '1px solid transparent',
-          borderRadius: 6,
-          background: 'var(--primary)',
-          color: 'white',
-          cursor: 'pointer',
-          fontSize: '0.8rem',
-          lineHeight: 1,
-        }}
-      >
-        <i className="fas fa-plus" style={{ fontSize: '0.75rem' }} /> Novo Evento
-      </button>
-    </div>
-
-    {/* Cabeçalho do mês: Anterior | MÊS ANO | Próximo */}
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-      <button
-        type="button"
-        onClick={() => {
-          const year = currentDate.getFullYear();
-          const month = currentDate.getMonth();
-          setCurrentDate(new Date(year, month - 1, 1));
-        }}
-        style={{
-          padding: '6px 10px',
-          border: '1px solid #ddd',
-          borderRadius: 6,
-          background: 'white',
-          cursor: 'pointer',
-          fontSize: '1em',
-          lineHeight: 1,
-        }}
-        aria-label="Mês anterior"
-      >
-        &lt;
-      </button>
-      <h3 style={{ margin: 0, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#333', fontSize: '1rem' }}>
-        {currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
-      </h3>
-      <button
-        type="button"
-        onClick={() => {
-          const year = currentDate.getFullYear();
-          const month = currentDate.getMonth();
-          setCurrentDate(new Date(year, month + 1, 1));
-        }}
-        style={{
-          padding: '6px 10px',
-          border: '1px solid #ddd',
-          borderRadius: 6,
-          background: 'white',
-          cursor: 'pointer',
-          fontSize: '1em',
-          lineHeight: 1,
-        }}
-        aria-label="Próximo mês"
-      >
-        &gt;
-      </button>
-    </div>
-
-    {/* Calendário (grid usa currentDate) */}
-    <div style={{ background: 'white', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', background: '#f8f9fa', borderBottom: '1px solid #eee' }}>
-        {['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'].map(d => (
-          <div key={d} style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold', color: '#666', fontSize: '0.85rem' }}>{d}</div>
-        ))}
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', minHeight: '320px' }}>
-        {(() => {
-            const year = currentDate.getFullYear();
-            const month = currentDate.getMonth();
-            const firstDay = new Date(year, month, 1).getDay();
-            const daysInMonth = new Date(year, month + 1, 0).getDate();
-            const slots = [];
-
-            for (let i = 0; i < firstDay; i++) {
-                slots.push(<div key={`empty-${i}`} style={{ background: '#fafafa', borderBottom: '1px solid #eee', borderRight: '1px solid #eee' }}></div>);
-            }
-
-            for (let day = 1; day <= daysInMonth; day++) {
-                const dayAgendaEvents = agendaEvents.filter(ev => {
-                    if (!ev.data_inicio) return false;
-                    const evDate = new Date(ev.data_inicio);
-                    return evDate.getFullYear() === year && evDate.getMonth() === month && evDate.getDate() === day;
-                });
-                const dayBirthdays = getBirthdayEventsForDay(year, month, day);
-                const dayEvents = [...dayAgendaEvents, ...dayBirthdays];
-
-                slots.push(
-                    <div key={day}
-                         style={{ borderBottom: '1px solid #eee', borderRight: '1px solid #eee', padding: '5px', height: '64px', position: 'relative', cursor: 'pointer', fontSize: '0.8rem' }}
-                         onClick={() => {
-                            const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                            setEditingEvent(null);
-                            setEventFormData({
-                                titulo: '',
-                                descricao: '',
-                                data_inicio: dateStr,
-                                hora_inicio: '08:00',
-                                data_fim: dateStr,
-                                hora_fim: '09:00',
-                                cor_etiqueta: '#3498DB',
-                                anexo_nome: '',
-                                anexo_file: null,
-                            });
-                            setShowEventModal(true);
-                         }}
-                    >
-                        <span style={{ fontWeight: 'bold', color: '#333' }}>{day}</span>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '5px' }}>
-                            {dayEvents.map(ev => {
-                                const inicio = splitDateTime(ev.data_inicio);
-                                const fim = ev.data_fim ? splitDateTime(ev.data_fim) : inicio;
-                                const cor = (typeof ev.cor_etiqueta === 'string' && ev.cor_etiqueta.startsWith('#')) ? ev.cor_etiqueta : (ev.cor_etiqueta === 'vermelho' ? '#ef4444' : ev.cor_etiqueta === 'verde' ? '#10b981' : ev.cor_etiqueta === 'amarelo' ? '#eab308' : '#3b82f6');
-                                const isAniversario = ev.tipo === 'aniversario';
-                                return (
-                                <div key={ev.id}
-                                     onClick={(e) => {
-                                         e.stopPropagation();
-                                         if (isAniversario) return;
-                                         setEditingEvent(ev);
-                                         setEventFormData({
-                                             titulo: ev.titulo || '',
-                                             descricao: ev.descricao || '',
-                                             data_inicio: inicio.date,
-                                             hora_inicio: inicio.time,
-                                             data_fim: fim.date,
-                                             hora_fim: fim.time,
-                                             cor_etiqueta: cor,
-                                             anexo_nome: ev.anexo_nome || '',
-                                             anexo_file: null,
-                                         });
-                                         setShowEventModal(true);
-                                     }}
-                                     style={{
-                                         fontSize: '0.75rem', padding: '2px 4px', borderRadius: '4px', color: 'white',
-                                         background: cor,
-                                         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                                         cursor: isAniversario ? 'default' : 'pointer',
-                                     }}>
-                                    {ev.titulo}
-                                </div>
-                            );})}
-                        </div>
-                    </div>
-                );
-            }
-            return slots;
-        })()}
-      </div>
-    </div>
-
-  </div>
-)}
-{/* --- FIM DA AGENDA RECUPERADA --- */}
+            {currentView === 'agenda' && (
+              <AgendaView
+                agendaView={agendaView}
+                setAgendaView={setAgendaView}
+                setEditingEvent={setEditingEvent}
+                setEventFormData={setEventFormData}
+                setShowEventModal={setShowEventModal}
+                currentDate={currentDate}
+                setCurrentDate={setCurrentDate}
+                agendaEvents={agendaEvents}
+                getBirthdayEventsForDay={getBirthdayEventsForDay}
+                splitDateTime={splitDateTime}
+              />
+            )}
+            {/* --- FIM DA AGENDA RECUPERADA --- */}
 
             {/* Meu perfil */}
             {currentView === 'profile' && (
@@ -7522,7 +4463,10 @@ function App() {
                         setAuthLoading(true);
                         setAuthError('');
                         setAuthSuccess('');
-                        const { error } = await supabase.auth.resetPasswordForEmail(authUser.email, {
+       
+       
+      // eslint-disable-next-line no-unused-vars
+      const { data, error } = await supabase.auth.resetPasswordForEmail(authUser.email, {
                           redirectTo: `${window.location.origin}/`,
                         });
                         setAuthLoading(false);
@@ -7554,2083 +4498,173 @@ function App() {
       )}
 
       {/* Modal de Nova Ocorrência */}
-      {showModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 2000,
-          }}
-          onMouseDown={handleBackdropMouseDown}
-          onClick={(e) => handleBackdropClick(e, handleCancelModal)}
-        >
-          <div
-            style={{
-              background: 'white',
-              padding: 30,
-              borderRadius: 12,
-              width: '90%',
-              maxWidth: 600,
-              boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ marginBottom: 20, color: 'var(--primary)' }}>
-              {editingOccurrence ? 'Editar Ocorrência' : 'Nova Ocorrência'}
-            </h2>
-            <form onSubmit={handleSaveOccurrence}>
-              <div className="input-group" style={{ marginBottom: 15 }}>
-                <label>Título *</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.titulo}
-                  onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
-                  placeholder="Ex: Dificuldade de Leitura"
-                />
-              </div>
-
-              <div className="input-group" style={{ marginBottom: 15 }}>
-                <label>Tipo *</label>
-                <select
-                  required
-                  value={formData.tipo}
-                  onChange={(e) => setFormData({ ...formData, tipo: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: 10,
-                    border: '1px solid #ddd',
-                    borderRadius: 6,
-                  }}
-                >
-                  <option value="Pedagógico">Pedagógico</option>
-                  <option value="Comportamental">Comportamental</option>
-                  <option value="Família">Família</option>
-                </select>
-              </div>
-
-              <div className="input-group" style={{ marginBottom: 15 }}>
-                <label>Data *</label>
-                <input
-                  type="date"
-                  required
-                  value={formData.data_ocorrencia}
-                  onChange={(e) => setFormData({ ...formData, data_ocorrencia: e.target.value })}
-                />
-              </div>
-
-              <div className="input-group" style={{ marginBottom: 20 }}>
-                <label>Descrição *</label>
-                <textarea
-                  required
-                  value={formData.descricao}
-                  onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-                  placeholder="Descreva a ocorrência..."
-                  rows={5}
-                  style={{
-                    width: '100%',
-                    padding: 10,
-                    border: '1px solid #ddd',
-                    borderRadius: 6,
-                    fontFamily: 'inherit',
-                    resize: 'vertical',
-                  }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                <button
-                  type="button"
-                  onClick={handleCancelModal}
-                  style={{
-                    padding: '10px 20px',
-                    border: '1px solid #ddd',
-                    borderRadius: 6,
-                    background: 'white',
-                    cursor: 'pointer',
-                    color: 'var(--text)',
-                  }}
-                  disabled={savingOccurrence}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  style={{ width: 'auto', padding: '10px 20px' }}
-                  disabled={savingOccurrence}
-                >
-                  {savingOccurrence ? 'Salvando...' : 'Salvar'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <OccurrenceModal
+        showModal={showModal}
+        handleBackdropMouseDown={handleBackdropMouseDown}
+        handleBackdropClick={handleBackdropClick}
+        handleCancelModal={handleCancelModal}
+        editingOccurrence={editingOccurrence}
+        handleSaveOccurrence={handleSaveOccurrence}
+        formData={formData}
+        setFormData={setFormData}
+        savingOccurrence={savingOccurrence}
+      />
 
       {/* Modal de Nova Nota */}
-      {showNoteModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 2000,
-          }}
-          onMouseDown={handleBackdropMouseDown}
-          onClick={(e) => handleBackdropClick(e, handleCancelNoteModal)}
-        >
-          <div
-            style={{
-              background: 'white',
-              padding: 30,
-              borderRadius: 12,
-              width: '90%',
-              maxWidth: 600,
-              boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ marginBottom: 20, color: 'var(--primary)' }}>Adicionar Nota</h2>
-            <form onSubmit={handleSaveNote}>
-              <div className="input-group" style={{ marginBottom: 15 }}>
-                <label>Disciplina *</label>
-                <input
-                  type="text"
-                  required
-                  value={noteFormData.disciplina}
-                  onChange={(e) => setNoteFormData({ ...noteFormData, disciplina: e.target.value })}
-                  placeholder="Ex: Matemática, Português"
-                />
-              </div>
-
-              <div className="input-group" style={{ marginBottom: 15 }}>
-                <label>Período *</label>
-                <input
-                  type="text"
-                  required
-                  value={noteFormData.periodo}
-                  onChange={(e) => setNoteFormData({ ...noteFormData, periodo: e.target.value })}
-                  placeholder="Ex: 1º Bimestre, 2º Bimestre"
-                />
-              </div>
-
-              <div className="input-group" style={{ marginBottom: 15 }}>
-                <label>Ano *</label>
-                <input
-                  type="number"
-                  required
-                  value={noteFormData.ano}
-                  onChange={(e) => setNoteFormData({ ...noteFormData, ano: e.target.value })}
-                  placeholder="Ex: 2025"
-                  min="2000"
-                  max="2100"
-                />
-              </div>
-
-              <div className="input-group" style={{ marginBottom: 20 }}>
-                <label>Valor da Nota *</label>
-                <input
-                  type="number"
-                  required
-                  step="0.1"
-                  min="0"
-                  max="10"
-                  value={noteFormData.valor}
-                  onChange={(e) => setNoteFormData({ ...noteFormData, valor: e.target.value })}
-                  placeholder="Ex: 8.5"
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                <button
-                  type="button"
-                  onClick={handleCancelNoteModal}
-                  style={{
-                    padding: '10px 20px',
-                    border: '1px solid #ddd',
-                    borderRadius: 6,
-                    background: 'white',
-                    cursor: 'pointer',
-                    color: 'var(--text)',
-                  }}
-                  disabled={savingNote}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  style={{ width: 'auto', padding: '10px 20px' }}
-                  disabled={savingNote}
-                >
-                  {savingNote ? 'Salvando...' : 'Salvar'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <NoteModal
+        showNoteModal={showNoteModal}
+        handleBackdropMouseDown={handleBackdropMouseDown}
+        handleBackdropClick={handleBackdropClick}
+        handleCancelNoteModal={handleCancelNoteModal}
+        handleSaveNote={handleSaveNote}
+        noteFormData={noteFormData}
+        setNoteFormData={setNoteFormData}
+        savingNote={savingNote}
+      />
 
       {/* Modal de Histórico de Frequência */}
-      {showFrequencyModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 2000,
-          }}
-          onMouseDown={handleBackdropMouseDown}
-          onClick={(e) => handleBackdropClick(e, handleCancelFrequencyModal)}
-        >
-          <div
-            style={{
-              background: 'white',
-              padding: 30,
-              borderRadius: 12,
-              width: '90%',
-              maxWidth: 600,
-              boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ marginBottom: 20, color: 'var(--primary)' }}>Adicionar Histórico de Frequência</h2>
-            <form onSubmit={handleSaveFrequency}>
-              <div className="input-group" style={{ marginBottom: 15 }}>
-                <label>Mês de Referência *</label>
-                <input
-                  type="text"
-                  required
-                  value={frequencyFormData.mes_referencia}
-                  onChange={(e) =>
-                    setFrequencyFormData({ ...frequencyFormData, mes_referencia: e.target.value })
-                  }
-                  placeholder="Ex: Janeiro, Fevereiro, Março"
-                />
-              </div>
-
-              <div className="input-group" style={{ marginBottom: 15 }}>
-                <label>Ano *</label>
-                <input
-                  type="number"
-                  required
-                  value={frequencyFormData.ano}
-                  onChange={(e) => setFrequencyFormData({ ...frequencyFormData, ano: e.target.value })}
-                  placeholder="Ex: 2025"
-                  min="2000"
-                  max="2100"
-                />
-              </div>
-
-              <div className="input-group" style={{ marginBottom: 20 }}>
-                <label>Porcentagem *</label>
-                <input
-                  type="number"
-                  required
-                  step="0.1"
-                  min="0"
-                  max="100"
-                  value={frequencyFormData.porcentagem}
-                  onChange={(e) =>
-                    setFrequencyFormData({ ...frequencyFormData, porcentagem: e.target.value })
-                  }
-                  placeholder="Ex: 85.5"
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                <button
-                  type="button"
-                  onClick={handleCancelFrequencyModal}
-                  style={{
-                    padding: '10px 20px',
-                    border: '1px solid #ddd',
-                    borderRadius: 6,
-                    background: 'white',
-                    cursor: 'pointer',
-                    color: 'var(--text)',
-                  }}
-                  disabled={savingFrequency}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  style={{ width: 'auto', padding: '10px 20px' }}
-                  disabled={savingFrequency}
-                >
-                  {savingFrequency ? 'Salvando...' : 'Salvar'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <FrequencyModal
+        showFrequencyModal={showFrequencyModal}
+        handleBackdropMouseDown={handleBackdropMouseDown}
+        handleBackdropClick={handleBackdropClick}
+        handleCancelFrequencyModal={handleCancelFrequencyModal}
+        handleSaveFrequency={handleSaveFrequency}
+        frequencyFormData={frequencyFormData}
+        setFrequencyFormData={setFrequencyFormData}
+        savingFrequency={savingFrequency}
+      />
 
       {/* Modal de Sondagem */}
-      {showSondagemModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 2000,
-          }}
-          onMouseDown={handleBackdropMouseDown}
-          onClick={(e) => handleBackdropClick(e, handleCancelSondagemModal)}
-        >
-          <div
-            style={{
-              background: 'white',
-              padding: 20,
-              borderRadius: 12,
-              width: '90%',
-              maxWidth: 480,
-              maxHeight: '90vh',
-              display: 'flex',
-              flexDirection: 'column',
-              boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ marginBottom: 15, color: 'var(--primary)', fontSize: 18 }}>
-              {editingSondagem ? 'Editar sondagem' : 'Nova sondagem'}
-            </h2>
-            <form onSubmit={handleSaveSondagem} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-              <div style={{ overflowY: 'auto', flex: 1, minHeight: 0, paddingRight: 5 }}>
-                <div className="input-group" style={{ marginBottom: 12 }}>
-                  <label style={{ fontSize: 13 }}>Data *</label>
-                  <input
-                    type="date"
-                    required
-                    value={sondagemFormData.data}
-                    onChange={(e) =>
-                      setSondagemFormData({ ...sondagemFormData, data: e.target.value })
-                    }
-                    style={{ padding: 8, fontSize: 13 }}
-                  />
-                </div>
-                <div className="input-group" style={{ marginBottom: 12 }}>
-                  <label style={{ fontSize: 13 }}>Nível de leitura *</label>
-                  <select
-                    required
-                    value={sondagemFormData.nivel_leitura}
-                    onChange={(e) =>
-                      setSondagemFormData({ ...sondagemFormData, nivel_leitura: e.target.value })
-                    }
-                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #ddd', fontSize: 13 }}
-                  >
-                    <option value="">Selecione...</option>
-                    {(() => {
-                      const nivelSet = getSondagemNivelSet();
-                      const opcoes = nivelSet === '3-5' ? NIVEL_LEITURA_OPCOES_3_5 : nivelSet === '6-9' ? NIVEL_LEITURA_OPCOES_FUNDAMENTAL2 : NIVEL_LEITURA_OPCOES_1_2;
-                      return opcoes.map((op) => (
-                        <option key={op} value={op}>
-                          {op}
-                        </option>
-                      ));
-                    })()}
-                  </select>
-                </div>
-                <div className="input-group" style={{ marginBottom: 12 }}>
-                  <label style={{ fontSize: 13 }}>Nível de escrita *</label>
-                  <select
-                    required
-                    value={sondagemFormData.nivel_escrita}
-                    onChange={(e) =>
-                      setSondagemFormData({ ...sondagemFormData, nivel_escrita: e.target.value })
-                    }
-                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #ddd', fontSize: 13 }}
-                  >
-                    <option value="">Selecione...</option>
-                    {(() => {
-                      const nivelSet = getSondagemNivelSet();
-                      const opcoes = nivelSet === '3-5' ? NIVEL_ESCRITA_OPCOES_3_5 : nivelSet === '6-9' ? NIVEL_ESCRITA_OPCOES_FUNDAMENTAL2 : NIVEL_ESCRITA_OPCOES_1_2;
-                      return opcoes.map((op) => (
-                        <option key={op} value={op}>
-                          {op}
-                        </option>
-                      ));
-                    })()}
-                  </select>
-                </div>
-                <div className="input-group" style={{ marginBottom: 12 }}>
-                  <label style={{ fontSize: 13 }}>Observações (opcional)</label>
-                  <textarea
-                    value={sondagemFormData.observacoes || ''}
-                    onChange={(e) =>
-                      setSondagemFormData({ ...sondagemFormData, observacoes: e.target.value })
-                    }
-                    placeholder="Anotações sobre a sondagem..."
-                    rows={3}
-                    style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #ddd', fontSize: 13, resize: 'vertical' }}
-                  />
-                </div>
-                <div className="input-group" style={{ marginBottom: 12 }}>
-                  <label style={{ fontSize: 13 }}>Foto da escrita (opcional)</label>
-                  {(sondagemFormData.foto_escrita_url || sondagemFormData.foto_file) ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 12, color: '#666' }}>
-                        {sondagemFormData.foto_file
-                          ? sondagemFormData.foto_file.name
-                          : 'Foto anexada'}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setSondagemFormData({
-                            ...sondagemFormData,
-                            foto_escrita_url: '',
-                            foto_file: null,
-                          })
-                        }
-                        style={{
-                          padding: '2px 8px',
-                          fontSize: 11,
-                          border: '1px solid #ddd',
-                          borderRadius: 4,
-                          background: 'white',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Remover
-                      </button>
-                    </div>
-                  ) : (
-                    <input
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      onChange={(e) =>
-                        setSondagemFormData({
-                          ...sondagemFormData,
-                          foto_file: e.target.files?.[0] || null,
-                        })
-                      }
-                      style={{ width: '100%', padding: 6, borderRadius: 6, border: '1px solid #ddd', fontSize: 12 }}
-                    />
-                  )}
-                </div>
-                <div className="input-group" style={{ marginBottom: 12 }}>
-                  <label style={{ fontSize: 13 }}>Áudio da leitura (opcional)</label>
-                  {(sondagemFormData.audio_leitura_url || sondagemFormData.audio_file) ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 12, color: '#666' }}>
-                        {sondagemFormData.audio_file
-                          ? sondagemFormData.audio_file.name
-                          : 'Áudio anexado'}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setSondagemFormData({
-                            ...sondagemFormData,
-                            audio_leitura_url: '',
-                            audio_file: null,
-                          })
-                        }
-                        style={{
-                          padding: '2px 8px',
-                          fontSize: 11,
-                          border: '1px solid #ddd',
-                          borderRadius: 4,
-                          background: 'white',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Remover
-                      </button>
-                    </div>
-                  ) : (
-                    <input
-                      type="file"
-                      accept="audio/*"
-                      capture
-                      onChange={(e) =>
-                        setSondagemFormData({
-                          ...sondagemFormData,
-                          audio_file: e.target.files?.[0] || null,
-                        })
-                      }
-                      style={{ width: '100%', padding: 6, borderRadius: 6, border: '1px solid #ddd', fontSize: 12 }}
-                    />
-                  )}
-                </div>
-                <div className="input-group" style={{ marginBottom: 12 }}>
-                  <label style={{ fontSize: 13 }}>Arquivo (PDF/Word) (opcional)</label>
-                  {(sondagemFormData.arquivo_url || sondagemFormData.arquivo_file) ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 12, color: '#666' }}>
-                        {sondagemFormData.arquivo_file
-                          ? sondagemFormData.arquivo_file.name
-                          : 'Arquivo anexado'}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setSondagemFormData({
-                            ...sondagemFormData,
-                            arquivo_url: '',
-                            arquivo_file: null,
-                          })
-                        }
-                        style={{
-                          padding: '2px 8px',
-                          fontSize: 11,
-                          border: '1px solid #ddd',
-                          borderRadius: 4,
-                          background: 'white',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Remover
-                      </button>
-                    </div>
-                  ) : (
-                    <input
-                      type="file"
-                      accept=".pdf,.doc,.docx"
-                      onChange={(e) =>
-                        setSondagemFormData({
-                          ...sondagemFormData,
-                          arquivo_file: e.target.files?.[0] || null,
-                        })
-                      }
-                      style={{ width: '100%', padding: 6, borderRadius: 6, border: '1px solid #ddd', fontSize: 12 }}
-                    />
-                  )}
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12, paddingTop: 12, borderTop: '1px solid #eee' }}>
-                <button
-                  type="button"
-                  onClick={handleCancelSondagemModal}
-                  style={{
-                    padding: '8px 16px',
-                    border: '1px solid #ddd',
-                    borderRadius: 6,
-                    background: 'white',
-                    cursor: 'pointer',
-                    color: 'var(--text)',
-                    fontSize: 13,
-                  }}
-                  disabled={savingSondagem}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  style={{ width: 'auto', padding: '8px 16px', fontSize: 13 }}
-                  disabled={savingSondagem}
-                >
-                  {savingSondagem ? 'Salvando...' : 'Salvar'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modal para ver foto ou ouvir áudio da sondagem */}
-      {showSondagemMidiaModal && sondagemMidiaUrl && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            backgroundColor: 'rgba(0, 0, 0, 0.75)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 2100,
-          }}
-          onMouseDown={handleBackdropMouseDown}
-          onClick={(e) => handleBackdropClick(e, () => setShowSondagemMidiaModal(false))}
-        >
-          <div
-            style={{
-              background: 'white',
-              padding: 20,
-              borderRadius: 12,
-              maxWidth: '95vw',
-              maxHeight: '95vh',
-              overflow: 'auto',
-              boxShadow: '0 10px 40px rgba(0,0,0,0.4)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 10 }}>
-              <button
-                type="button"
-                onClick={() => setShowSondagemMidiaModal(false)}
-                style={{
-                  padding: '6px 14px',
-                  border: '1px solid #ddd',
-                  borderRadius: 6,
-                  background: 'white',
-                  cursor: 'pointer',
-                  fontSize: 14,
-                }}
-              >
-                Fechar
-              </button>
-            </div>
-            {sondagemMidiaTipo === 'foto' ? (
-              <img
-                src={sondagemMidiaUrl}
-                alt="Foto da escrita"
-                style={{ maxWidth: '100%', maxHeight: '80vh', display: 'block' }}
-              />
-            ) : (
-              <audio controls src={sondagemMidiaUrl} style={{ minWidth: 280 }}>
-                Seu navegador não suporta áudio.
-              </audio>
-            )}
-          </div>
-        </div>
-      )}
+      <SondagemModal
+        showSondagemModal={showSondagemModal}
+        handleBackdropMouseDown={handleBackdropMouseDown}
+        handleBackdropClick={handleBackdropClick}
+        handleCancelSondagemModal={handleCancelSondagemModal}
+        editingSondagem={editingSondagem}
+        handleSaveSondagem={handleSaveSondagem}
+        sondagemFormData={sondagemFormData}
+        setSondagemFormData={setSondagemFormData}
+        getSondagemNivelSet={getSondagemNivelSet}
+        NIVEL_LEITURA_OPCOES_1_2={NIVEL_LEITURA_OPCOES_1_2}
+        NIVEL_LEITURA_OPCOES_3_5={NIVEL_LEITURA_OPCOES_3_5}
+        NIVEL_LEITURA_OPCOES_FUNDAMENTAL2={NIVEL_LEITURA_OPCOES_FUNDAMENTAL2}
+        NIVEL_ESCRITA_OPCOES_1_2={NIVEL_ESCRITA_OPCOES_1_2}
+        NIVEL_ESCRITA_OPCOES_3_5={NIVEL_ESCRITA_OPCOES_3_5}
+        NIVEL_ESCRITA_OPCOES_FUNDAMENTAL2={NIVEL_ESCRITA_OPCOES_FUNDAMENTAL2}
+        savingSondagem={savingSondagem}
+        showSondagemMidiaModal={showSondagemMidiaModal}
+        sondagemMidiaUrl={sondagemMidiaUrl}
+        setShowSondagemMidiaModal={setShowSondagemMidiaModal}
+        sondagemMidiaTipo={sondagemMidiaTipo}
+      />
 
       {/* Modal de Escola */}
-      {showSchoolModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 2000,
-          }}
-          onMouseDown={handleBackdropMouseDown}
-          onClick={(e) => handleBackdropClick(e, () => {
-            setShowSchoolModal(false);
-            setEditingSchool(null);
-            setSchoolFormData({ nome: '', inep: '', endereco: '', tipo: 'Polo' });
-          })}
-        >
-          <div
-            style={{
-              background: 'white',
-              padding: 30,
-              borderRadius: 12,
-              width: '90%',
-              maxWidth: 600,
-              boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ marginBottom: 20, color: 'var(--primary)' }}>
-              {editingSchool ? 'Editar Escola' : 'Nova Escola'}
-            </h2>
-            <form key={editingSchool?.id ?? 'new'} onSubmit={handleSaveSchool}>
-              <div className="input-group" style={{ marginBottom: 15 }}>
-                <label>Nome *</label>
-                <input
-                  type="text"
-                  required
-                  value={schoolFormData.nome}
-                  onChange={(e) => setSchoolFormData({ ...schoolFormData, nome: e.target.value })}
-                  placeholder="Nome da escola"
-                />
-              </div>
-
-              <div className="input-group" style={{ marginBottom: 15 }}>
-                <label>INEP *</label>
-                <input
-                  type="text"
-                  required
-                  value={schoolFormData.inep}
-                  onChange={(e) => setSchoolFormData({ ...schoolFormData, inep: e.target.value })}
-                  placeholder="Código INEP"
-                />
-              </div>
-
-              <div className="input-group" style={{ marginBottom: 15 }}>
-                <label>Endereço *</label>
-                <input
-                  type="text"
-                  required
-                  value={schoolFormData.endereco}
-                  onChange={(e) => setSchoolFormData({ ...schoolFormData, endereco: e.target.value })}
-                  placeholder="Endereço completo"
-                />
-              </div>
-
-              <div className="input-group" style={{ marginBottom: 20 }}>
-                <label>Tipo *</label>
-                <select
-                  required
-                  value={schoolFormData.tipo}
-                  onChange={(e) => setSchoolFormData({ ...schoolFormData, tipo: e.target.value })}
-                  style={{
-                    width: '100%',
-                    padding: 10,
-                    border: '1px solid #ddd',
-                    borderRadius: 6,
-                  }}
-                >
-                  <option value="Polo">Polo</option>
-                  <option value="Anexa">Anexa</option>
-                </select>
-              </div>
-
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowSchoolModal(false);
-                    setEditingSchool(null);
-                    setSchoolFormData({ nome: '', inep: '', endereco: '', tipo: 'Polo' });
-                  }}
-                  style={{
-                    padding: '10px 20px',
-                    border: '1px solid #ddd',
-                    borderRadius: 6,
-                    background: 'white',
-                    cursor: 'pointer',
-                    color: 'var(--text)',
-                  }}
-                  disabled={savingSchool}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  style={{ width: 'auto', padding: '10px 20px' }}
-                  disabled={savingSchool}
-                >
-                  {savingSchool ? 'Salvando...' : 'Salvar'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <SchoolModal
+        showSchoolModal={showSchoolModal}
+        handleBackdropMouseDown={handleBackdropMouseDown}
+        handleBackdropClick={handleBackdropClick}
+        setShowSchoolModal={setShowSchoolModal}
+        setEditingSchool={setEditingSchool}
+        setSchoolFormData={setSchoolFormData}
+        editingSchool={editingSchool}
+        handleSaveSchool={handleSaveSchool}
+        schoolFormData={schoolFormData}
+        savingSchool={savingSchool}
+      />
 
       {/* Modal de Turma */}
-      {showClassModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 2000,
-          }}
-          onMouseDown={handleBackdropMouseDown}
-          onClick={(e) => handleBackdropClick(e, () => {
-            setShowClassModal(false);
-            setEditingClass(null);
-            setClassFormData({ nome: '', ano: [], codigo: '', professor_regente: '', aluno_representante: '', escola_id: activeSchoolId || '', ano_letivo: selectedYear });
-          })}
-        >
-          <div
-            style={{
-              background: 'white',
-              padding: 20,
-              borderRadius: 12,
-              width: '90%',
-              maxWidth: 750,
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ marginBottom: 12, color: 'var(--primary)', fontSize: '1.3em' }}>
-              {editingClass ? 'Editar Turma' : 'Nova Turma'}
-            </h2>
-            <form onSubmit={handleSaveClass}>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: '12px',
-                }}
-              >
-                {/* Linha 1: Escola | Ano Letivo */}
-                <div className="input-group">
-                  <label>Escola *</label>
-                  <select
-                    required
-                    value={classFormData.escola_id || activeSchoolId || ''}
-                    onChange={(e) => {
-                      const newEscolaId = e.target.value;
-                      setClassFormData({ ...classFormData, escola_id: newEscolaId });
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: 8,
-                      border: '1px solid #ddd',
-                      borderRadius: 6,
-                    }}
-                  >
-                    <option value="">Selecione uma escola...</option>
-                    {schools.map((school) => (
-                      <option key={school.id} value={school.id}>
-                        {school.nome} ({school.tipo_estrutura})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="input-group">
-                  <label>Ano Letivo *</label>
-                  <select
-                    required
-                    value={classFormData.ano_letivo || selectedYear}
-                    onChange={(e) => {
-                      setClassFormData({ ...classFormData, ano_letivo: parseInt(e.target.value) });
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: 8,
-                      border: '1px solid #ddd',
-                      borderRadius: 6,
-                    }}
-                  >
-                    <option value={2024}>2024</option>
-                    <option value={2025}>2025</option>
-                    <option value={2026}>2026</option>
-                    <option value={2027}>2027</option>
-                  </select>
-                </div>
-
-                {/* Linha 2: Anos Escolares (2 colunas) */}
-                <div className="input-group" style={{ gridColumn: '1 / -1' }}>
-                  <label style={{ fontSize: '0.9em' }}>Anos Escolares * (selecione um ou mais)</label>
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexWrap: 'nowrap',
-                      gap: '2px',
-                      marginTop: 4,
-                      padding: '4px',
-                      border: '1px solid #ddd',
-                      borderRadius: 6,
-                      background: '#f9f9f9',
-                    }}
-                  >
-                    {['Pré I', 'Pré II', '1º Ano', '2º Ano', '3º Ano', '4º Ano', '5º Ano', '6º Ano', '7º Ano', '8º Ano', '9º Ano'].map((anoOption) => (
-                      <label
-                        key={anoOption}
-                        style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          gap: 4,
-                          cursor: 'pointer',
-                          padding: '4px',
-                          borderRadius: 4,
-                          transition: 'background 0.2s',
-                          fontSize: '0.75em',
-                          flex: '1 1 0',
-                          minWidth: 0,
-                        }}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = '#f0f0f0')}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={classFormData.ano.includes(anoOption)}
-                          onChange={(e) => {
-                            const newAnos = e.target.checked
-                              ? [...classFormData.ano, anoOption]
-                              : classFormData.ano.filter((a) => a !== anoOption);
-                            const suggestedNome = generateTurmaNome(newAnos);
-                            // Aplicar sugestão automaticamente apenas se o campo estiver vazio
-                            setClassFormData({
-                              ...classFormData,
-                              ano: newAnos,
-                              nome: !classFormData.nome ? suggestedNome : classFormData.nome,
-                            });
-                          }}
-                          style={{ cursor: 'pointer', width: '14px', height: '14px', margin: 0, flexShrink: 0 }}
-                        />
-                        <span style={{ textAlign: 'center', lineHeight: '1.2' }}>{anoOption}</span>
-                      </label>
-                    ))}
-                  </div>
-                  {classFormData.ano.length === 0 && (
-                    <div style={{ color: 'var(--danger)', fontSize: '0.8em', marginTop: 3 }}>
-                      Selecione pelo menos um ano escolar
-                    </div>
-                  )}
-                </div>
-
-                {/* Linha 3: Nome | Código */}
-                <div className="input-group">
-                  <label>Nome da Turma *</label>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <input
-                      type="text"
-                      required
-                      value={classFormData.nome}
-                      onChange={(e) => setClassFormData({ ...classFormData, nome: e.target.value })}
-                      placeholder={generateTurmaNome(classFormData.ano) || "Ex: 3º Ano A"}
-                      style={{ flex: 1 }}
-                    />
-                    {classFormData.ano.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const suggestedNome = generateTurmaNome(classFormData.ano);
-                          setClassFormData({ ...classFormData, nome: suggestedNome });
-                        }}
-                        style={{
-                          padding: '8px 12px',
-                          border: '1px solid #ddd',
-                          borderRadius: 6,
-                          background: '#f0f0f0',
-                          cursor: 'pointer',
-                          color: 'var(--text)',
-                          fontSize: '0.85em',
-                          whiteSpace: 'nowrap',
-                        }}
-                        title="Usar sugestão automática"
-                      >
-                        Usar Sugestão
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="input-group">
-                  <label>Código da Turma</label>
-                  <input
-                    type="text"
-                    value={classFormData.codigo}
-                    onChange={(e) => setClassFormData({ ...classFormData, codigo: e.target.value })}
-                    placeholder="Ex: 301, 302 (opcional)"
-                  />
-                </div>
-
-                {/* Linha 4: Professor Regente | Aluno Representante */}
-                <div className="input-group">
-                  <label>Professor Regente *</label>
-                  <input
-                    type="text"
-                    required
-                    value={classFormData.professor_regente}
-                    onChange={(e) =>
-                      setClassFormData({ ...classFormData, professor_regente: e.target.value })
-                    }
-                    placeholder="Nome do professor"
-                  />
-                </div>
-
-                <div className="input-group">
-                  <label>Aluno Representante</label>
-                  <input
-                    type="text"
-                    value={classFormData.aluno_representante}
-                    onChange={(e) =>
-                      setClassFormData({ ...classFormData, aluno_representante: e.target.value })
-                    }
-                    placeholder="Nome do aluno representante (opcional)"
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowClassModal(false);
-                    setEditingClass(null);
-                    setClassFormData({ nome: '', ano: [], codigo: '', professor_regente: '', aluno_representante: '', escola_id: activeSchoolId || '', ano_letivo: selectedYear });
-                  }}
-                  style={{
-                    padding: '8px 16px',
-                    border: '1px solid #ddd',
-                    borderRadius: 6,
-                    background: 'white',
-                    cursor: 'pointer',
-                    color: 'var(--text)',
-                    fontSize: '0.9em',
-                  }}
-                  disabled={savingClass}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  style={{ width: 'auto', padding: '8px 16px', fontSize: '0.9em' }}
-                  disabled={savingClass}
-                >
-                  {savingClass ? 'Salvando...' : 'Salvar'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <ClassModal
+        showClassModal={showClassModal}
+        handleBackdropMouseDown={handleBackdropMouseDown}
+        handleBackdropClick={handleBackdropClick}
+        setShowClassModal={setShowClassModal}
+        setEditingClass={setEditingClass}
+        setClassFormData={setClassFormData}
+        activeSchoolId={activeSchoolId}
+        selectedYear={selectedYear}
+        editingClass={editingClass}
+        handleSaveClass={handleSaveClass}
+        classFormData={classFormData}
+        schools={schools}
+        generateTurmaNome={generateTurmaNome}
+        savingClass={savingClass}
+      />
 
       {/* Modal de Aluno */}
-      {showStudentModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 2000,
-          }}
-          onMouseDown={handleBackdropMouseDown}
-          onClick={(e) => handleBackdropClick(e, () => {
-            setShowStudentModal(false);
-            setEditingStudent(null);
-            setStudentFormData({ nome: '', data_nascimento: '', turma_id: '', etiqueta_cor: 'azul', matricula: '', nome_responsavel: '', contato: '', aee_deficiencia: '', aee_cid: '', motivo_etiqueta: '' });
-            setAeeFormData({ aee_tem_laudo: false, aee_mediadora: '', aee_plano_individual: '' });
-          })}
-        >
-          <div
-            style={{
-              background: 'white',
-              padding: 30,
-              borderRadius: 12,
-              width: '90%',
-              maxWidth: 600,
-              boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ marginBottom: 20, color: 'var(--primary)' }}>
-              {editingStudent ? 'Editar Aluno' : 'Novo Aluno'}
-            </h2>
-            <form onSubmit={handleSaveStudent}>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: '15px',
-                }}
-              >
-                {/* Linha 1: Nome | Data de Nascimento */}
-                <div className="input-group">
-                  <label>Nome *</label>
-                  <input
-                    type="text"
-                    required
-                    value={studentFormData.nome}
-                    onChange={(e) => setStudentFormData({ ...studentFormData, nome: e.target.value })}
-                    placeholder="Nome completo do aluno"
-                    autoComplete="off"
-                    autoCorrect="off"
-                    autoCapitalize="off"
-                    spellCheck={false}
-                    data-form-type="other"
-                  />
-                </div>
+      <StudentModal
+        showStudentModal={showStudentModal}
+        handleBackdropMouseDown={handleBackdropMouseDown}
+        handleBackdropClick={handleBackdropClick}
+        setShowStudentModal={setShowStudentModal}
+        setEditingStudent={setEditingStudent}
+        setStudentFormData={setStudentFormData}
+        setAeeFormData={setAeeFormData}
+        editingStudent={editingStudent}
+        handleSaveStudent={handleSaveStudent}
+        studentFormData={studentFormData}
+        classes={classes}
+        savingStudent={savingStudent}
+      />
 
-                <div className="input-group">
-                  <label>Data de Nascimento *</label>
-                  <input
-                    type="date"
-                    required
-                    value={studentFormData.data_nascimento}
-                    onChange={(e) =>
-                      setStudentFormData({ ...studentFormData, data_nascimento: e.target.value })
-                    }
-                  />
-                </div>
-
-                {/* Linha 2: Turma | Matrícula */}
-                <div className="input-group">
-                  <label>Turma *</label>
-                  <select
-                    required
-                    value={studentFormData.turma_id}
-                    onChange={(e) => setStudentFormData({ ...studentFormData, turma_id: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: 10,
-                      border: '1px solid #ddd',
-                      borderRadius: 6,
-                    }}
-                  >
-                    <option value="">Selecione uma turma...</option>
-                    {classes.map((turma) => (
-                      <option key={turma.id} value={turma.id}>
-                        {turma.nome} - {turma.codigo}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="input-group">
-                  <label>Matrícula</label>
-                  <input
-                    type="text"
-                    value={studentFormData.matricula}
-                    onChange={(e) => setStudentFormData({ ...studentFormData, matricula: e.target.value })}
-                    placeholder="Número da matrícula (opcional)"
-                  />
-                </div>
-
-                {/* Linha 3: Responsável | Contato */}
-                <div className="input-group">
-                  <label>Nome do Responsável</label>
-                  <input
-                    type="text"
-                    value={studentFormData.nome_responsavel}
-                    onChange={(e) => setStudentFormData({ ...studentFormData, nome_responsavel: e.target.value })}
-                    placeholder="Nome do responsável (opcional)"
-                    autoComplete="off"
-                    autoCorrect="off"
-                    autoCapitalize="off"
-                    spellCheck={false}
-                    data-form-type="other"
-                  />
-                </div>
-
-                <div className="input-group">
-                  <label>Contato</label>
-                  <input
-                    type="text"
-                    value={studentFormData.contato}
-                    onChange={(e) => setStudentFormData({ ...studentFormData, contato: e.target.value })}
-                    placeholder="Telefone ou email (opcional)"
-                  />
-                </div>
-
-                {/* Linha 4: Etiqueta | Motivo/Deficiência/Condição/CID (2 colunas) */}
-                <div className="input-group">
-                  <label>Etiqueta (Cor) *</label>
-                  <select
-                    required
-                    value={studentFormData.etiqueta_cor}
-                    onChange={(e) =>
-                      setStudentFormData({ ...studentFormData, etiqueta_cor: e.target.value })
-                    }
-                    style={{
-                      width: '100%',
-                      padding: 10,
-                      border: '1px solid #ddd',
-                      borderRadius: 6,
-                    }}
-                  >
-                    <option value="vermelho">🔴 Vermelho: Prioridade</option>
-                    <option value="amarelo">🟡 Amarelo: Atenção</option>
-                    <option value="azul">🔵 Azul: Regular</option>
-                    <option value="verde">🟢 Verde: Avançado</option>
-                    <option value="roxo">🟣 Roxo: Educação Especial</option>
-                  </select>
-                </div>
-
-                <div className="input-group">
-                  {studentFormData.etiqueta_cor === 'roxo' ? (
-                    <>
-                      <label>Deficiência/Condição/CID</label>
-                      <input
-                        type="text"
-                        value={
-                          studentFormData.aee_deficiencia || studentFormData.aee_cid
-                            ? `${studentFormData.aee_deficiencia || ''}${studentFormData.aee_cid ? (studentFormData.aee_deficiencia ? ' - ' : '') + `CID: ${studentFormData.aee_cid}` : ''}`
-                            : ''
-                        }
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          // Separar deficiência e CID se houver "CID:" no texto
-                          const cidMatch = value.match(/CID:\s*([A-Z0-9.]+)/i);
-                          let cid = '';
-                          let deficiencia = value;
-                          
-                          if (cidMatch) {
-                            cid = cidMatch[1].trim();
-                            // Remover a parte do CID do texto
-                            deficiencia = value.replace(/CID:\s*[A-Z0-9.]+/i, '').replace(/\s*-\s*$/, '').trim();
-                          }
-                          
-                          setStudentFormData({
-                            ...studentFormData,
-                            aee_deficiencia: deficiencia,
-                            aee_cid: cid,
-                          });
-                        }}
-                        placeholder="Ex: Autismo, Síndrome de Down - CID: F84.0"
-                        style={{
-                          width: '100%',
-                          padding: 10,
-                          border: '1px solid #ddd',
-                          borderRadius: 6,
-                        }}
-                      />
-                    </>
-                  ) : (
-                    <>
-                      <label>Motivo</label>
-                      <input
-                        type="text"
-                        value={studentFormData.motivo_etiqueta}
-                        onChange={(e) => setStudentFormData({ ...studentFormData, motivo_etiqueta: e.target.value })}
-                        placeholder={
-                          studentFormData.etiqueta_cor === 'vermelho'
-                            ? 'Ex: Frequência, Nota baixa...'
-                            : studentFormData.etiqueta_cor === 'amarelo'
-                            ? 'Ex: Dificuldade de aprendizagem...'
-                            : studentFormData.etiqueta_cor === 'azul'
-                            ? 'Ex: Desempenho regular...'
-                            : studentFormData.etiqueta_cor === 'verde'
-                            ? 'Ex: Bom desempenho...'
-                            : 'Motivo da etiqueta'
-                        }
-                        style={{
-                          width: '100%',
-                          padding: 10,
-                          border: '1px solid #ddd',
-                          borderRadius: 6,
-                        }}
-                      />
-                    </>
-                  )}
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowStudentModal(false);
-                    setEditingStudent(null);
-                    setStudentFormData({ nome: '', data_nascimento: '', turma_id: '', etiqueta_cor: 'azul', matricula: '', nome_responsavel: '', contato: '', aee_deficiencia: '', aee_cid: '', motivo_etiqueta: '' });
-      setAeeFormData({ aee_tem_laudo: false, aee_mediadora: '', aee_plano_individual: '' });
-                  }}
-                  style={{
-                    padding: '10px 20px',
-                    border: '1px solid #ddd',
-                    borderRadius: 6,
-                    background: 'white',
-                    cursor: 'pointer',
-                    color: 'var(--text)',
-                  }}
-                  disabled={savingStudent}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  style={{ width: 'auto', padding: '10px 20px' }}
-                  disabled={savingStudent}
-                >
-                  {savingStudent ? 'Salvando...' : 'Salvar'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {showTeacherModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 2000,
-          }}
-          onMouseDown={handleBackdropMouseDown}
-          onClick={(e) =>
-            handleBackdropClick(e, () => {
-              if (!savingTeacher) {
-                setShowTeacherModal(false);
-                setEditingTeacher(null);
-                setTeacherFormData({ nome: '', disciplina: '', turmas_ids: [] });
-              }
-            })
-          }
-        >
-          <div
-            style={{
-              background: 'white',
-              padding: 30,
-              borderRadius: 12,
-              width: '90%',
-              maxWidth: 650,
-              boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ marginBottom: 20, color: 'var(--primary)' }}>
-              {editingTeacher ? 'Editar Professor' : 'Novo Professor'}
-            </h2>
-            <form onSubmit={handleSaveTeacher}>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr 1fr',
-                  gap: '15px',
-                  alignItems: 'start',
-                }}
-              >
-                <div className="input-group">
-                  <label>Nome *</label>
-                  <input
-                    type="text"
-                    required
-                    value={teacherFormData.nome}
-                    onChange={(e) => setTeacherFormData({ ...teacherFormData, nome: e.target.value })}
-                    placeholder="Nome completo do professor"
-                    autoComplete="off"
-                    autoCorrect="off"
-                    autoCapitalize="off"
-                    spellCheck={false}
-                    data-form-type="other"
-                  />
-                </div>
-
-                <div className="input-group">
-                  <label>Disciplina *</label>
-                  <input
-                    type="text"
-                    required
-                    value={teacherFormData.disciplina}
-                    onChange={(e) => setTeacherFormData({ ...teacherFormData, disciplina: e.target.value })}
-                    placeholder="Ex: Matemática"
-                    autoComplete="off"
-                    autoCorrect="off"
-                    autoCapitalize="off"
-                    spellCheck={false}
-                    data-form-type="other"
-                  />
-                </div>
-              </div>
-
-              {/* Linha 2: Turmas (igual ao seletor de anos do modal de turma) */}
-              <div className="input-group" style={{ marginTop: 12 }}>
-                <label style={{ fontSize: '0.9em' }}>Turmas * (selecione um ou mais)</label>
-                <div
-                  style={{
-                    display: 'flex',
-                    flexWrap: 'nowrap',
-                    gap: '2px',
-                    marginTop: 4,
-                    padding: '4px',
-                    border: '1px solid #ddd',
-                    borderRadius: 6,
-                    background: '#f9f9f9',
-                    overflowX: 'auto',
-                  }}
-                >
-                  {[
-                    'Pré I',
-                    'Pré II',
-                    '1º Ano',
-                    '2º Ano',
-                    '3º Ano',
-                    '4º Ano',
-                    '5º Ano',
-                    '6º Ano',
-                    '7º Ano',
-                    '8º Ano',
-                    '9º Ano',
-                  ].map((anoOption) => {
-                    const gradeCanonical =
-                      anoOption === 'Pré I'
-                        ? 'Pré I'
-                        : anoOption === 'Pré II'
-                          ? 'Pré II'
-                          : `${parseInt(anoOption, 10)}º`;
-
-                    const turmasDaGrade = classesList.filter((t) =>
-                      getCanonicalGradesForTurma(t).includes(gradeCanonical)
-                    );
-                    const idsGrade = turmasDaGrade.map((t) => t.id);
-                    const current = Array.isArray(teacherFormData.turmas_ids) ? teacherFormData.turmas_ids : [];
-                    const idGradeSet = new Set(idsGrade.map(String));
-                    const checked =
-                      turmasDaGrade.length > 0 &&
-                      turmasDaGrade.every((t) => current.some((id) => String(id) === String(t.id)));
-                    const disabled = turmasDaGrade.length === 0;
-
-                    return (
-                      <label
-                        key={anoOption}
-                        style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          gap: 4,
-                          cursor: disabled ? 'not-allowed' : 'pointer',
-                          padding: '4px',
-                          borderRadius: 4,
-                          transition: 'background 0.2s',
-                          fontSize: '0.75em',
-                          flex: '1 1 0',
-                          minWidth: 0,
-                          opacity: disabled ? 0.6 : 1,
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!disabled) e.currentTarget.style.background = '#f0f0f0';
-                        }}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                        title={
-                          disabled
-                            ? 'Sem turmas cadastradas nesta série'
-                            : turmasDaGrade.length === 1
-                              ? turmasDaGrade[0].nome
-                              : `${turmasDaGrade.length} turmas`
-                        }
-                      >
-                        <input
-                          type="checkbox"
-                          disabled={disabled}
-                          checked={checked}
-                          onChange={(e) => {
-                            const cur = Array.isArray(teacherFormData.turmas_ids) ? teacherFormData.turmas_ids : [];
-                            const next = e.target.checked
-                              ? [...cur, ...idsGrade.filter((id) => !cur.some((c) => String(c) === String(id)))]
-                              : cur.filter((c) => !idGradeSet.has(String(c)));
-                            setTeacherFormData({ ...teacherFormData, turmas_ids: next });
-                          }}
-                          style={{
-                            cursor: disabled ? 'not-allowed' : 'pointer',
-                            width: '14px',
-                            height: '14px',
-                            margin: 0,
-                            flexShrink: 0,
-                          }}
-                        />
-                        <span style={{ textAlign: 'center', lineHeight: '1.2' }}>{anoOption}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-                {classesList.length === 0 ? (
-                  <div style={{ color: 'gray', fontSize: '0.8em', marginTop: 6 }}>
-                    Nenhuma turma cadastrada para a escola/ano selecionados.
-                  </div>
-                ) : null}
-              </div>
-
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowTeacherModal(false);
-                    setEditingTeacher(null);
-                    setTeacherFormData({ nome: '', disciplina: '', turmas_ids: [] });
-                  }}
-                  style={{
-                    padding: '10px 20px',
-                    border: '1px solid #ddd',
-                    borderRadius: 6,
-                    background: 'white',
-                    cursor: 'pointer',
-                    color: 'var(--text)',
-                  }}
-                  disabled={savingTeacher}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  style={{ width: 'auto', padding: '10px 20px' }}
-                  disabled={savingTeacher}
-                >
-                  {savingTeacher ? 'Salvando...' : 'Salvar'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Modal de Professor */}
+      <TeacherModal
+        showTeacherModal={showTeacherModal}
+        handleBackdropMouseDown={handleBackdropMouseDown}
+        handleBackdropClick={handleBackdropClick}
+        setShowTeacherModal={setShowTeacherModal}
+        setEditingTeacher={setEditingTeacher}
+        setTeacherFormData={setTeacherFormData}
+        editingTeacher={editingTeacher}
+        handleSaveTeacher={handleSaveTeacher}
+        teacherFormData={teacherFormData}
+        classesList={classesList}
+        getCanonicalGradesForTurma={getCanonicalGradesForTurma}
+        savingTeacher={savingTeacher}
+      />
 
       {/* Modal: entrega pedagógica (entregas_docentes) */}
-      {showEntregaModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 2000,
-          }}
-          onMouseDown={handleBackdropMouseDown}
-          onClick={(e) =>
-            handleBackdropClick(e, () => {
-              if (!savingEntrega) {
-                setShowEntregaModal(false);
-                setEditingEntrega(null);
-              }
-            })
-          }
-        >
-          <div
-            style={{
-              background: 'white',
-              padding: 30,
-              borderRadius: 12,
-              width: '90%',
-              maxWidth: 560,
-              boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ marginTop: 0, marginBottom: 20, color: 'var(--primary)' }}>
-              {editingEntrega ? 'Editar exigência' : 'Nova exigência de entrega'}
-            </h2>
-            <form onSubmit={handleSaveEntrega}>
-              <div className="input-group">
-                <label>Tipo de documento *</label>
-                <input
-                  type="text"
-                  required
-                  list="tipos-entrega-docente"
-                  value={entregaFormData.tipo_documento}
-                  onChange={(e) => setEntregaFormData({ ...entregaFormData, tipo_documento: e.target.value })}
-                  placeholder="Ex.: Plano de Aula, Diário de Classe..."
-                />
-                <datalist id="tipos-entrega-docente">
-                  <option value="Plano de Aula" />
-                  <option value="Plano de Curso" />
-                  <option value="Sondagem Alfabetiza Pará" />
-                  <option value="Diário de Classe" />
-                  <option value="Planejamento anual" />
-                </datalist>
-              </div>
-              <div className="input-group">
-                <label>Referência *</label>
-                <input
-                  type="text"
-                  required
-                  value={entregaFormData.referencia}
-                  onChange={(e) => setEntregaFormData({ ...entregaFormData, referencia: e.target.value })}
-                  placeholder="Ex.: 2º Bimestre - Turma 5º A"
-                />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 15 }}>
-                <div className="input-group">
-                  <label>Status</label>
-                  <select
-                    value={entregaFormData.status}
-                    onChange={(e) => setEntregaFormData({ ...entregaFormData, status: e.target.value })}
-                    style={{ width: '100%', padding: 10, borderRadius: 6, border: '1px solid #ddd' }}
-                  >
-                    <option value="pendente">Pendente</option>
-                    <option value="entregue">Entregue</option>
-                    <option value="atrasado">Atrasado</option>
-                  </select>
-                </div>
-                <div className="input-group">
-                  <label>Prazo (opcional)</label>
-                  <input
-                    type="date"
-                    value={entregaFormData.prazo}
-                    onChange={(e) => setEntregaFormData({ ...entregaFormData, prazo: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div className="input-group">
-                <label>Observações</label>
-                <textarea
-                  value={entregaFormData.observacoes}
-                  onChange={(e) => setEntregaFormData({ ...entregaFormData, observacoes: e.target.value })}
-                  rows={3}
-                  placeholder="Notas internas..."
-                  style={{
-                    width: '100%',
-                    padding: 10,
-                    border: '1px solid #ddd',
-                    borderRadius: 6,
-                    fontFamily: 'inherit',
-                    resize: 'vertical',
-                  }}
-                />
-              </div>
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 20 }}>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  disabled={savingEntrega}
-                  onClick={() => {
-                    setShowEntregaModal(false);
-                    setEditingEntrega(null);
-                  }}
-                >
-                  Cancelar
-                </button>
-                <button type="submit" className="btn-primary" disabled={savingEntrega}>
-                  {savingEntrega ? 'Salvando...' : 'Salvar'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <EntregaModal
+        showEntregaModal={showEntregaModal}
+        handleBackdropMouseDown={handleBackdropMouseDown}
+        handleBackdropClick={handleBackdropClick}
+        setShowEntregaModal={setShowEntregaModal}
+        setEditingEntrega={setEditingEntrega}
+        savingEntrega={savingEntrega}
+        editingEntrega={editingEntrega}
+        handleSaveEntrega={handleSaveEntrega}
+        entregaFormData={entregaFormData}
+        setEntregaFormData={setEntregaFormData}
+      />
 
       {/* Modal: registro de coordenação (registros_coordenacao) */}
-      {showRegistroCoordModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 2000,
-          }}
-          onMouseDown={handleBackdropMouseDown}
-          onClick={(e) =>
-            handleBackdropClick(e, () => {
-              if (!savingRegistroCoord) {
-                setShowRegistroCoordModal(false);
-                setEditingRegistroCoord(null);
-              }
-            })
-          }
-        >
-          <div
-            style={{
-              background: 'white',
-              padding: 30,
-              borderRadius: 12,
-              width: '90%',
-              maxWidth: 560,
-              boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ marginTop: 0, marginBottom: 20, color: 'var(--primary)' }}>
-              {editingRegistroCoord ? 'Editar registro' : 'Nova conversa / registro'}
-            </h2>
-            <form onSubmit={handleSaveRegistroCoord}>
-              <div className="input-group">
-                <label>Data *</label>
-                <input
-                  type="date"
-                  required
-                  value={registroCoordFormData.data_conversa}
-                  onChange={(e) =>
-                    setRegistroCoordFormData({ ...registroCoordFormData, data_conversa: e.target.value })
-                  }
-                />
-              </div>
-              <div className="input-group">
-                <label>Assunto *</label>
-                <input
-                  type="text"
-                  required
-                  value={registroCoordFormData.assunto}
-                  onChange={(e) =>
-                    setRegistroCoordFormData({ ...registroCoordFormData, assunto: e.target.value })
-                  }
-                  placeholder="Ex.: Reunião de feedback, Observação de sala..."
-                />
-              </div>
-              <div className="input-group">
-                <label>Relato (o que foi discutido)</label>
-                <textarea
-                  value={registroCoordFormData.relato}
-                  onChange={(e) =>
-                    setRegistroCoordFormData({ ...registroCoordFormData, relato: e.target.value })
-                  }
-                  rows={4}
-                  placeholder="Resumo da conversa..."
-                  style={{
-                    width: '100%',
-                    padding: 10,
-                    border: '1px solid #ddd',
-                    borderRadius: 6,
-                    fontFamily: 'inherit',
-                    resize: 'vertical',
-                  }}
-                />
-              </div>
-              <div className="input-group">
-                <label>Encaminhamentos (combinados)</label>
-                <textarea
-                  value={registroCoordFormData.encaminhamentos}
-                  onChange={(e) =>
-                    setRegistroCoordFormData({ ...registroCoordFormData, encaminhamentos: e.target.value })
-                  }
-                  rows={3}
-                  placeholder="Próximos passos acordados..."
-                  style={{
-                    width: '100%',
-                    padding: 10,
-                    border: '1px solid #ddd',
-                    borderRadius: 6,
-                    fontFamily: 'inherit',
-                    resize: 'vertical',
-                  }}
-                />
-              </div>
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 20 }}>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  disabled={savingRegistroCoord}
-                  onClick={() => {
-                    setShowRegistroCoordModal(false);
-                    setEditingRegistroCoord(null);
-                  }}
-                >
-                  Cancelar
-                </button>
-                <button type="submit" className="btn-primary" disabled={savingRegistroCoord}>
-                  {savingRegistroCoord ? 'Salvando...' : 'Salvar'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <RegistroCoordModal
+        showRegistroCoordModal={showRegistroCoordModal}
+        handleBackdropMouseDown={handleBackdropMouseDown}
+        handleBackdropClick={handleBackdropClick}
+        setShowRegistroCoordModal={setShowRegistroCoordModal}
+        setEditingRegistroCoord={setEditingRegistroCoord}
+        savingRegistroCoord={savingRegistroCoord}
+        editingRegistroCoord={editingRegistroCoord}
+        handleSaveRegistroCoord={handleSaveRegistroCoord}
+        registroCoordFormData={registroCoordFormData}
+        setRegistroCoordFormData={setRegistroCoordFormData}
+      />
 
       {/* Modal de Evento da Agenda */}
-      {showEventModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100%',
-            height: '100%',
-            backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            zIndex: 2000,
-          }}
-          onMouseDown={handleBackdropMouseDown}
-          onClick={(e) => handleBackdropClick(e, () => {
-            if (!savingEvent) {
-              setShowEventModal(false);
-              setEditingEvent(null);
-            }
-          })}
-        >
-          <div
-            style={{
-              background: 'white',
-              borderRadius: 8,
-              padding: 30,
-              width: '90%',
-              maxWidth: 600,
-              maxHeight: '90vh',
-              overflowY: 'auto',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ marginTop: 0 }}>
-              {editingEvent ? 'Editar Evento' : 'Novo Evento'}
-            </h2>
-            <form onSubmit={handleSaveEvent}>
-              <div className="input-group" style={{ marginBottom: 20 }}>
-                <label>Título *</label>
-                <input
-                  type="text"
-                  value={eventFormData.titulo}
-                  onChange={(e) => setEventFormData({ ...eventFormData, titulo: e.target.value })}
-                  required
-                  placeholder="Ex: Reunião de Pais"
-                />
-              </div>
-
-              <div className="input-group" style={{ marginBottom: 20 }}>
-                <label>Descrição</label>
-                <textarea
-                  value={eventFormData.descricao}
-                  onChange={(e) => setEventFormData({ ...eventFormData, descricao: e.target.value })}
-                  placeholder="Descrição do evento..."
-                  rows={4}
-                  style={{
-                    width: '100%',
-                    padding: 10,
-                    border: '1px solid #ddd',
-                    borderRadius: 6,
-                    fontFamily: 'inherit',
-                    resize: 'vertical',
-                  }}
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 15, marginBottom: 20 }}>
-                <div className="input-group">
-                  <label>Data de Início *</label>
-                  <input
-                    type="date"
-                    value={eventFormData.data_inicio}
-                    onChange={(e) => {
-                      const newDate = e.target.value;
-                      setEventFormData({ 
-                        ...eventFormData, 
-                        data_inicio: newDate,
-                        // Se não houver data de fim, usar a mesma data
-                        data_fim: eventFormData.data_fim || newDate
-                      });
-                    }}
-                    required
-                  />
-                </div>
-                <div className="input-group">
-                  <label>Hora de Início *</label>
-                  <select
-                    value={eventFormData.hora_inicio}
-                    onChange={(e) => setEventFormData({ ...eventFormData, hora_inicio: e.target.value })}
-                    required
-                    style={{
-                      width: '100%',
-                      padding: '10px',
-                      border: '1px solid #ddd',
-                      borderRadius: 6,
-                      fontSize: '1em',
-                    }}
-                  >
-                    {generateTimeOptions().map((time) => (
-                      <option key={time} value={time}>
-                        {time}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 15, marginBottom: 20 }}>
-                <div className="input-group">
-                  <label>Data de Fim</label>
-                  <input
-                    type="date"
-                    value={eventFormData.data_fim}
-                    onChange={(e) => setEventFormData({ ...eventFormData, data_fim: e.target.value })}
-                  />
-                </div>
-                <div className="input-group">
-                  <label>Hora de Fim</label>
-                  <select
-                    value={eventFormData.hora_fim}
-                    onChange={(e) => setEventFormData({ ...eventFormData, hora_fim: e.target.value })}
-                    style={{
-                      width: '100%',
-                      padding: '10px',
-                      border: '1px solid #ddd',
-                      borderRadius: 6,
-                      fontSize: '1em',
-                    }}
-                  >
-                    {generateTimeOptions().map((time) => (
-                      <option key={time} value={time}>
-                        {time}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="input-group" style={{ marginBottom: 20 }}>
-                <label>Cor da Etiqueta</label>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  {['#3498DB', '#E74C3C', '#2ECC71', '#F39C12', '#9B59B6', '#1ABC9C', '#E67E22'].map((color) => (
-                    <div
-                      key={color}
-                      onClick={() => setEventFormData({ ...eventFormData, cor_etiqueta: color })}
-                      style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: '50%',
-                        background: color,
-                        cursor: 'pointer',
-                        border: eventFormData.cor_etiqueta === color ? '3px solid #333' : '2px solid #ddd',
-                        transition: 'all 0.2s',
-                      }}
-                      title={color}
-                    />
-                  ))}
-                </div>
-                <input
-                  type="color"
-                  value={eventFormData.cor_etiqueta}
-                  onChange={(e) => setEventFormData({ ...eventFormData, cor_etiqueta: e.target.value })}
-                  style={{ marginTop: 10, width: '100%', height: 40, cursor: 'pointer' }}
-                />
-              </div>
-
-              <div className="input-group" style={{ marginBottom: 20 }}>
-                <label>Anexo (PDF/Imagem)</label>
-                <input
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png,.gif"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      setEventFormData({
-                        ...eventFormData,
-                        anexo_file: file,
-                        anexo_nome: file.name,
-                      });
-                    }
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '10px',
-                    border: '1px solid #ddd',
-                    borderRadius: 6,
-                  }}
-                />
-                {eventFormData.anexo_file && (
-                  <div style={{ marginTop: 10, padding: 10, background: '#f0f0f0', borderRadius: 6, fontSize: '0.9em' }}>
-                    <i className="fas fa-file" /> {eventFormData.anexo_file.name}
-                  </div>
-                )}
-                {editingEvent?.anexo_url && !eventFormData.anexo_file && (
-                  <div style={{ marginTop: 10 }}>
-                    <a
-                      href={editingEvent.anexo_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        padding: '10px 15px',
-                        background: 'var(--primary)',
-                        color: 'white',
-                        borderRadius: 6,
-                        textDecoration: 'none',
-                        fontSize: '0.9em',
-                      }}
-                    >
-                      <i className="fas fa-paperclip" /> Baixar Documento Anexado
-                      {editingEvent.anexo_nome && (
-                        <span style={{ marginLeft: 8, fontSize: '0.85em', opacity: 0.9 }}>
-                          ({editingEvent.anexo_nome})
-                        </span>
-                      )}
-                    </a>
-                  </div>
-                )}
-              </div>
-
-              <div className="modal-actions" style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'center' }}>
-                {editingEvent && (
-                  <button
-                    type="button"
-                    onClick={handleDeleteAgendaEvent}
-                    style={{
-                      marginRight: 'auto',
-                      padding: '10px 20px',
-                      border: 'none',
-                      borderRadius: 6,
-                      backgroundColor: '#ff4444',
-                      color: 'white',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Excluir
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowEventModal(false);
-                    setEditingEvent(null);
-                    setEventFormData({
-                      titulo: '',
-                      descricao: '',
-                      data_inicio: '',
-                      hora_inicio: '08:00',
-                      data_fim: '',
-                      hora_fim: '09:00',
-                      cor_etiqueta: '#3498DB',
-                      anexo_nome: '',
-                      anexo_file: null,
-                    });
-                    // NÃO alterar currentDate ao cancelar para evitar mudança de mês
-                  }}
-                  style={{
-                    padding: '10px 20px',
-                    border: '1px solid #ddd',
-                    borderRadius: 6,
-                    background: 'white',
-                    cursor: 'pointer',
-                    color: 'var(--text)',
-                  }}
-                  disabled={savingEvent}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  style={{ width: 'auto', padding: '10px 20px' }}
-                  disabled={savingEvent}
-                >
-                  {savingEvent ? 'Salvando...' : 'Salvar'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <EventModal
+        showEventModal={showEventModal}
+        setShowEventModal={setShowEventModal}
+        savingEvent={savingEvent}
+        editingEvent={editingEvent}
+        setEditingEvent={setEditingEvent}
+        eventFormData={eventFormData}
+        setEventFormData={setEventFormData}
+        handleSaveEvent={handleSaveEvent}
+        generateTimeOptions={generateTimeOptions}
+        handleDeleteAgendaEvent={handleDeleteAgendaEvent}
+        handleBackdropMouseDown={handleBackdropMouseDown}
+        handleBackdropClick={handleBackdropClick}
+      />
     </>
   );
 }

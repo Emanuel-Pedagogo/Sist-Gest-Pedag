@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
+import { computeMF, isAprovado as isAprovadoFromMfs } from './boletimMath';
+import ImportarBoletim from './ImportarBoletim';
 
 /** Disciplinas do 1º ao 5º ano (Fundamental I). */
 const DISCIPLINAS_ATE_5_ANO = [
@@ -19,6 +21,7 @@ const DISCIPLINAS_6_AO_9_ANO = [
   'GEOGRAFIA',
   'CIÊNCIAS',
   'MATEMÁTICA',
+  'ENSINO RELIGIOSO',
   'EDUCAÇÃO FÍSICA',
   'ENSINO DA ARTE',
   'LÍNGUA ESTRANGEIRA - INGLÊS',
@@ -54,8 +57,15 @@ function isTurmaPreEscola(turmaNome) {
   return /pré\s*i\b|pre\s*i\b|pré\s*1|pre\s*1/i.test(t) || /pré\s*ii|pre\s*ii|pré\s*2|pre\s*2/i.test(t);
 }
 
-function BoletimView({ nivelEnsino, alunoId, turmaNome = '', onEtiquetaAtualizada }) {
+function BoletimView({
+  alunoId,
+  turmaNome = '',
+  alunoNome = '',
+  alunoMatricula = '',
+  onEtiquetaAtualizada,
+}) {
   const [isEditing, setIsEditing] = useState(false);
+  const [showImportPdf, setShowImportPdf] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [boletim, setBoletim] = useState({});
@@ -71,6 +81,10 @@ function BoletimView({ nivelEnsino, alunoId, turmaNome = '', onEtiquetaAtualizad
     if (isPreEscola) loadRelatoriosPre();
     else loadBoletim();
   }, [alunoId, isPreEscola]);
+
+  useEffect(() => {
+    setShowImportPdf(false);
+  }, [alunoId]);
 
   async function loadRelatoriosPre() {
     if (!alunoId) return;
@@ -254,62 +268,20 @@ function BoletimView({ nivelEnsino, alunoId, turmaNome = '', onEtiquetaAtualizad
   const isNotaBaixa = (v) => !usaConceito && v !== '' && v != null && Number(v) < 5;
   const isNotaOk = (v) => !usaConceito && v !== '' && v != null && Number(v) >= 5;
 
-  /** Converte valor de célula para número (vazio = null). */
-  function toNum(v) {
-    if (v === '' || v == null) return null;
-    const n = Number(v);
-    return Number.isNaN(n) ? null : n;
-  }
-
-  /**
-   * Média final: B1 e B3 peso 2, B2 e B4 peso 3.
-   * Se RS1 preenchida, substitui a menor nota do 1º semestre (B1,B2); a nota de recuperação
-   * entra no cálculo com o peso da nota que foi substituída (2 se substituiu B1, 3 se B2).
-   * Idem para RS2 no 2º semestre (B3,B4).
-   * Retorna null se não for possível calcular (conceito ou nota faltando).
-   */
-  function computeMF(disciplina) {
+  function computeMFDisciplina(disciplina) {
     if (usaConceito) return null;
-    const b1 = toNum(getCell(disciplina, 1).nota);
-    const b2 = toNum(getCell(disciplina, 2).nota);
-    const b3 = toNum(getCell(disciplina, 3).nota);
-    const b4 = toNum(getCell(disciplina, 4).nota);
-    if (b1 == null || b2 == null || b3 == null || b4 == null) return null;
-    const rs1 = toNum(getCell(disciplina, 2).rs1);
-    const rs2 = toNum(getCell(disciplina, 4).rs2);
-
-    // 1º semestre: peso B1=2, B2=3. Se há RS1, substitui a menor e aplica o peso da nota substituída à recuperação.
-    let contribSem1;
-    if (rs1 != null) {
-      const menorBim1 = b1 <= b2 ? 1 : 2; // 1 = B1 foi a menor, 2 = B2 foi a menor
-      const pesoSubstituido = menorBim1 === 1 ? 2 : 3;
-      const outraNota = menorBim1 === 1 ? b2 : b1;
-      const pesoOutra = menorBim1 === 1 ? 3 : 2;
-      contribSem1 = outraNota * pesoOutra + rs1 * pesoSubstituido;
-    } else {
-      contribSem1 = b1 * 2 + b2 * 3;
-    }
-
-    // 2º semestre: peso B3=2, B4=3. Se há RS2, substitui a menor e aplica o peso da nota substituída à recuperação.
-    let contribSem2;
-    if (rs2 != null) {
-      const menorBim2 = b3 <= b4 ? 3 : 4; // 3 = B3 foi a menor, 4 = B4 foi a menor
-      const pesoSubstituido = menorBim2 === 3 ? 2 : 3;
-      const outraNota = menorBim2 === 3 ? b4 : b3;
-      const pesoOutra = menorBim2 === 3 ? 3 : 2;
-      contribSem2 = outraNota * pesoOutra + rs2 * pesoSubstituido;
-    } else {
-      contribSem2 = b3 * 2 + b4 * 3;
-    }
-
-    return (contribSem1 + contribSem2) / 10;
+    return computeMF({
+      b1: getCell(disciplina, 1).nota,
+      b2: getCell(disciplina, 2).nota,
+      b3: getCell(disciplina, 3).nota,
+      b4: getCell(disciplina, 4).nota,
+      rs1: getCell(disciplina, 2).rs1,
+      rs2: getCell(disciplina, 4).rs2,
+    });
   }
 
-  /** Retorna true se todas as MFs (numéricas) forem >= 5. */
   function isAprovado() {
-    const mfs = disciplinas.map((d) => computeMF(d)).filter((v) => v != null);
-    if (mfs.length === 0) return null;
-    return mfs.every((mf) => mf >= 5);
+    return isAprovadoFromMfs(disciplinas.map((d) => computeMFDisciplina(d)));
   }
 
   function renderCellNota(disciplina, bimestre) {
@@ -467,7 +439,7 @@ function BoletimView({ nivelEnsino, alunoId, turmaNome = '', onEtiquetaAtualizad
 
   return (
     <div style={{ padding: 20, maxWidth: 960, margin: '0 auto' }}>
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
         <button
           type="button"
           onClick={() => setIsEditing(true)}
@@ -488,6 +460,24 @@ function BoletimView({ nivelEnsino, alunoId, turmaNome = '', onEtiquetaAtualizad
         </button>
         <button
           type="button"
+          onClick={() => setShowImportPdf((v) => !v)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 14px',
+            border: '1px solid #fecaca',
+            borderRadius: 8,
+            background: showImportPdf ? '#fef2f2' : 'white',
+            color: '#b91c1c',
+            cursor: 'pointer',
+          }}
+          title="Importar PDF do EducaMais deste aluno"
+        >
+          <i className="fas fa-file-pdf" /> Importar PDF
+        </button>
+        <button
+          type="button"
           onClick={handleSave}
           disabled={!isEditing || saving}
           style={{
@@ -505,6 +495,18 @@ function BoletimView({ nivelEnsino, alunoId, turmaNome = '', onEtiquetaAtualizad
           <i className="fas fa-check" /> {saving ? 'Salvando...' : 'Salvar'}
         </button>
       </div>
+
+      {showImportPdf && (
+        <ImportarBoletim
+          alunoAlvoId={alunoId}
+          alunoMatricula={alunoMatricula}
+          alunoNome={alunoNome}
+          onImportComplete={() => {
+            loadBoletim();
+            setShowImportPdf(false);
+          }}
+        />
+      )}
 
       <div style={{ overflowX: 'auto', border: '1px solid #e0e0e0', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
@@ -550,7 +552,7 @@ function BoletimView({ nivelEnsino, alunoId, turmaNome = '', onEtiquetaAtualizad
             {disciplinas.map((disciplina, idx) => {
               const cellB2 = getCell(disciplina, 2);
               const cellB4 = getCell(disciplina, 4);
-              const mf = computeMF(disciplina);
+              const mf = computeMFDisciplina(disciplina);
               return (
                 <tr key={disciplina} style={{ background: idx % 2 === 0 ? '#fff' : '#fafafa' }}>
                   <td style={{ padding: '10px 14px', borderBottom: '1px solid #eee', fontWeight: 500, color: '#374151' }}>
