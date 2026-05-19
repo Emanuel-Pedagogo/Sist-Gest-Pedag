@@ -164,11 +164,11 @@ const StudentModal = ({
                   borderRadius: 6,
                 }}
               >
-                <option value="vermelho">🔴 Vermelho: Prioridade</option>
+                <option value="vermelho">🔴 Vermelho: Risco</option>
                 <option value="amarelo">🟡 Amarelo: Atenção</option>
-                <option value="azul">🔵 Azul: Regular</option>
+                <option value="azul">🔵 Azul: Adequado</option>
                 <option value="verde">🟢 Verde: Avançado</option>
-                <option value="roxo">🟣 Roxo: Educação Especial</option>
+                <option value="roxo">🟣 Roxo: AEE</option>
               </select>
             </div>
 

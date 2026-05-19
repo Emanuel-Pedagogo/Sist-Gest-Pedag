@@ -63,6 +63,7 @@ function BoletimView({
   alunoNome = '',
   alunoMatricula = '',
   onEtiquetaAtualizada,
+  reavaliarCorAluno,
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [showImportPdf, setShowImportPdf] = useState(false);
@@ -239,13 +240,18 @@ function BoletimView({
 
       if (error) throw error;
 
-      // Se status ficou Reprovado, atualiza etiqueta do aluno para vermelho (prioridade)
-      if (isAprovado() === false) {
-        const { error: errEtiqueta } = await supabase
-          .from('alunos')
-          .update({ etiqueta_cor: 'vermelho' })
-          .eq('id', alunoId);
-        if (!errEtiqueta && onEtiquetaAtualizada) onEtiquetaAtualizada('vermelho');
+      // Chama a reavaliação automática de cor (que considera notas, sondagens e ocorrências)
+      if (reavaliarCorAluno) {
+        await reavaliarCorAluno(alunoId);
+      } else {
+        // Fallback: Se status ficou Reprovado, atualiza etiqueta do aluno para vermelho (prioridade)
+        if (isAprovado() === false) {
+          const { error: errEtiqueta } = await supabase
+            .from('alunos')
+            .update({ etiqueta_cor: 'vermelho' })
+            .eq('id', alunoId);
+          if (!errEtiqueta && onEtiquetaAtualizada) onEtiquetaAtualizada('vermelho');
+        }
       }
 
       setIsEditing(false);

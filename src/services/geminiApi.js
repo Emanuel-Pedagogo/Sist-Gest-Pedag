@@ -1,0 +1,53 @@
+import { supabase } from '../supabaseClient';
+
+/**
+ * Chama Edge Function do Supabase que usa a API Gemini (chave só no servidor).
+ */
+async function invokeGeminiFunction(functionName, body) {
+  const { data, error } = await supabase.functions.invoke(functionName, { body });
+  if (error) {
+    const msg = error.message || String(error);
+    if (msg.includes('Failed to send') || msg.includes('FunctionsFetchError')) {
+      throw new Error(
+        'Não foi possível contactar a função no Supabase. Confira se você fez o deploy da Edge Function e o secret GEMINI_API_KEY (veja docs/GEMINI-SETUP.md).',
+      );
+    }
+    throw new Error(msg);
+  }
+  if (data?.error) {
+    throw new Error(typeof data.error === 'string' ? data.error : data.error.message || JSON.stringify(data.error));
+  }
+  return data;
+}
+
+/** Extrai registros de sondagem a partir de foto da ficha. */
+export async function extractSondagensFromImage({ imageBase64, mimeType, anoEscolar }) {
+  return invokeGeminiFunction('extract-sondagens', {
+    imageBase64,
+    mimeType: mimeType || 'image/jpeg',
+    anoEscolar: anoEscolar || '1-2',
+  });
+}
+
+/** Gera resumo pedagógico em texto a partir dos dados do aluno. */
+export async function generateResumoPedagogico(payload) {
+  return invokeGeminiFunction('generate-resumo-aluno', payload);
+}
+
+/** Converte File de imagem para base64 (sem prefixo data:). */
+export function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result !== 'string') {
+        reject(new Error('Falha ao ler arquivo.'));
+        return;
+      }
+      const base64 = result.includes(',') ? result.split(',')[1] : result;
+      resolve(base64);
+    };
+    reader.onerror = () => reject(reader.error || new Error('Erro ao ler arquivo.'));
+    reader.readAsDataURL(file);
+  });
+}

@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import ImportarListaAlunos from '../ImportarListaAlunos';
+import ImportarSondagemFoto from '../ImportarSondagemFoto';
+import ClassDashboardView from './ClassDashboardView';
 
 const ClassesView = ({
   selectedClassId,
@@ -41,14 +43,20 @@ const ClassesView = ({
   handleEditClass,
   handleDeleteClass,
   onListaAlunosImportada,
+  onSondagensImportadas,
+  reavaliarCorAluno,
 }) => {
   const [showImportLista, setShowImportLista] = useState(false);
+  const [showImportSondagem, setShowImportSondagem] = useState(false);
   const [showEditAlunoPicker, setShowEditAlunoPicker] = useState(false);
   const [alunoParaEditarId, setAlunoParaEditarId] = useState('');
+  const [activeTab, setActiveTab] = useState('alunos');
 
   const alunosOrdenados = [...(students || [])].sort((a, b) =>
     String(a.nome || '').localeCompare(String(b.nome || ''), 'pt', { sensitivity: 'base' }),
   );
+
+  const turmaAtual = (classesList || []).find((c) => String(c.id) === String(selectedClassId));
 
   return (
     <div id="view-classes" className="view-section">
@@ -109,10 +117,39 @@ const ClassesView = ({
                   fontWeight: 600,
                   cursor: 'pointer',
                 }}
-                onClick={() => setShowImportLista((v) => !v)}
+                onClick={() => {
+                  setShowImportSondagem(false);
+                  setShowImportLista((v) => !v);
+                }}
               >
                 <i className="fas fa-file-upload" style={{ color: 'var(--primary)' }} />
                 Importar lista
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '10px 16px',
+                  border: '1px solid #c4b5fd',
+                  borderRadius: 8,
+                  background: showImportSondagem ? '#ede9fe' : 'white',
+                  color: '#5b21b6',
+                  fontWeight: 600,
+                  cursor: students.length === 0 ? 'not-allowed' : 'pointer',
+                  opacity: students.length === 0 ? 0.6 : 1,
+                }}
+                disabled={students.length === 0}
+                onClick={() => {
+                  setShowImportLista(false);
+                  setShowImportSondagem((v) => !v);
+                }}
+                title="Foto da ficha de sondagem (Gemini)"
+              >
+                <i className="fas fa-camera" />
+                Importar sondagens (IA)
               </button>
               <button
                 type="button"
@@ -166,12 +203,50 @@ const ClassesView = ({
             </div>
           </div>
 
-          {showImportLista && (
+          <div className="student-tabs" style={{ marginBottom: 20 }}>
+            <button
+              className={`tab ${activeTab === 'alunos' ? 'active' : ''}`}
+              onClick={() => setActiveTab('alunos')}
+            >
+              Lista de Alunos
+            </button>
+            <button
+              className={`tab ${activeTab === 'dashboard' ? 'active' : ''}`}
+              onClick={() => setActiveTab('dashboard')}
+            >
+              Dashboard da Turma
+            </button>
+          </div>
+
+          {activeTab === 'dashboard' && (
+            <ClassDashboardView
+              classId={selectedClassId}
+              className={selectedClassName}
+              students={students}
+            />
+          )}
+
+          {activeTab === 'alunos' && (
+            <>
+              {showImportLista && (
             <ImportarListaAlunos
               turmaId={selectedClassId}
               onImportComplete={() => {
                 setShowImportLista(false);
                 if (onListaAlunosImportada) onListaAlunosImportada();
+              }}
+            />
+          )}
+
+          {showImportSondagem && (
+            <ImportarSondagemFoto
+              turmaId={selectedClassId}
+              turma={turmaAtual}
+              students={students}
+              reavaliarCorAluno={reavaliarCorAluno}
+              onImportComplete={() => {
+                setShowImportSondagem(false);
+                if (onSondagensImportadas) onSondagensImportadas();
               }}
             />
           )}
@@ -405,6 +480,8 @@ const ClassesView = ({
                 );
               })}
           </div>
+            </>
+          )}
         </React.Fragment>
       ) : (
         <React.Fragment key="lista-turmas">

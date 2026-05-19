@@ -210,10 +210,10 @@ const ReportsView = ({
               style={{ width: '100%', padding: '9px 10px', height: 38, borderRadius: 6, border: '1px solid #ddd' }}
             >
               <option value="">Todas</option>
-              <option value="azul">Regular</option>
+              <option value="azul">Adequado</option>
               <option value="verde">Avançado</option>
               <option value="amarelo">Atenção</option>
-              <option value="vermelho">Prioridade</option>
+              <option value="vermelho">Risco</option>
               <option value="roxo">AEE</option>
             </select>
           </div>

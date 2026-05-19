@@ -32,11 +32,11 @@ const DashboardView = ({
       {/* Blocos clicáveis (etiquetas) – acima dos dias da semana */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10, marginBottom: 20 }}>
         {[
-          { label: 'Regular', count: totalAzul, cor: 'azul', color: '#007bff' },
+          { label: 'Adequado', count: totalAzul, cor: 'azul', color: '#007bff' },
           { label: 'Atenção', count: totalAtencao, cor: 'amarelo', color: '#ffc107' },
-          { label: 'Prioridade', count: totalRisco, cor: 'vermelho', color: '#dc3545' },
+          { label: 'Risco', count: totalRisco, cor: 'vermelho', color: '#dc3545' },
           { label: 'Avançado', count: totalVerde, cor: 'verde', color: '#28a745' },
-          { label: 'Educação Especial', count: totalRoxo, cor: 'roxo', color: '#9c27b0' },
+          { label: 'AEE', count: totalRoxo, cor: 'roxo', color: '#9c27b0' },
           { label: 'Total de Alunos', count: totalAlunos, cor: '', color: '#374151' },
         ].map((item) => (
           <button

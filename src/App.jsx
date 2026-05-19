@@ -27,6 +27,9 @@ import SchoolModal from './components/modals/SchoolModal';
 import ClassModal from './components/modals/ClassModal';
 import StudentModal from './components/modals/StudentModal';
 import TeacherModal from './components/modals/TeacherModal';
+import SettingsView from './views/SettingsView';
+
+import { evaluateStudentColor } from './utils/studentColorEvaluator';
 
 function App() {
   // Data local em YYYY-MM-DD (evita dia anterior por timezone)
@@ -160,6 +163,7 @@ function App() {
     arquivo_file: null,
   });
   const [savingSondagem, setSavingSondagem] = useState(false);
+  const savingSondagemRef = useRef(false);
   const [showSondagemMidiaModal, setShowSondagemMidiaModal] = useState(false);
   const [sondagemMidiaTipo, setSondagemMidiaTipo] = useState('foto'); // 'foto' | 'audio' | 'video'
   const [sondagemMidiaUrl, setSondagemMidiaUrl] = useState('');
@@ -726,12 +730,12 @@ function App() {
     // Mantém a aba Turmas selecionada; a lista de alunos da turma será exibida na própria view de turmas
   };
 
-  const selectStudent = (aluno) => {
+  const selectStudent = (aluno, options = {}) => {
+    const { keepTab = false } = options;
     setSelectedStudentId(aluno.id);
     setSelectedStudent(aluno);
-    setCurrentTab('resumo');
+    if (!keepTab) setCurrentTab('resumo');
     setCurrentView('student-detail');
-    // Carregar dados AEE se existirem
     setAeeFormData({
       aee_tem_laudo: aluno.aee_tem_laudo || false,
       aee_mediadora: aluno.aee_mediadora || '',
@@ -790,10 +794,10 @@ function App() {
   // Nome descritivo da etiqueta (em vez da cor)
   const getEtiquetaLabel = (etiquetaCor) => {
     const c = (etiquetaCor || '').toLowerCase();
-    if (c === 'azul') return 'Regular';
+    if (c === 'azul') return 'Adequado';
     if (c === 'verde') return 'Avançado';
     if (c === 'amarelo') return 'Atenção';
-    if (c === 'vermelho') return 'Prioridade';
+    if (c === 'vermelho') return 'Risco';
     if (c === 'roxo') return 'AEE';
     return etiquetaCor ? String(etiquetaCor) : '-';
   };
@@ -1144,9 +1148,9 @@ function App() {
       
       let query;
       
-      if (selectedClassId) {
-        // Se há turma selecionada, filtrar por turma
-        query = supabase.from('alunos').select('*').eq('turma_id', selectedClassId);
+      const turmaIdParaBusca = selectedClassId || (currentView === 'student-detail' ? selectedStudent?.turma_id : null);
+      if (turmaIdParaBusca) {
+        query = supabase.from('alunos').select('*').eq('turma_id', turmaIdParaBusca);
       } else if (schoolId) {
         // Se há escola ativa, buscar turmas da escola do ano selecionado e depois alunos
         const { data: turmas } = await supabase
@@ -1185,11 +1189,12 @@ function App() {
     if (
       currentView === 'students' ||
       currentView === 'emprestimos' ||
-      (currentView === 'classes' && selectedClassId)
+      (currentView === 'classes' && selectedClassId) ||
+      (currentView === 'student-detail' && (selectedClassId || selectedStudent?.turma_id))
     ) {
       fetchStudents();
     }
-  }, [currentView, activeSchoolId, selectedSchoolId, selectedClassId, selectedYear]);
+  }, [currentView, activeSchoolId, selectedSchoolId, selectedClassId, selectedStudent?.turma_id, selectedYear]);
 
   // Carregar dados do Dashboard
   useEffect(() => {
@@ -1312,9 +1317,9 @@ function App() {
     }
   }, [currentView, selectedStudent?.etiqueta_cor, currentTab]);
 
-  // Carregar sondagens quando a aba Sondagens for aberta
+  // Carregar sondagens na aba Sondagens ou no Resumo (prévia)
   useEffect(() => {
-    if (currentTab === 'sondagem' && selectedStudentId) {
+    if ((currentTab === 'sondagem' || currentTab === 'resumo') && selectedStudentId) {
       setSondagensLoading(true);
       setSondagensError(null);
       supabase
@@ -1387,6 +1392,53 @@ function App() {
     setShowModal(true);
   };
 
+  const reavaliarCorAluno = async (alunoId) => {
+    try {
+      if (!activeSchoolId) return;
+      
+      // 1. Buscar configuração da escola
+      const { data: escola } = await supabase.from('escolas').select('configuracoes').eq('id', activeSchoolId).single();
+      const tagConfig = escola?.configuracoes?.tags;
+      if (!tagConfig) return;
+
+      // 2. Buscar dados do aluno
+      const { data: aluno } = await supabase.from('alunos').select('id, etiqueta_cor').eq('id', alunoId).single();
+      if (!aluno) return;
+
+      const [
+        { data: notas },
+        { data: sondagens },
+        { data: ocorrencias }
+      ] = await Promise.all([
+        supabase.from('notas_boletim').select('nota').eq('aluno_id', alunoId),
+        supabase.from('sondagens').select('nivel_leitura, nivel_escrita').eq('aluno_id', alunoId).order('data', { ascending: false }).limit(1),
+        supabase.from('ocorrencias').select('tipo').eq('aluno_id', alunoId)
+      ]);
+
+      const data = {
+        notas: notas?.filter(n => n.nota !== null).map(n => parseFloat(n.nota)) || [],
+        sondagem: sondagens?.[0] || null,
+        ocorrencias: ocorrencias?.map(o => o.tipo) || []
+      };
+
+      const novaCor = evaluateStudentColor(tagConfig, data);
+
+      if (novaCor !== aluno.etiqueta_cor) {
+        await supabase.from('alunos').update({ etiqueta_cor: novaCor }).eq('id', alunoId);
+        
+        // Atualizar estado local se for o aluno selecionado
+        if (selectedStudentId === alunoId) {
+          setSelectedStudent(prev => ({ ...prev, etiqueta_cor: novaCor }));
+        }
+        
+        // Atualizar estado local na lista de alunos
+        setStudents(prev => prev.map(a => a.id === alunoId ? { ...a, etiqueta_cor: novaCor } : a));
+      }
+    } catch (error) {
+      console.error('Erro ao reavaliar cor do aluno:', error);
+    }
+  };
+
   const handleSaveOccurrence = async (e) => {
     e.preventDefault();
     if (!selectedStudentId) return;
@@ -1427,6 +1479,8 @@ function App() {
           .select('*')
           .eq('aluno_id', selectedStudentId);
         if (!fetchError) setOccurrences(newData || []);
+        
+        await reavaliarCorAluno(selectedStudentId);
       }
     } else {
        
@@ -1455,6 +1509,8 @@ function App() {
           .select('*')
           .eq('aluno_id', selectedStudentId);
         if (!fetchError) setOccurrences(newData || []);
+        
+        await reavaliarCorAluno(selectedStudentId);
       }
     }
   };
@@ -1474,6 +1530,7 @@ function App() {
         setShowModal(false);
         setEditingOccurrence(null);
       }
+      await reavaliarCorAluno(selectedStudentId);
     }
   };
 
@@ -1909,6 +1966,7 @@ function App() {
       if (!fetchError) {
         setNotes(newData || []);
       }
+      await reavaliarCorAluno(selectedStudentId);
     }
   };
 
@@ -2082,6 +2140,8 @@ function App() {
   };
 
   const handleCancelSondagemModal = () => {
+    savingSondagemRef.current = false;
+    setSavingSondagem(false);
     setShowSondagemModal(false);
     setEditingSondagem(null);
     setSondagemFormData({
@@ -2110,11 +2170,15 @@ function App() {
   const handleSaveSondagem = async (e) => {
     e.preventDefault();
     if (!selectedStudentId) return;
+    if (savingSondagemRef.current) return;
     if (!sondagemFormData.nivel_escrita || !sondagemFormData.nivel_leitura) {
       alert('Preencha nível de escrita e nível de leitura.');
       return;
     }
+
+    savingSondagemRef.current = true;
     setSavingSondagem(true);
+
     const payload = {
       aluno_id: selectedStudentId,
       data: sondagemFormData.data,
@@ -2126,8 +2190,9 @@ function App() {
       ? await supabase.from('sondagens').update(payload).eq('id', editingSondagem.id).select()
       : await supabase.from('sondagens').insert([payload]).select();
     if (error) {
-      setSavingSondagem(false);
       alert('Erro ao salvar sondagem: ' + error.message);
+      savingSondagemRef.current = false;
+      setSavingSondagem(false);
       return;
     }
     const sondagemId = (data && data[0] && data[0].id) || editingSondagem?.id;
@@ -2143,8 +2208,9 @@ function App() {
           .from(BUCKET_SONDAGENS)
           .upload(filePath, sondagemFormData.foto_file, { cacheControl: '3600', upsert: true });
         if (uploadError) {
-          setSavingSondagem(false);
           alert('Erro ao enviar foto: ' + (uploadError.message || uploadError).toString() + '\n\nVerifique: Storage > bucket "sondagens-anexos" existe e tem políticas de INSERT e UPDATE.');
+          savingSondagemRef.current = false;
+          setSavingSondagem(false);
           return;
         }
         const { data: urlData } = supabase.storage.from(BUCKET_SONDAGENS).getPublicUrl(filePath);
@@ -2157,8 +2223,9 @@ function App() {
           .from(BUCKET_SONDAGENS)
           .upload(filePath, sondagemFormData.audio_file, { cacheControl: '3600', upsert: true });
         if (uploadError) {
-          setSavingSondagem(false);
           alert('Erro ao enviar áudio: ' + (uploadError.message || uploadError).toString() + '\n\nVerifique: Storage > bucket "sondagens-anexos" existe e tem políticas de INSERT e UPDATE.');
+          savingSondagemRef.current = false;
+          setSavingSondagem(false);
           return;
         }
         const { data: urlData } = supabase.storage.from(BUCKET_SONDAGENS).getPublicUrl(filePath);
@@ -2171,8 +2238,9 @@ function App() {
           .from(BUCKET_SONDAGENS)
           .upload(filePath, sondagemFormData.arquivo_file, { cacheControl: '3600', upsert: true });
         if (uploadError) {
-          setSavingSondagem(false);
           alert('Erro ao enviar arquivo: ' + (uploadError.message || uploadError).toString() + '\n\nVerifique: Storage > bucket "sondagens-anexos" existe e tem políticas de INSERT e UPDATE.');
+          savingSondagemRef.current = false;
+          setSavingSondagem(false);
           return;
         }
         const { data: urlData } = supabase.storage.from(BUCKET_SONDAGENS).getPublicUrl(filePath);
@@ -2186,7 +2254,6 @@ function App() {
       await supabase.from('sondagens').update(updatePayload).eq('id', sondagemId).select();
     }
 
-    setSavingSondagem(false);
     setShowSondagemModal(false);
     setEditingSondagem(null);
     setSondagemFormData({
@@ -2208,6 +2275,11 @@ function App() {
       .eq('aluno_id', selectedStudentId)
       .order('data', { ascending: false });
     setSondagens(freshData || []);
+
+    await reavaliarCorAluno(selectedStudentId);
+
+    savingSondagemRef.current = false;
+    setSavingSondagem(false);
   };
 
   const handleDeleteSondagem = async (sondagem) => {
@@ -2220,6 +2292,7 @@ function App() {
       return;
     }
     setSondagens((prev) => prev.filter((s) => s.id !== sondagem.id));
+    await reavaliarCorAluno(selectedStudentId);
   };
 
   // Funções CRUD de Escolas
@@ -3540,6 +3613,23 @@ function App() {
     return (a.nome || '').localeCompare(b.nome || '', 'pt-BR');
   });
 
+  const studentNavTurmaId = selectedClassId || selectedStudent?.turma_id;
+  const studentNavList = studentNavTurmaId
+    ? [...students]
+        .filter((a) => String(a.turma_id) === String(studentNavTurmaId))
+        .sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'))
+    : sortedFilteredStudents;
+  const studentNavIndex = studentNavList.findIndex((a) => String(a.id) === String(selectedStudentId));
+  const canNavigateStudentPrev = studentNavIndex > 0;
+  const canNavigateStudentNext =
+    studentNavIndex >= 0 && studentNavIndex < studentNavList.length - 1;
+
+  const navigateAdjacentStudent = (delta) => {
+    if (studentNavIndex < 0) return;
+    const next = studentNavList[studentNavIndex + delta];
+    if (next) selectStudent(next, { keepTab: true });
+  };
+
   const filteredTeachers = teachers.filter((p) =>
     (p.nome || '').toLowerCase().includes(teacherSearchTerm.toLowerCase()) ||
     (p.disciplina || '').toLowerCase().includes(teacherSearchTerm.toLowerCase())
@@ -4049,6 +4139,8 @@ function App() {
                   const { data } = await supabase.from('alunos').select('*').eq('turma_id', selectedClassId);
                   if (data) setStudents(data);
                 }}
+                reavaliarCorAluno={reavaliarCorAluno}
+                onSondagensImportadas={() => {}}
               />
             )}
 
@@ -4157,11 +4249,11 @@ function App() {
                       }}
                     >
                       <option value="">Todas as cores</option>
-                      <option value="verde">Verde</option>
-                      <option value="amarelo">Amarelo</option>
-                      <option value="vermelho">Vermelho</option>
-                      <option value="roxo">Roxo</option>
-                      <option value="azul">Azul</option>
+                      <option value="verde">Verde (Avançado)</option>
+                      <option value="azul">Azul (Adequado)</option>
+                      <option value="amarelo">Amarelo (Atenção)</option>
+                      <option value="vermelho">Vermelho (Risco)</option>
+                      <option value="roxo">Roxo (AEE)</option>
                     </select>
                   </div>
                 </div>
@@ -4207,15 +4299,15 @@ function App() {
                             onClick={() => selectStudent(aluno)}
                           >
                             {aluno.etiqueta_cor === 'roxo' ? (
-                              <i className="fas fa-wheelchair" style={{ color: '#9c27b0', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Educação Especial" />
+                              <i className="fas fa-wheelchair" style={{ color: '#9c27b0', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="AEE" />
                             ) : aluno.etiqueta_cor === 'vermelho' ? (
-                              <i className="fas fa-exclamation-triangle" style={{ color: '#dc3545', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Prioridade" />
+                              <i className="fas fa-exclamation-triangle" style={{ color: '#dc3545', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Risco" />
                             ) : aluno.etiqueta_cor === 'amarelo' ? (
                               <i className="fas fa-exclamation-circle" style={{ color: '#ffc107', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Atenção" />
                             ) : aluno.etiqueta_cor === 'verde' ? (
                               <i className="fas fa-star" style={{ color: '#28a745', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Avançado" />
                             ) : (
-                              <i className="fas fa-user" style={{ color: '#007bff', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Regular" />
+                              <i className="fas fa-user" style={{ color: '#007bff', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Adequado" />
                             )}
                             <div>
                               <strong>{aluno.nome}</strong>
@@ -4230,14 +4322,14 @@ function App() {
                           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                             <span className={`badge ${badgeClass}`}>
                               {aluno.etiqueta_cor === 'vermelho'
-                                ? 'Prioridade'
+                                ? 'Risco'
                                 : aluno.etiqueta_cor === 'amarelo'
                                 ? 'Atenção'
                                 : aluno.etiqueta_cor === 'verde'
                                 ? 'Avançado'
                                 : aluno.etiqueta_cor === 'roxo'
-                                ? 'Educação Especial'
-                                : 'Regular'}
+                                ? 'AEE'
+                                : 'Adequado'}
                             </span>
                             <button
                               onClick={(e) => {
@@ -4324,6 +4416,12 @@ function App() {
               <StudentDetailView
                 navigate={navigate}
                 selectedClassId={selectedClassId}
+                studentNavIndex={studentNavIndex}
+                studentNavTotal={studentNavList.length}
+                canNavigateStudentPrev={canNavigateStudentPrev}
+                canNavigateStudentNext={canNavigateStudentNext}
+                onNavigateStudentPrev={() => navigateAdjacentStudent(-1)}
+                onNavigateStudentNext={() => navigateAdjacentStudent(1)}
                 selectedStudent={selectedStudent}
                 classes={classes}
                 getBadgeColorClass={getBadgeColorClass}
@@ -4349,6 +4447,7 @@ function App() {
                 aeeDocuments={aeeDocuments}
                 handleDownloadDocument={handleDownloadDocument}
                 handleDeleteDocument={handleDeleteDocument}
+                reavaliarCorAluno={reavaliarCorAluno}
               />
             )}
 
@@ -4487,11 +4586,9 @@ function App() {
               </div>
             )}
 
-            {/* Settings placeholder */}
+            {/* Settings */}
             {currentView === 'settings' && (
-              <div className="view-section">
-                <p>Conteúdo de settings ainda não implementado.</p>
-              </div>
+              <SettingsView activeSchoolId={activeSchoolId} supabase={supabase} />
             )}
           </main>
         </div>

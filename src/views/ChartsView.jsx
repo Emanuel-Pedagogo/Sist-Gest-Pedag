@@ -68,7 +68,7 @@ const ChartsView = ({
       ) : (
         <>
           {(() => {
-            const etiquetaLabels = { azul: 'Regular', verde: 'Avançado', amarelo: 'Atenção', vermelho: 'Prioridade', roxo: 'AEE' };
+            const etiquetaLabels = { azul: 'Adequado', verde: 'Avançado', amarelo: 'Atenção', vermelho: 'Risco', roxo: 'AEE' };
             const etiquetaCores = { azul: '#3498DB', verde: '#2ecc71', amarelo: '#f1c40f', vermelho: '#e74c3c', roxo: '#9b59b6' };
             const ordemEtiquetas = ['azul', 'verde', 'amarelo', 'vermelho', 'roxo'];
             const byEtiqueta = chartDataList.reduce((acc, a) => {

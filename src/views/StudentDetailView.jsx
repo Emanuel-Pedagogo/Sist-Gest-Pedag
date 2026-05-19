@@ -1,9 +1,92 @@
-import React from 'react';
+import React, { useState } from 'react';
 import BoletimView from '../BoletimView';
+import StudentResumoTab from '../components/student/StudentResumoTab';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
+
+const NIVEL_ESCRITA_OPCOES_1_2 = [
+  'PRÉ-SILÁBICO',
+  'SILÁBICO SEM VALOR SONORO',
+  'SILÁBICO COM VALOR SONORO',
+  'SILÁBICO ALFABÉTICO',
+  'ALFABÉTICO',
+];
+const NIVEL_LEITURA_OPCOES_1_2 = [
+  'PRÉ – LEITOR 1',
+  'PRÉ – LEITOR 2',
+  'PRÉ – LEITOR 3',
+  'PRÉ – LEITOR 4',
+  'LEITOR INICIANTE',
+  'LEITOR FLUENTE',
+];
+
+const NIVEL_ESCRITA_OPCOES_3_5 = [
+  'ESCREVE PALAVRAS NÃO ORTOGRÁFICAS',
+  'ESCREVE PALAVRAS ORTOGRÁFICAS',
+  'ESCREVE FRASES NÃO COESAS',
+  'ESCREVE FRASES COESAS',
+  'ESCREVE TEXTOS NÃO COESOS',
+  'ESCREVE TEXTOS COESOS',
+];
+const NIVEL_LEITURA_OPCOES_3_5 = [
+  'PRÉ-LEITOR',
+  'LEITOR DE PALAVRAS SEM FLUÊNCIA',
+  'LEITOR DE PALAVRAS COM FLUÊNCIA',
+  'LEITOR DE TEXTO SEM FLUÊNCIA',
+  'LEITOR DE TEXTO COM FLUÊNCIA',
+  'LEITOR COM FLUÊNCIA, RESPEITA RITMO, INTENSIDADE E ENTONAÇÃO',
+];
+
+const NIVEL_ESCRITA_OPCOES_FUNDAMENTAL2 = [
+  'Não Ortográfica',
+  'Escreve Palavras Ortográficas',
+  'Escreve Frases não Coesas',
+  'Não Escreve Textos Coesos',
+  'Escreve Textos Coesos',
+];
+const NIVEL_LEITURA_OPCOES_FUNDAMENTAL2 = [
+  'Pré-Leitor',
+  'Leitor de Palavras sem Fluência',
+  'Leitor de Palavras com Fluência',
+  'Leitor de Frases sem Fluência',
+  'Leitor de Frases com Fluência',
+  'Leitor de Texto sem Fluência',
+  'Leitor de Texto com Fluência',
+  'Leitor com Fluência, Respeita Ritmo, Intensidade e Entonação',
+];
+
+const navBtnStyle = (enabled) => ({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '8px 14px',
+  border: '1px solid #ddd',
+  borderRadius: 8,
+  background: 'white',
+  color: enabled ? 'var(--primary)' : '#aaa',
+  cursor: enabled ? 'pointer' : 'not-allowed',
+  fontSize: '0.9em',
+  fontWeight: 500,
+  opacity: enabled ? 1 : 0.65,
+});
 
 const StudentDetailView = ({
   navigate,
   selectedClassId,
+  studentNavIndex = -1,
+  studentNavTotal = 0,
+  canNavigateStudentPrev = false,
+  canNavigateStudentNext = false,
+  onNavigateStudentPrev,
+  onNavigateStudentNext,
   selectedStudent,
   classes,
   getBadgeColorClass,
@@ -29,11 +112,101 @@ const StudentDetailView = ({
   aeeDocuments,
   handleDownloadDocument,
   handleDeleteDocument,
+  reavaliarCorAluno,
 }) => {
+  const [sondagemViewMode, setSondagemViewMode] = useState('chart');
+
+  const getSondagemNivelSet = () => {
+    if (!selectedStudent?.turma_id) return '1-2';
+    const turma = (classes || []).find((c) => String(c.id) === String(selectedStudent.turma_id));
+    if (!turma) return '1-2';
+    const nome = (turma.nome || '').toLowerCase();
+    const anoEscolar = turma.ano_escolar ?? turma.ano;
+    const anos = Array.isArray(anoEscolar) ? anoEscolar : anoEscolar != null ? [anoEscolar] : [];
+    const temAno69 = nome.match(/\b[6-9]º?\b/) || anos.some((a) => [6, 7, 8, 9].includes(Number(a)));
+    if (temAno69) return '6-9';
+    const temAno35 = nome.match(/\b[3-5]º?\b/) || anos.some((a) => [3, 4, 5].includes(Number(a)));
+    if (temAno35) return '3-5';
+    return '1-2';
+  };
+
+  const nivelSet = getSondagemNivelSet();
+  const opcoesLeitura = nivelSet === '3-5' ? NIVEL_LEITURA_OPCOES_3_5 : nivelSet === '6-9' ? NIVEL_LEITURA_OPCOES_FUNDAMENTAL2 : NIVEL_LEITURA_OPCOES_1_2;
+  const opcoesEscrita = nivelSet === '3-5' ? NIVEL_ESCRITA_OPCOES_3_5 : nivelSet === '6-9' ? NIVEL_ESCRITA_OPCOES_FUNDAMENTAL2 : NIVEL_ESCRITA_OPCOES_1_2;
+
+  const chartData = [...(sondagens || [])]
+    .sort((a, b) => new Date(a.data) - new Date(b.data))
+    .map((s) => {
+      const leituraIndex = opcoesLeitura.indexOf(s.nivel_leitura);
+      const escritaIndex = opcoesEscrita.indexOf(s.nivel_escrita);
+      return {
+        ...s,
+        dataFormatada: s.data ? formatDate(s.data) : '-',
+        nivelLeituraNum: leituraIndex >= 0 ? leituraIndex : null,
+        nivelEscritaNum: escritaIndex >= 0 ? escritaIndex : null,
+      };
+    });
+
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      return (
+        <div style={{ background: 'white', padding: 10, border: '1px solid #ccc', borderRadius: 5 }}>
+          <p style={{ margin: 0, fontWeight: 'bold' }}>{label}</p>
+          {payload.map((p, index) => {
+            const val = p.dataKey === 'nivelLeituraNum' ? opcoesLeitura[p.value] : opcoesEscrita[p.value];
+            return (
+              <p key={index} style={{ margin: 0, color: p.color }}>
+                {p.name}: {val || 'Não informado'}
+              </p>
+            );
+          })}
+        </div>
+      );
+    }
+    return null;
+  };
   return (
     <div id="view-student-detail" className="view-section">
-      <div className="breadcrumb" onClick={() => navigate(selectedClassId ? 'classes' : 'students')}>
-        <i className="fas fa-arrow-left" /> Voltar para Lista
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 12,
+          marginBottom: 15,
+        }}
+      >
+        <div className="breadcrumb" onClick={() => navigate(selectedClassId ? 'classes' : 'students')}>
+          <i className="fas fa-arrow-left" /> Voltar para Lista
+        </div>
+        {studentNavTotal > 1 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={onNavigateStudentPrev}
+              disabled={!canNavigateStudentPrev}
+              style={navBtnStyle(canNavigateStudentPrev)}
+              title="Aluno anterior na turma"
+            >
+              <i className="fas fa-chevron-left" />
+              Anterior
+            </button>
+            <span style={{ fontSize: '0.9em', color: 'var(--text-light)', minWidth: 72, textAlign: 'center' }}>
+              {studentNavIndex >= 0 ? `${studentNavIndex + 1} de ${studentNavTotal}` : `— de ${studentNavTotal}`}
+            </span>
+            <button
+              type="button"
+              onClick={onNavigateStudentNext}
+              disabled={!canNavigateStudentNext}
+              style={navBtnStyle(canNavigateStudentNext)}
+              title="Próximo aluno na turma"
+            >
+              Próximo
+              <i className="fas fa-chevron-right" />
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="student-header">
@@ -137,6 +310,7 @@ const StudentDetailView = ({
             onEtiquetaAtualizada={(novaCor) => {
               setSelectedStudent((prev) => (prev ? { ...prev, etiqueta_cor: novaCor } : null));
             }}
+            reavaliarCorAluno={reavaliarCorAluno}
           />
         </div>
       )}
@@ -144,31 +318,17 @@ const StudentDetailView = ({
       {/* Tab Resumo */}
       {currentTab === 'resumo' && (
         <div id="tab-resumo" className="tab-content active">
-          <div className="cards-grid">
-            <div className="card">
-              <h4>Frequência Geral</h4>
-              <div className="number" style={{ color: 'var(--danger)' }}>
-                {selectedStudent?.frequencia != null
-                  ? `${selectedStudent.frequencia}%`
-                  : 'N/D'}
-              </div>
-              <small>
-                {selectedStudent?.frequencia != null && selectedStudent.frequencia < 85
-                  ? 'Abaixo da meta de 85%'
-                  : 'Meta de frequência: 85%'}
-              </small>
-            </div>
-            <div className="card">
-              <h4>Nível de Leitura (Alfabetiza Pará)</h4>
-              <div
-                className="number"
-                style={{ fontSize: '1.5em', color: 'var(--warning)' }}
-              >
-                {selectedStudent?.nivel_leitura || 'Não informado'}
-              </div>
-              <small>Fonte: Avaliações Alfabetiza Pará</small>
-            </div>
-          </div>
+          <StudentResumoTab
+            selectedStudent={selectedStudent}
+            turmaNome={classes.find((c) => String(c.id) === String(selectedStudent?.turma_id))?.nome}
+            occurrences={occurrences}
+            occurrencesLoading={occurrencesLoading}
+            occurrencesError={occurrencesError}
+            sondagens={sondagens}
+            sondagensLoading={sondagensLoading}
+            formatDate={formatDate}
+            switchTab={switchTab}
+          />
         </div>
       )}
 
@@ -280,7 +440,41 @@ const StudentDetailView = ({
               alignItems: 'center',
             }}
           >
-            <h3>Sondagens</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
+              <h3 style={{ margin: 0 }}>Sondagens</h3>
+              <div style={{ display: 'flex', background: '#eee', borderRadius: 6, overflow: 'hidden' }}>
+                <button
+                  type="button"
+                  onClick={() => setSondagemViewMode('chart')}
+                  style={{
+                    padding: '6px 12px',
+                    border: 'none',
+                    background: sondagemViewMode === 'chart' ? 'var(--primary)' : 'transparent',
+                    color: sondagemViewMode === 'chart' ? 'white' : '#666',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    fontWeight: sondagemViewMode === 'chart' ? 'bold' : 'normal',
+                  }}
+                >
+                  <i className="fas fa-chart-line" style={{ marginRight: 5 }} /> Gráfico
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSondagemViewMode('list')}
+                  style={{
+                    padding: '6px 12px',
+                    border: 'none',
+                    background: sondagemViewMode === 'list' ? 'var(--primary)' : 'transparent',
+                    color: sondagemViewMode === 'list' ? 'white' : '#666',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    fontWeight: sondagemViewMode === 'list' ? 'bold' : 'normal',
+                  }}
+                >
+                  <i className="fas fa-list" style={{ marginRight: 5 }} /> Lista
+                </button>
+              </div>
+            </div>
             <button
               type="button"
               className="btn-primary"
@@ -296,7 +490,81 @@ const StudentDetailView = ({
           {sondagensError && (
             <p style={{ marginTop: 15, color: 'var(--danger)' }}>{sondagensError}</p>
           )}
-          {!sondagensLoading && !sondagensError && (
+          {!sondagensLoading && !sondagensError && sondagemViewMode === 'chart' && (
+            <div style={{ marginTop: 20, background: 'white', padding: 20, borderRadius: 8, border: '1px solid #eee' }}>
+              {chartData.length < 2 ? (
+                <div style={{ textAlign: 'center', padding: 40, color: '#666' }}>
+                  <i className="fas fa-chart-line" style={{ fontSize: '3em', color: '#ddd', marginBottom: 15 }} />
+                  <p>Adicione pelo menos duas sondagens para visualizar a evolução no gráfico.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: 24, alignItems: 'stretch' }}>
+                  {/* Gráfico de Leitura */}
+                  <div style={{ flex: '1 1 320px', minWidth: 280, height: 380 }}>
+                    <h4 style={{ textAlign: 'center', color: '#0d6efd', marginBottom: 15, marginTop: 0 }}>Evolução - Nível de Leitura</h4>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={chartData} margin={{ top: 10, right: 30, left: 10, bottom: 10 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="dataFormatada" tick={{ fontSize: 12 }} />
+                        <YAxis 
+                          domain={[0, opcoesLeitura.length - 1]}
+                          ticks={opcoesLeitura.map((_, i) => i)}
+                          tickFormatter={(value) => {
+                            const text = opcoesLeitura[value] || '';
+                            return text.length > 18 ? text.substring(0, 18) + '...' : text;
+                          }}
+                          width={130}
+                          tick={{ fontSize: 10, fill: '#0d6efd' }}
+                        />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Line 
+                          type="monotone" 
+                          dataKey="nivelLeituraNum" 
+                          name="Nível de Leitura" 
+                          stroke="#0d6efd" 
+                          strokeWidth={3}
+                          activeDot={{ r: 8 }} 
+                          connectNulls
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Gráfico de Escrita */}
+                  <div style={{ flex: '1 1 320px', minWidth: 280, height: 380 }}>
+                    <h4 style={{ textAlign: 'center', color: '#198754', marginBottom: 15, marginTop: 0 }}>Evolução - Nível de Escrita</h4>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={chartData} margin={{ top: 10, right: 30, left: 10, bottom: 10 }}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="dataFormatada" tick={{ fontSize: 12 }} />
+                        <YAxis 
+                          domain={[0, opcoesEscrita.length - 1]}
+                          ticks={opcoesEscrita.map((_, i) => i)}
+                          tickFormatter={(value) => {
+                            const text = opcoesEscrita[value] || '';
+                            return text.length > 18 ? text.substring(0, 18) + '...' : text;
+                          }}
+                          width={130}
+                          tick={{ fontSize: 10, fill: '#198754' }}
+                        />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Line 
+                          type="monotone" 
+                          dataKey="nivelEscritaNum" 
+                          name="Nível de Escrita" 
+                          stroke="#198754" 
+                          strokeWidth={3}
+                          activeDot={{ r: 8 }} 
+                          connectNulls
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          {!sondagensLoading && !sondagensError && sondagemViewMode === 'list' && (
             <table
               style={{
                 width: '100%',

@@ -1,0 +1,8 @@
+# Configuração mínima para Edge Functions (Gemini)
+# Documentação: https://supabase.com/docs/guides/functions
+
+[functions.extract-sondagens]
+verify_jwt = false
+
+[functions.generate-resumo-aluno]
+verify_jwt = false
