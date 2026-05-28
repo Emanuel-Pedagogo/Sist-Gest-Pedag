@@ -7,7 +7,8 @@ Este guia cobre as funcionalidades implementadas com **Gemini 2.5 Flash** via **
 | Fase | Recurso | Onde testar |
 |------|---------|-------------|
 | 1 | Importar sondagens por **foto da ficha** | Turmas → abrir turma → **Importar sondagens (IA)** |
-| 2 | **Resumo pedagógico** do aluno | Aluno → aba **Resumo** → **Gerar resumo** |
+| 2 | Importar **boletins da turma** por PDF (EducaMais) | Turmas → abrir turma → **Importar boletins (IA)** |
+| 3 | **Resumo pedagógico** do aluno | Aluno → aba **Resumo** → **Gerar resumo** |
 
 ---
 
@@ -43,6 +44,7 @@ supabase link --project-ref bzajsqxtaypgkejbmtxi
 supabase secrets set GEMINI_API_KEY=sua_chave_aqui
 
 supabase functions deploy extract-sondagens
+supabase functions deploy extract-boletins-pdf
 supabase functions deploy generate-resumo-aluno
 ```
 
@@ -103,7 +105,42 @@ Abra o endereço que o Vite mostrar (geralmente `http://localhost:5173`).
 
 ---
 
-## Teste B — Resumo pedagógico (IA)
+## Teste B — Importar boletins da turma (PDF)
+
+### Pré-requisitos
+
+- Turma com **alunos já cadastrados** (nomes/matrículas compatíveis com o PDF).
+- PDF do EducaMais com **todos os boletins da turma** (ex.: arquivo exportado “Todos.pdf”).
+- Edge Function `extract-boletins-pdf` em deploy.
+
+### Passos
+
+1. **Turmas** → clique na turma.
+2. Clique **Importar boletins (IA)** (botão vermelho, ao lado de sondagens).
+3. Selecione o PDF → **Extrair com IA**.
+4. Aguarde (pode levar 30–90 s em PDFs com várias páginas).
+5. Na revisão, vincule alunos não reconhecidos e confira disciplinas/faltas.
+6. **Salvar notas na turma**.
+7. Abra um aluno → aba **Boletim** → confira notas, RS1/RS2 e faltas do bimestre.
+
+### O que a IA extrai
+
+- Colunas **NT** (1º a 4º bimestre) por disciplina
+- **RS1** e **RS2** (recuperação semestral)
+- **Faltas do bimestre** (primeiros quatro números da tabela Faltas)
+- Ignora FA por disciplina, MD e TF
+
+### Erros comuns
+
+| Mensagem | Solução |
+|----------|---------|
+| Nenhum aluno encontrado no PDF | Confira se é boletim EducaMais completo da turma |
+| Aluno não vinculado | Selecione no dropdown ou cadastre antes |
+| Timeout / 413 | PDF muito grande; tente exportar só a turma ou aguarde e repita |
+
+---
+
+## Teste C — Resumo pedagógico (IA)
 
 ### Pré-requisitos
 
@@ -145,7 +182,8 @@ Preços: [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing).
 ## Próximas fases (ainda não implementadas)
 
 - Rascunho de ocorrência com IA
-- Fallback IA no import de boletim PDF
 - Assistente de configuração de etiquetas
+
+> Importação **individual** de boletim (um aluno) continua disponível na aba Boletim do aluno (PDF via regex, sem IA).
 
 Para pedir implementação, use o modo Agent no Cursor.

@@ -77,7 +77,7 @@ export function getOpcoesPorAnoSet(anoSet) {
   return { leitura: NIVEL_LEITURA_OPCOES_1_2, escrita: NIVEL_ESCRITA_OPCOES_1_2 };
 }
 
-function normalizeKey(s) {
+export function normalizeNivelKey(s) {
   return String(s || '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -85,6 +85,42 @@ function normalizeKey(s) {
     .replace(/\s+/g, ' ')
     .replace(/[–—-]/g, ' ')
     .trim();
+}
+
+/** Grupos para configuração de tags (descritores por etapa). */
+export const GRUPOS_NIVEIS_LEITURA = [
+  { id: '1-2', label: 'Pré I, Pré II, 1º e 2º ano', opcoes: NIVEL_LEITURA_OPCOES_1_2 },
+  { id: '3-5', label: '3º ao 5º ano', opcoes: NIVEL_LEITURA_OPCOES_3_5 },
+  { id: '6-9', label: '6º ao 9º ano', opcoes: NIVEL_LEITURA_OPCOES_FUNDAMENTAL2 },
+];
+
+export const GRUPOS_NIVEIS_ESCRITA = [
+  { id: '1-2', label: 'Pré I, Pré II, 1º e 2º ano', opcoes: NIVEL_ESCRITA_OPCOES_1_2 },
+  { id: '3-5', label: '3º ao 5º ano', opcoes: NIVEL_ESCRITA_OPCOES_3_5 },
+  { id: '6-9', label: '6º ao 9º ano', opcoes: NIVEL_ESCRITA_OPCOES_FUNDAMENTAL2 },
+];
+
+export const TODOS_NIVEIS_LEITURA = [
+  ...NIVEL_LEITURA_OPCOES_1_2,
+  ...NIVEL_LEITURA_OPCOES_3_5,
+  ...NIVEL_LEITURA_OPCOES_FUNDAMENTAL2,
+];
+
+export const TODOS_NIVEIS_ESCRITA = [
+  ...NIVEL_ESCRITA_OPCOES_1_2,
+  ...NIVEL_ESCRITA_OPCOES_3_5,
+  ...NIVEL_ESCRITA_OPCOES_FUNDAMENTAL2,
+];
+
+/** Verifica se o valor da sondagem coincide com algum critério salvo (ignora caixa/acentos). */
+export function nivelMatchesLista(valor, lista) {
+  if (!valor || !lista?.length) return false;
+  const key = normalizeNivelKey(valor);
+  return lista.some((item) => normalizeNivelKey(item) === key);
+}
+
+function normalizeKey(s) {
+  return normalizeNivelKey(s);
 }
 
 /** Encontra a opção oficial mais próxima ou retorna null. */

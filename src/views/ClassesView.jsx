@@ -1,7 +1,11 @@
 import React, { useState } from 'react';
 import ImportarListaAlunos from '../ImportarListaAlunos';
 import ImportarSondagemFoto from '../ImportarSondagemFoto';
+import ImportarBoletimTurma from '../ImportarBoletimTurma';
 import ClassDashboardView from './ClassDashboardView';
+import DiarioFrequenciaEspecialView from './DiarioFrequenciaEspecialView';
+import { isTurmaEspecial } from '../utils/turmas';
+import AlunoListSubtitle from '../components/AlunoListSubtitle';
 
 const ClassesView = ({
   selectedClassId,
@@ -44,10 +48,12 @@ const ClassesView = ({
   handleDeleteClass,
   onListaAlunosImportada,
   onSondagensImportadas,
+  onBoletinsImportados,
   reavaliarCorAluno,
 }) => {
   const [showImportLista, setShowImportLista] = useState(false);
   const [showImportSondagem, setShowImportSondagem] = useState(false);
+  const [showImportBoletim, setShowImportBoletim] = useState(false);
   const [showEditAlunoPicker, setShowEditAlunoPicker] = useState(false);
   const [alunoParaEditarId, setAlunoParaEditarId] = useState('');
   const [activeTab, setActiveTab] = useState('alunos');
@@ -57,6 +63,9 @@ const ClassesView = ({
   );
 
   const turmaAtual = (classesList || []).find((c) => String(c.id) === String(selectedClassId));
+  const turmaEspecial = isTurmaEspecial(turmaAtual);
+  const turmaNomePorId = (turmaId) =>
+    (classesList || []).find((c) => String(c.id) === String(turmaId))?.nome || 'Turma';
 
   return (
     <div id="view-classes" className="view-section">
@@ -102,6 +111,8 @@ const ClassesView = ({
               {selectedClassName}
             </h2>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'flex-end' }}>
+              {!turmaEspecial && (
+                <>
               <button
                 type="button"
                 className="btn-secondary"
@@ -119,6 +130,7 @@ const ClassesView = ({
                 }}
                 onClick={() => {
                   setShowImportSondagem(false);
+                  setShowImportBoletim(false);
                   setShowImportLista((v) => !v);
                 }}
               >
@@ -144,6 +156,7 @@ const ClassesView = ({
                 disabled={students.length === 0}
                 onClick={() => {
                   setShowImportLista(false);
+                  setShowImportBoletim(false);
                   setShowImportSondagem((v) => !v);
                 }}
                 title="Foto da ficha de sondagem (Gemini)"
@@ -151,6 +164,35 @@ const ClassesView = ({
                 <i className="fas fa-camera" />
                 Importar sondagens (IA)
               </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '10px 16px',
+                  border: '1px solid #fecaca',
+                  borderRadius: 8,
+                  background: showImportBoletim ? '#fee2e2' : 'white',
+                  color: '#b91c1c',
+                  fontWeight: 600,
+                  cursor: students.length === 0 ? 'not-allowed' : 'pointer',
+                  opacity: students.length === 0 ? 0.6 : 1,
+                }}
+                disabled={students.length === 0}
+                onClick={() => {
+                  setShowImportLista(false);
+                  setShowImportSondagem(false);
+                  setShowImportBoletim((v) => !v);
+                }}
+                title="PDF do boletim da turma (EducaMais, Gemini)"
+              >
+                <i className="fas fa-file-pdf" />
+                Importar boletins (IA)
+              </button>
+                </>
+              )}
               <button
                 type="button"
                 className="btn-secondary"
@@ -198,7 +240,7 @@ const ClassesView = ({
                 }}
               >
                 <i className="fas fa-plus" style={{ marginRight: 5 }} />
-                Novo Aluno
+                {isTurmaEspecial(turmaAtual) ? 'Adicionar Aluno' : 'Novo Aluno'}
               </button>
             </div>
           </div>
@@ -216,7 +258,24 @@ const ClassesView = ({
             >
               Dashboard da Turma
             </button>
+            {turmaEspecial && (
+              <button
+                className={`tab ${activeTab === 'diario' ? 'active' : ''}`}
+                onClick={() => setActiveTab('diario')}
+              >
+                Diário de Classe
+              </button>
+            )}
           </div>
+
+          {activeTab === 'diario' && turmaEspecial && (
+            <DiarioFrequenciaEspecialView
+              turmaId={selectedClassId}
+              turmaNome={selectedClassName}
+              students={students}
+              classesList={classesList}
+            />
+          )}
 
           {activeTab === 'dashboard' && (
             <ClassDashboardView
@@ -228,7 +287,7 @@ const ClassesView = ({
 
           {activeTab === 'alunos' && (
             <>
-              {showImportLista && (
+              {showImportLista && !turmaEspecial && (
             <ImportarListaAlunos
               turmaId={selectedClassId}
               onImportComplete={() => {
@@ -238,7 +297,7 @@ const ClassesView = ({
             />
           )}
 
-          {showImportSondagem && (
+          {showImportSondagem && !turmaEspecial && (
             <ImportarSondagemFoto
               turmaId={selectedClassId}
               turma={turmaAtual}
@@ -247,6 +306,19 @@ const ClassesView = ({
               onImportComplete={() => {
                 setShowImportSondagem(false);
                 if (onSondagensImportadas) onSondagensImportadas();
+              }}
+            />
+          )}
+
+          {showImportBoletim && !turmaEspecial && (
+            <ImportarBoletimTurma
+              turmaId={selectedClassId}
+              turmaNome={selectedClassName}
+              students={students}
+              reavaliarCorAluno={reavaliarCorAluno}
+              onImportComplete={() => {
+                setShowImportBoletim(false);
+                if (onBoletinsImportados) onBoletinsImportados();
               }}
             />
           )}
@@ -434,9 +506,17 @@ const ClassesView = ({
                       )}
                       <div>
                         <strong>{aluno.nome}</strong>
-                        <div style={{ fontSize: '0.8em', color: 'gray' }}>
-                          Frequência: {aluno.frequencia != null ? `${aluno.frequencia}%` : 'N/D'} • Nível de leitura: {aluno.nivel_leitura || 'Não informado'}
-                        </div>
+                        <AlunoListSubtitle
+                          aluno={aluno}
+                          turmaEspecial={turmaEspecial}
+                          turmaRegularNome={turmaEspecial ? turmaNomePorId(aluno.turma_id) : undefined}
+                          professorNome={
+                            turmaEspecial
+                              ? (classesList || []).find((c) => String(c.id) === String(aluno.turma_id))
+                                  ?.professor_regente
+                              : turmaAtual?.professor_regente
+                          }
+                        />
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -471,9 +551,10 @@ const ClassesView = ({
                           e.stopPropagation();
                           handleDeleteStudent(aluno.id);
                         }}
+                        title={turmaEspecial ? 'Remover da turma especial' : 'Excluir aluno'}
                         style={{ background: 'var(--danger)', color: 'white', border: 'none', padding: '8px 12px', borderRadius: 6, cursor: 'pointer' }}
                       >
-                        <i className="fas fa-trash" />
+                        <i className={turmaEspecial ? 'fas fa-user-minus' : 'fas fa-trash'} />
                       </button>
                     </div>
                   </div>
@@ -505,19 +586,13 @@ const ClassesView = ({
                 setEditingClass(null);
                 setClassFormData({
                   nome: '',
-                  ano: '',
+                  ano: [],
                   codigo: '',
                   professor_regente: '',
                   aluno_representante: '',
-                });
-                setClassFormData({ 
-                  nome: '', 
-                  ano: [], 
-                  codigo: '', 
-                  professor_regente: '', 
-                  aluno_representante: '', 
-                  escola_id: activeSchoolId || '', 
-                  ano_letivo: selectedYear 
+                  escola_id: activeSchoolId || '',
+                  ano_letivo: selectedYear,
+                  turma_especial: false,
                 });
                 setShowClassModal(true);
               }}
@@ -575,7 +650,25 @@ const ClassesView = ({
                     style={{ flex: 1, cursor: 'pointer' }}
                     onClick={() => selectClass(turma)}
                   >
-                    <strong style={{ fontSize: '1.1em', display: 'block', marginBottom: 6 }}>{turma.nome}</strong>
+                    <strong style={{ fontSize: '1.1em', display: 'block', marginBottom: 6 }}>
+                      {turma.nome}
+                      {isTurmaEspecial(turma) && (
+                        <span
+                          style={{
+                            marginLeft: 8,
+                            fontSize: '0.7em',
+                            fontWeight: 600,
+                            color: '#5b21b6',
+                            background: '#ede9fe',
+                            padding: '2px 8px',
+                            borderRadius: 4,
+                            verticalAlign: 'middle',
+                          }}
+                        >
+                          Especial
+                        </span>
+                      )}
+                    </strong>
                     <div style={{ fontSize: '0.85em', color: '#666', lineHeight: '1.6' }}>
                       {/* Linha 1: Escola, Ano Letivo, Código, Professor e Representante */}
                       <div style={{ marginBottom: 4 }}>

@@ -1,5 +1,64 @@
 import React, { useState, useEffect } from 'react';
 import { evaluateStudentColor } from '../utils/studentColorEvaluator';
+import {
+  GRUPOS_NIVEIS_LEITURA,
+  GRUPOS_NIVEIS_ESCRITA,
+  TODOS_NIVEIS_LEITURA,
+  TODOS_NIVEIS_ESCRITA,
+  matchNivelOficial,
+  normalizeNivelKey,
+} from '../utils/sondagemNiveis';
+
+const migrateNiveisSalvos = (lista, todasOpcoes) =>
+  [...new Set(
+    (lista || [])
+      .map((v) => matchNivelOficial(v, todasOpcoes) || v)
+      .filter(Boolean),
+  )];
+
+const checkboxGroupStyle = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 10,
+  padding: 10,
+  border: '1px solid #eee',
+  borderRadius: 4,
+};
+
+const NivelCheckboxGrupos = ({ grupos, field, selecionados, onToggle }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+    {grupos.map((grupo) => (
+      <div key={grupo.id}>
+        <h5 style={{ margin: '0 0 8px', fontSize: '0.95em', color: '#444' }}>{grupo.label}</h5>
+        <div style={checkboxGroupStyle}>
+          {grupo.opcoes.map((nivel) => (
+            <label
+              key={nivel}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                fontSize: '0.9em',
+                background: '#f9f9f9',
+                padding: '4px 8px',
+                borderRadius: 4,
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={(selecionados || []).some(
+                  (sel) => normalizeNivelKey(sel) === normalizeNivelKey(nivel),
+                )}
+                onChange={() => onToggle(field, nivel)}
+              />
+              {nivel}
+            </label>
+          ))}
+        </div>
+      </div>
+    ))}
+  </div>
+);
 
 const SettingsView = ({ activeSchoolId, supabase }) => {
   const [loading, setLoading] = useState(false);
@@ -24,28 +83,20 @@ const SettingsView = ({ activeSchoolId, supabase }) => {
 
   const tiposOcorrencia = ['Comportamental', 'Pedagógico', 'Saúde', 'Outros'];
 
-  // Agrupando todas as opções de leitura e escrita para o seletor
-  const niveisLeitura = [
-    'PRÉ-SILÁBICO', 'SILÁBICO SEM VALOR SONORO', 'SILÁBICO COM VALOR SONORO', 'SILÁBICO ALFABÉTICO', 'ALFABÉTICO',
-    'PRÉ – LEITOR 1', 'PRÉ – LEITOR 2', 'PRÉ – LEITOR 3', 'PRÉ – LEITOR 4', 'LEITOR INICIANTE', 'LEITOR FLUENTE',
-    'PRÉ-LEITOR', 'LEITOR DE PALAVRAS SEM FLUÊNCIA', 'LEITOR DE PALAVRAS COM FLUÊNCIA', 'LEITOR DE TEXTO SEM FLUÊNCIA',
-    'LEITOR DE TEXTO COM FLUÊNCIA', 'LEITOR COM FLUÊNCIA, RESPEITA RITMO, INTENSIDADE E ENTONAÇÃO',
-    'Pré-Leitor', 'Leitor de Palavras sem Fluência', 'Leitor de Palavras com Fluência', 'Leitor de Frases sem Fluência',
-    'Leitor de Frases com Fluência', 'Leitor de Texto sem Fluência', 'Leitor de Texto com Fluência',
-    'Leitor com Fluência, Respeita Ritmo, Intensidade e Entonação'
-  ];
-
-  const niveisEscrita = [
-    'PRÉ-SILÁBICO', 'SILÁBICO SEM VALOR SONORO', 'SILÁBICO COM VALOR SONORO', 'SILÁBICO ALFABÉTICO', 'ALFABÉTICO',
-    'ESCREVE PALAVRAS NÃO ORTOGRÁFICAS', 'ESCREVE PALAVRAS ORTOGRÁFICAS', 'ESCREVE FRASES NÃO COESAS',
-    'ESCREVE FRASES COESAS', 'ESCREVE TEXTOS NÃO COESOS', 'ESCREVE TEXTOS COESOS',
-    'Não Ortográfica', 'Escreve Palavras Ortográficas', 'Escreve Frases não Coesas', 'Não Escreve Textos Coesos',
-    'Escreve Textos Coesos'
-  ];
-
-  // Remover duplicatas
-  const uniqueNiveisLeitura = [...new Set(niveisLeitura.map(n => n.toUpperCase()))];
-  const uniqueNiveisEscrita = [...new Set(niveisEscrita.map(n => n.toUpperCase()))];
+  const normalizarTagsConfig = (tags) => {
+    if (!tags) return tags;
+    const cores = ['vermelho', 'amarelo', 'verde', 'azul', 'roxo'];
+    const out = { ...tags };
+    for (const cor of cores) {
+      if (!out[cor]) continue;
+      out[cor] = {
+        ...out[cor],
+        niveisLeitura: migrateNiveisSalvos(out[cor].niveisLeitura, TODOS_NIVEIS_LEITURA),
+        niveisEscrita: migrateNiveisSalvos(out[cor].niveisEscrita, TODOS_NIVEIS_ESCRITA),
+      };
+    }
+    return out;
+  };
 
   useEffect(() => {
     if (activeSchoolId) {
@@ -70,8 +121,8 @@ const SettingsView = ({ activeSchoolId, supabase }) => {
         throw error;
       }
 
-      if (data && data.configuracoes && data.configuracoes.tags) {
-        setConfig(prev => ({ ...prev, ...data.configuracoes.tags }));
+      if (data?.configuracoes?.tags) {
+        setConfig((prev) => ({ ...prev, ...normalizarTagsConfig(data.configuracoes.tags) }));
       }
     } catch (error) {
       console.error('Erro ao carregar configurações:', error);
@@ -124,13 +175,17 @@ const SettingsView = ({ activeSchoolId, supabase }) => {
   const updateStudentsColors = async (tagConfig) => {
     try {
       // 1. Buscar todos os alunos da escola
-      const { data: turmas } = await supabase.from('turmas').select('id').eq('escola_id', activeSchoolId);
+      const { data: turmas } = await supabase
+        .from('turmas')
+        .select('id, nome, ano_escolar')
+        .eq('escola_id', activeSchoolId);
       if (!turmas || turmas.length === 0) return;
       const turmaIds = turmas.map(t => t.id);
+      const turmaById = Object.fromEntries(turmas.map((t) => [t.id, t]));
 
       const { data: alunos } = await supabase
         .from('alunos')
-        .select('id, etiqueta_cor')
+        .select('id, etiqueta_cor, turma_id')
         .in('turma_id', turmaIds);
 
       if (!alunos) return;
@@ -173,7 +228,11 @@ const SettingsView = ({ activeSchoolId, supabase }) => {
       
       for (const aluno of alunos) {
         const data = dataByAluno[aluno.id];
-        const newColor = evaluateStudentColor(tagConfig, data);
+        const turma = turmaById[aluno.turma_id];
+        const newColor = evaluateStudentColor(tagConfig, data, {
+          turmaNome: turma?.nome || '',
+          anoEscolar: turma?.ano_escolar ?? null,
+        });
         
         if (newColor !== aluno.etiqueta_cor) {
           updates.push({ id: aluno.id, etiqueta_cor: newColor });
@@ -204,18 +263,20 @@ const SettingsView = ({ activeSchoolId, supabase }) => {
   };
 
   const toggleArrayItem = (field, item) => {
-    setConfig(prev => {
+    setConfig((prev) => {
       const currentArray = prev[activeTab][field] || [];
-      const newArray = currentArray.includes(item)
-        ? currentArray.filter(i => i !== item)
+      const itemKey = normalizeNivelKey(item);
+      const exists = currentArray.some((i) => normalizeNivelKey(i) === itemKey);
+      const newArray = exists
+        ? currentArray.filter((i) => normalizeNivelKey(i) !== itemKey)
         : [...currentArray, item];
-        
+
       return {
         ...prev,
         [activeTab]: {
           ...prev[activeTab],
-          [field]: newArray
-        }
+          [field]: newArray,
+        },
       };
     });
   };
@@ -291,6 +352,10 @@ const SettingsView = ({ activeSchoolId, supabase }) => {
             
             <div style={{ marginTop: 20 }}>
               <h4>1. Média de Notas</h4>
+              <p style={{ fontSize: '0.85em', color: '#666', marginBottom: 10 }}>
+                Aplica-se do 2º ano em diante. Alunos de Pré I, Pré II e 1º ano recebem a etiqueta
+                apenas com base em nível de leitura, escrita e ocorrências.
+              </p>
               <div style={{ display: 'flex', gap: 15, alignItems: 'center', marginTop: 10 }}>
                 <div>
                   <label style={{ display: 'block', marginBottom: 5, fontSize: '0.9em' }}>Nota Mínima</label>
@@ -320,36 +385,28 @@ const SettingsView = ({ activeSchoolId, supabase }) => {
 
             <div style={{ marginTop: 30 }}>
               <h4>2. Níveis de Leitura</h4>
-              <p style={{ fontSize: '0.85em', color: '#666', marginBottom: 10 }}>Selecione os níveis que enquadram o aluno nesta tag.</p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, maxHeight: 150, overflowY: 'auto', padding: 10, border: '1px solid #eee', borderRadius: 4 }}>
-                {uniqueNiveisLeitura.map(nivel => (
-                  <label key={nivel} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.9em', background: '#f9f9f9', padding: '4px 8px', borderRadius: 4 }}>
-                    <input 
-                      type="checkbox" 
-                      checked={(currentConfig.niveisLeitura || []).includes(nivel)}
-                      onChange={() => toggleArrayItem('niveisLeitura', nivel)}
-                    />
-                    {nivel}
-                  </label>
-                ))}
-              </div>
+              <p style={{ fontSize: '0.85em', color: '#666', marginBottom: 12 }}>
+                Descritores iguais aos da sondagem, separados por etapa. Marque os níveis que enquadram o aluno nesta tag.
+              </p>
+              <NivelCheckboxGrupos
+                grupos={GRUPOS_NIVEIS_LEITURA}
+                field="niveisLeitura"
+                selecionados={currentConfig.niveisLeitura}
+                onToggle={toggleArrayItem}
+              />
             </div>
 
             <div style={{ marginTop: 30 }}>
               <h4>3. Níveis de Escrita</h4>
-              <p style={{ fontSize: '0.85em', color: '#666', marginBottom: 10 }}>Selecione os níveis que enquadram o aluno nesta tag.</p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, maxHeight: 150, overflowY: 'auto', padding: 10, border: '1px solid #eee', borderRadius: 4 }}>
-                {uniqueNiveisEscrita.map(nivel => (
-                  <label key={nivel} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: '0.9em', background: '#f9f9f9', padding: '4px 8px', borderRadius: 4 }}>
-                    <input 
-                      type="checkbox" 
-                      checked={(currentConfig.niveisEscrita || []).includes(nivel)}
-                      onChange={() => toggleArrayItem('niveisEscrita', nivel)}
-                    />
-                    {nivel}
-                  </label>
-                ))}
-              </div>
+              <p style={{ fontSize: '0.85em', color: '#666', marginBottom: 12 }}>
+                Descritores iguais aos da sondagem, separados por etapa.
+              </p>
+              <NivelCheckboxGrupos
+                grupos={GRUPOS_NIVEIS_ESCRITA}
+                field="niveisEscrita"
+                selecionados={currentConfig.niveisEscrita}
+                onToggle={toggleArrayItem}
+              />
             </div>
 
             <div style={{ marginTop: 30 }}>

@@ -1,4 +1,5 @@
 import React from 'react';
+import AlunoListSubtitle from '../components/AlunoListSubtitle';
 
 const StudentsView = ({
   selectedClassName,
@@ -177,7 +178,9 @@ const StudentsView = ({
           !studentsError &&
           sortedFilteredStudents.map((aluno) => {
             const badgeClass = getBadgeColorClass(aluno.etiqueta_cor);
-            const turmaNome = classesList.find((c) => String(c.id) === String(aluno.turma_id))?.nome || 'Turma não informada';
+            const turmaAluno = classesList.find((c) => String(c.id) === String(aluno.turma_id));
+            const turmaNome = turmaAluno?.nome || 'Turma não informada';
+            const professorNome = turmaAluno?.professor_regente;
             return (
               <div
                 key={aluno.id}
@@ -204,10 +207,12 @@ const StudentsView = ({
                   )}
                   <div>
                     <strong>{aluno.nome}</strong>
-                    <div style={{ fontSize: '0.8em', color: 'gray' }}>
-                      {!selectedClassName && <span>Turma: {turmaNome} • </span>}
-                      Frequência: {aluno.frequencia != null ? `${aluno.frequencia}%` : 'N/D'} • Nível de leitura: {aluno.nivel_leitura || 'Não informado'}
-                    </div>
+                    <AlunoListSubtitle
+                      aluno={aluno}
+                      showTurma={!selectedClassName}
+                      turmaNome={turmaNome}
+                      professorNome={professorNome}
+                    />
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>

@@ -225,7 +225,7 @@ const StudentResumoTab = ({
 
       <div className="cards-grid" style={{ marginBottom: 24 }}>
         <div className="card">
-          <h4>Frequência</h4>
+          <h4>Frequência escolar</h4>
           <div
             className="number"
             style={{
@@ -241,6 +241,8 @@ const StudentResumoTab = ({
             {selectedStudent?.frequencia != null && selectedStudent.frequencia < 85
               ? 'Abaixo da meta de 85%'
               : 'Meta: 85%'}
+            {' — '}
+            Turma de escolarização; não inclui turmas especiais voluntárias (ex.: Libras).
           </small>
         </div>
         <div className="card">

@@ -27,9 +27,19 @@ import SchoolModal from './components/modals/SchoolModal';
 import ClassModal from './components/modals/ClassModal';
 import StudentModal from './components/modals/StudentModal';
 import TeacherModal from './components/modals/TeacherModal';
+import { isTurmaEspecial } from './utils/turmas';
+import {
+  contarEtiquetasAlunos,
+  desvincularAlunoTurmaEspecial,
+  fetchAlunosDaTurma,
+  fetchAlunoIdsTurmaEspecial,
+  vincularAlunoTurmaEspecial,
+} from './utils/alunosTurmas';
+import AlunoListSubtitle from './components/AlunoListSubtitle';
 import SettingsView from './views/SettingsView';
 
-import { evaluateStudentColor } from './utils/studentColorEvaluator';
+import { evaluateStudentColor, getMotivoOrigemEtiqueta } from './utils/studentColorEvaluator';
+import { enrichAlunosEtiquetaMotivo } from './utils/alunosEtiquetaMotivo';
 
 function App() {
   // Data local em YYYY-MM-DD (evita dia anterior por timezone)
@@ -198,6 +208,7 @@ function App() {
     aluno_representante: '',
     escola_id: '',
     ano_letivo: 2026,
+    turma_especial: false,
   });
   const [savingClass, setSavingClass] = useState(false);
   const [classSearchTerm, setClassSearchTerm] = useState('');
@@ -222,6 +233,9 @@ function App() {
   const [uploadingDocument, setUploadingDocument] = useState(false);
   const [loadingDocuments, setLoadingDocuments] = useState(false);
   const [savingStudent, setSavingStudent] = useState(false);
+  const [schoolStudentsPicker, setSchoolStudentsPicker] = useState([]);
+  const [schoolStudentsPickerLoading, setSchoolStudentsPickerLoading] = useState(false);
+  const [vinculadosTurmaEspecialIds, setVinculadosTurmaEspecialIds] = useState(() => new Set());
   const [studentSearchTerm, setStudentSearchTerm] = useState('');
   const [filterStudentTurmaId, setFilterStudentTurmaId] = useState('');
   const [filterStudentEtiquetaCor, setFilterStudentEtiquetaCor] = useState('');
@@ -872,16 +886,12 @@ function App() {
         const counts = {};
         if (data && data.length > 0) {
           for (const turma of data) {
-            const { data: alunos } = await supabase
-              .from('alunos')
-              .select('etiqueta_cor')
-              .eq('turma_id', turma.id);
-            counts[turma.id] = {
-              verde: alunos?.filter((a) => a.etiqueta_cor === 'verde').length || 0,
-              amarelo: alunos?.filter((a) => a.etiqueta_cor === 'amarelo').length || 0,
-              vermelho: alunos?.filter((a) => a.etiqueta_cor === 'vermelho').length || 0,
-              azul: alunos?.filter((a) => a.etiqueta_cor === 'azul').length || 0,
-            };
+            try {
+              const alunos = await fetchAlunosDaTurma(supabase, turma.id, turma);
+              counts[turma.id] = contarEtiquetasAlunos(alunos);
+            } catch {
+              counts[turma.id] = { verde: 0, amarelo: 0, vermelho: 0, azul: 0 };
+            }
           }
         }
         setTurmaEtiquetasCount(counts);
@@ -916,16 +926,12 @@ function App() {
           // Buscar contagem de etiquetas para cada turma
           const counts = {};
           for (const turma of data) {
-            const { data: alunos } = await supabase
-              .from('alunos')
-              .select('etiqueta_cor')
-              .eq('turma_id', turma.id);
-            counts[turma.id] = {
-              verde: alunos?.filter((a) => a.etiqueta_cor === 'verde').length || 0,
-              amarelo: alunos?.filter((a) => a.etiqueta_cor === 'amarelo').length || 0,
-              vermelho: alunos?.filter((a) => a.etiqueta_cor === 'vermelho').length || 0,
-              azul: alunos?.filter((a) => a.etiqueta_cor === 'azul').length || 0,
-            };
+            try {
+              const alunos = await fetchAlunosDaTurma(supabase, turma.id, turma);
+              counts[turma.id] = contarEtiquetasAlunos(alunos);
+            } catch {
+              counts[turma.id] = { verde: 0, amarelo: 0, vermelho: 0, azul: 0 };
+            }
           }
           setTurmaEtiquetasCount(counts);
         }
@@ -1128,7 +1134,7 @@ function App() {
             .in('turma_id', turmaIds);
           
           if (!error && data) {
-            setStudents(data);
+            await applyStudentsLoaded(data);
           }
         }
         setStudentsLoading(false);
@@ -1146,9 +1152,28 @@ function App() {
       setStudentsLoading(true);
       setStudentsError(null);
       
+      const turmaCtx = selectedClassId
+        ? (classes || []).find((c) => String(c.id) === String(selectedClassId))
+        : null;
+      const turmaIdParaBusca =
+        selectedClassId || (currentView === 'student-detail' ? selectedStudent?.turma_id : null);
+
+      if (turmaIdParaBusca && isTurmaEspecial(turmaCtx)) {
+        try {
+          const alunos = await fetchAlunosDaTurma(supabase, turmaIdParaBusca, turmaCtx);
+          await applyStudentsLoaded(alunos);
+          setStudentsError(null);
+        } catch {
+          if (studentsCountRef.current === 0) {
+            setStudentsError('Erro ao carregar alunos da turma especial.');
+          }
+        }
+        setStudentsLoading(false);
+        return;
+      }
+
       let query;
-      
-      const turmaIdParaBusca = selectedClassId || (currentView === 'student-detail' ? selectedStudent?.turma_id : null);
+
       if (turmaIdParaBusca) {
         query = supabase.from('alunos').select('*').eq('turma_id', turmaIdParaBusca);
       } else if (schoolId) {
@@ -1180,7 +1205,7 @@ function App() {
           setStudentsError('Erro ao carregar alunos.');
         }
       } else {
-        setStudents(data || []);
+        await applyStudentsLoaded(data || []);
         setStudentsError(null);
       }
       setStudentsLoading(false);
@@ -1194,7 +1219,7 @@ function App() {
     ) {
       fetchStudents();
     }
-  }, [currentView, activeSchoolId, selectedSchoolId, selectedClassId, selectedStudent?.turma_id, selectedYear]);
+  }, [currentView, activeSchoolId, selectedSchoolId, selectedClassId, selectedStudent?.turma_id, selectedYear, classes]);
 
   // Carregar dados do Dashboard
   useEffect(() => {
@@ -1339,6 +1364,23 @@ function App() {
     }
   }, [currentTab, selectedStudentId]);
 
+  const applyStudentsLoaded = async (raw) => {
+    const schoolId = activeSchoolId || selectedSchoolId;
+    let list = raw || [];
+    if (schoolId && list.length > 0) {
+      try {
+        list = await enrichAlunosEtiquetaMotivo(supabase, list, {
+          schoolId,
+          classesList: classes || [],
+        });
+      } catch (err) {
+        console.warn('enrichAlunosEtiquetaMotivo', err);
+      }
+    }
+    setStudents(list);
+    return list;
+  };
+
   const getBadgeColorClass = (etiquetaCor) => {
     if (etiquetaCor === 'roxo') return 'bg-purple';
     switch (etiquetaCor) {
@@ -1401,9 +1443,29 @@ function App() {
       const tagConfig = escola?.configuracoes?.tags;
       if (!tagConfig) return;
 
-      // 2. Buscar dados do aluno
-      const { data: aluno } = await supabase.from('alunos').select('id, etiqueta_cor').eq('id', alunoId).single();
+      // 2. Buscar dados do aluno e turma
+      const { data: aluno } = await supabase
+        .from('alunos')
+        .select('id, etiqueta_cor, turma_id')
+        .eq('id', alunoId)
+        .single();
       if (!aluno) return;
+
+      let turmaNome = '';
+      let anoEscolar = null;
+      const turmaLocal = (classes || []).find((c) => String(c.id) === String(aluno.turma_id));
+      if (turmaLocal) {
+        turmaNome = turmaLocal.nome || '';
+        anoEscolar = turmaLocal.ano_escolar ?? turmaLocal.ano ?? null;
+      } else if (aluno.turma_id) {
+        const { data: turma } = await supabase
+          .from('turmas')
+          .select('nome, ano_escolar')
+          .eq('id', aluno.turma_id)
+          .single();
+        turmaNome = turma?.nome || '';
+        anoEscolar = turma?.ano_escolar ?? null;
+      }
 
       const [
         { data: notas },
@@ -1421,19 +1483,24 @@ function App() {
         ocorrencias: ocorrencias?.map(o => o.tipo) || []
       };
 
-      const novaCor = evaluateStudentColor(tagConfig, data);
+      const novaCor = evaluateStudentColor(tagConfig, data, { turmaNome, anoEscolar });
 
       if (novaCor !== aluno.etiqueta_cor) {
         await supabase.from('alunos').update({ etiqueta_cor: novaCor }).eq('id', alunoId);
-        
-        // Atualizar estado local se for o aluno selecionado
-        if (selectedStudentId === alunoId) {
-          setSelectedStudent(prev => ({ ...prev, etiqueta_cor: novaCor }));
-        }
-        
-        // Atualizar estado local na lista de alunos
-        setStudents(prev => prev.map(a => a.id === alunoId ? { ...a, etiqueta_cor: novaCor } : a));
       }
+
+      const motivoOrigem = getMotivoOrigemEtiqueta(tagConfig, data, novaCor, {
+        turmaNome,
+        anoEscolar,
+      });
+
+      const patch = { etiqueta_cor: novaCor, etiqueta_motivo_origem: motivoOrigem };
+      if (selectedStudentId === alunoId) {
+        setSelectedStudent((prev) => (prev ? { ...prev, ...patch } : prev));
+      }
+      setStudents((prev) =>
+        prev.map((a) => (a.id === alunoId ? { ...a, ...patch } : a)),
+      );
     } catch (error) {
       console.error('Erro ao reavaliar cor do aluno:', error);
     }
@@ -2455,21 +2522,23 @@ function App() {
       return;
     }
 
-    if (!classFormData.ano || classFormData.ano.length === 0) {
+    const ehEspecial = Boolean(classFormData.turma_especial);
+    if (!ehEspecial && (!classFormData.ano || classFormData.ano.length === 0)) {
       alert('Selecione pelo menos um ano escolar.');
       return;
     }
 
     setSavingClass(true);
-    
+
     const classData = {
-      nome: classFormData.nome || generateTurmaNome(classFormData.ano),
-      ano_escolar: classFormData.ano,
+      nome: classFormData.nome || (ehEspecial ? 'Turma especial' : generateTurmaNome(classFormData.ano)),
+      ano_escolar: classFormData.ano?.length ? classFormData.ano : ehEspecial ? ['Turma especial'] : [],
       codigo: classFormData.codigo || null,
       professor_regente: classFormData.professor_regente,
       aluno_representante: classFormData.aluno_representante || null,
       escola_id: schoolId,
       ano_letivo: classFormData.ano_letivo || selectedYear,
+      turma_especial: ehEspecial,
     };
 
     let error;
@@ -2504,7 +2573,16 @@ function App() {
       
       setShowClassModal(false);
       setEditingClass(null);
-      setClassFormData({ nome: '', ano: [], codigo: '', professor_regente: '', aluno_representante: '', escola_id: activeSchoolId || '', ano_letivo: selectedYear });
+      setClassFormData({
+        nome: '',
+        ano: [],
+        codigo: '',
+        professor_regente: '',
+        aluno_representante: '',
+        escola_id: activeSchoolId || '',
+        ano_letivo: selectedYear,
+        turma_especial: false,
+      });
       setSavingClass(false);
       
       // Atualizar estado: ao editar, recarregar lista para evitar tela branca por dados em formato inesperado
@@ -2552,14 +2630,19 @@ function App() {
       : turma.ano_escolar 
         ? [turma.ano_escolar] 
         : [];
+    const anosForm =
+      turma.turma_especial && anosSelecionados.length === 1 && anosSelecionados[0] === 'Turma especial'
+        ? []
+        : anosSelecionados;
     setClassFormData({
       nome: turma.nome || '',
-      ano: anosSelecionados,
+      ano: anosForm,
       codigo: turma.codigo || '',
       professor_regente: turma.professor_regente || '',
       aluno_representante: turma.aluno_representante || '',
       escola_id: turma.escola_id || '',
       ano_letivo: turma.ano_letivo || selectedYear,
+      turma_especial: Boolean(turma.turma_especial),
     });
     setShowClassModal(true);
   };
@@ -2587,11 +2670,169 @@ function App() {
     }
   };
 
+  const reloadStudentsAfterTurmaChange = async (turmaId) => {
+    if (!turmaId) return;
+    const turma = (classes || []).find((c) => String(c.id) === String(turmaId));
+    try {
+      const newData = await fetchAlunosDaTurma(supabase, turmaId, turma);
+      if (currentView === 'classes' && turmaId) {
+        await applyStudentsLoaded(newData);
+        return;
+      }
+    } catch {
+      /* continua recarga ampla abaixo */
+    }
+    const schoolId = activeSchoolId || selectedSchoolId;
+    if (schoolId) {
+      const { data: turmas } = await supabase
+        .from('turmas')
+        .select('id')
+        .eq('escola_id', schoolId)
+        .eq('ano_letivo', selectedYear);
+      if (turmas && turmas.length > 0) {
+        const turmaIds = turmas.map((t) => t.id);
+        const { data: newData } = await supabase.from('alunos').select('*').in('turma_id', turmaIds);
+        if (newData) await applyStudentsLoaded(newData);
+      }
+    }
+  };
+
+  const handleAddExistingStudentToTurma = async (alunoOrigem, turmaDestinoId) => {
+    const turmaId = turmaDestinoId || studentFormData.turma_id;
+    if (!turmaId || !alunoOrigem?.id) return;
+
+    const turmaDestino = (classes || []).find((c) => String(c.id) === String(turmaId));
+    if (!isTurmaEspecial(turmaDestino)) {
+      alert('Esta função é apenas para turmas especiais.');
+      return;
+    }
+
+    setSavingStudent(true);
+    try {
+      const vinculados = await fetchAlunoIdsTurmaEspecial(supabase, turmaId);
+      if (vinculados.has(String(alunoOrigem.id))) {
+        alert('Este aluno já está nesta turma especial.');
+        setSavingStudent(false);
+        return;
+      }
+
+      await vincularAlunoTurmaEspecial(supabase, alunoOrigem.id, turmaId);
+
+      setShowStudentModal(false);
+      setEditingStudent(null);
+      setStudentFormData({
+        nome: '',
+        data_nascimento: '',
+        turma_id: '',
+        etiqueta_cor: 'azul',
+        matricula: '',
+        nome_responsavel: '',
+        contato: '',
+        aee_deficiencia: '',
+        aee_cid: '',
+        motivo_etiqueta: '',
+      });
+      setAeeFormData({ aee_tem_laudo: false, aee_mediadora: '', aee_plano_individual: '' });
+      await reloadStudentsAfterTurmaChange(turmaId);
+    } catch (err) {
+      const msg = err?.message || String(err);
+      if (msg.includes('alunos_turmas_especiais') || msg.includes('schema cache')) {
+        alert(
+          'Tabela de vínculos não encontrada. Execute o script supabase_alunos_turmas_especiais.sql no Supabase.',
+        );
+      } else {
+        alert('Erro ao adicionar aluno: ' + msg);
+      }
+    } finally {
+      setSavingStudent(false);
+    }
+  };
+
+  // Carregar alunos da escola para autocomplete em turmas especiais
+  useEffect(() => {
+    if (!showStudentModal || editingStudent) {
+      setSchoolStudentsPicker([]);
+      setVinculadosTurmaEspecialIds(new Set());
+      return;
+    }
+
+    const turmaDestino = (classes || []).find((c) => String(c.id) === String(studentFormData.turma_id));
+    if (!isTurmaEspecial(turmaDestino)) {
+      setSchoolStudentsPicker([]);
+      setVinculadosTurmaEspecialIds(new Set());
+      return;
+    }
+
+    const schoolId = activeSchoolId || selectedSchoolId || turmaDestino?.escola_id;
+    if (!schoolId) return;
+
+    let cancelled = false;
+    const fetchPicker = async () => {
+      setSchoolStudentsPickerLoading(true);
+      const { data: turmas, error: turmasErr } = await supabase
+        .from('turmas')
+        .select('id')
+        .eq('escola_id', schoolId)
+        .eq('ano_letivo', selectedYear);
+
+      if (cancelled) return;
+      if (turmasErr || !turmas?.length) {
+        setSchoolStudentsPicker([]);
+        setSchoolStudentsPickerLoading(false);
+        return;
+      }
+
+      const turmaIds = turmas.map((t) => t.id);
+      const { data: alunos, error: alunosErr } = await supabase
+        .from('alunos')
+        .select('*')
+        .in('turma_id', turmaIds);
+
+      if (!cancelled) {
+        if (alunosErr) {
+          setSchoolStudentsPicker([]);
+        } else {
+          setSchoolStudentsPicker(alunos || []);
+        }
+        try {
+          const ids = await fetchAlunoIdsTurmaEspecial(supabase, studentFormData.turma_id);
+          if (!cancelled) setVinculadosTurmaEspecialIds(ids);
+        } catch {
+          if (!cancelled) setVinculadosTurmaEspecialIds(new Set());
+        }
+        if (!cancelled) setSchoolStudentsPickerLoading(false);
+      }
+    };
+
+    fetchPicker();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    showStudentModal,
+    editingStudent,
+    studentFormData.turma_id,
+    classes,
+    activeSchoolId,
+    selectedSchoolId,
+    selectedYear,
+  ]);
+
   // Funções CRUD de Alunos
   const handleSaveStudent = async (e) => {
     e.preventDefault();
     if (!studentFormData.turma_id) {
       alert('Selecione uma turma.');
+      return;
+    }
+
+    const turmaSalvar = (classes || []).find(
+      (c) => String(c.id) === String(studentFormData.turma_id),
+    );
+    if (!editingStudent && isTurmaEspecial(turmaSalvar)) {
+      alert(
+        'Turmas especiais reúnem alunos já cadastrados na turma regular. Use a busca para adicioná-los.',
+      );
       return;
     }
 
@@ -2640,38 +2881,7 @@ function App() {
       setStudentFormData({ nome: '', data_nascimento: '', turma_id: '', etiqueta_cor: 'azul', matricula: '', nome_responsavel: '', contato: '', aee_deficiencia: '', aee_cid: '', motivo_etiqueta: '' });
       setAeeFormData({ aee_tem_laudo: false, aee_mediadora: '', aee_plano_individual: '' });
       setSavingStudent(false);
-      
-      // Recarregar alunos: se estiver na lista de uma turma (classes + selectedClassId), recarrega só essa turma
-      if (currentView === 'classes' && selectedClassId) {
-        const { data: newData } = await supabase
-          .from('alunos')
-          .select('*')
-          .eq('turma_id', selectedClassId);
-        if (newData) setStudents(newData);
-      } else {
-        const schoolId = activeSchoolId || selectedSchoolId;
-        if (schoolId) {
-          const { data: turmas } = await supabase
-            .from('turmas')
-            .select('id')
-            .eq('escola_id', schoolId)
-            .eq('ano_letivo', selectedYear);
-          if (turmas && turmas.length > 0) {
-            const turmaIds = turmas.map((t) => t.id);
-            const { data: newData } = await supabase
-              .from('alunos')
-              .select('*')
-              .in('turma_id', turmaIds);
-            if (newData) setStudents(newData);
-          }
-        } else if (selectedClassId) {
-          const { data: newData } = await supabase
-            .from('alunos')
-            .select('*')
-            .eq('turma_id', selectedClassId);
-          if (newData) setStudents(newData);
-        }
-      }
+      await reloadStudentsAfterTurmaChange(studentFormData.turma_id || selectedClassId);
     }
   };
 
@@ -3229,39 +3439,35 @@ function App() {
   };
 
   const handleDeleteStudent = async (studentId) => {
+    const turmaCtx = selectedClassId
+      ? (classes || []).find((c) => String(c.id) === String(selectedClassId))
+      : null;
+
+    if (isTurmaEspecial(turmaCtx)) {
+      if (
+        !confirm(
+          'Remover este aluno da turma especial? O cadastro único na turma regular será mantido.',
+        )
+      ) {
+        return;
+      }
+      try {
+        await desvincularAlunoTurmaEspecial(supabase, studentId, selectedClassId);
+        await reloadStudentsAfterTurmaChange(selectedClassId);
+      } catch (err) {
+        alert('Erro ao remover aluno da turma: ' + (err?.message || String(err)));
+      }
+      return;
+    }
+
     if (!confirm('Tem certeza que deseja excluir este aluno?')) return;
-    
-       
-      // eslint-disable-next-line no-unused-vars
-      const { data, error } = await supabase.from('alunos').delete().eq('id', studentId);
-    
+
+    const { error } = await supabase.from('alunos').delete().eq('id', studentId);
+
     if (error) {
       alert('Erro ao excluir aluno: ' + error.message);
     } else {
-      // Recarregar alunos
-      const schoolId = activeSchoolId || selectedSchoolId;
-      if (schoolId) {
-        const { data: turmas } = await supabase
-          .from('turmas')
-          .select('id')
-          .eq('escola_id', schoolId)
-          .eq('ano_letivo', selectedYear);
-        
-        if (turmas && turmas.length > 0) {
-          const turmaIds = turmas.map((t) => t.id);
-          const { data: newData } = await supabase
-            .from('alunos')
-            .select('*')
-            .in('turma_id', turmaIds);
-          if (newData) setStudents(newData);
-        }
-      } else if (selectedClassId) {
-        const { data: newData } = await supabase
-          .from('alunos')
-          .select('*')
-          .eq('turma_id', selectedClassId);
-        if (newData) setStudents(newData);
-      }
+      await reloadStudentsAfterTurmaChange(selectedClassId || null);
     }
   };
 
@@ -3613,12 +3819,18 @@ function App() {
     return (a.nome || '').localeCompare(b.nome || '', 'pt-BR');
   });
 
+  const turmaNavCtx = selectedClassId
+    ? (classesList || classes || []).find((c) => String(c.id) === String(selectedClassId))
+    : null;
   const studentNavTurmaId = selectedClassId || selectedStudent?.turma_id;
-  const studentNavList = studentNavTurmaId
-    ? [...students]
-        .filter((a) => String(a.turma_id) === String(studentNavTurmaId))
-        .sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'))
-    : sortedFilteredStudents;
+  const studentNavList =
+    selectedClassId && isTurmaEspecial(turmaNavCtx)
+      ? [...students].sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'))
+      : studentNavTurmaId
+        ? [...students]
+            .filter((a) => String(a.turma_id) === String(studentNavTurmaId))
+            .sort((a, b) => (a.nome || '').localeCompare(b.nome || '', 'pt-BR'))
+        : sortedFilteredStudents;
   const studentNavIndex = studentNavList.findIndex((a) => String(a.id) === String(selectedStudentId));
   const canNavigateStudentPrev = studentNavIndex > 0;
   const canNavigateStudentNext =
@@ -4136,11 +4348,41 @@ function App() {
                 handleDeleteClass={handleDeleteClass}
                 onListaAlunosImportada={async () => {
                   if (!selectedClassId) return;
-                  const { data } = await supabase.from('alunos').select('*').eq('turma_id', selectedClassId);
-                  if (data) setStudents(data);
+                  const turma = (classes || []).find(
+                    (c) => String(c.id) === String(selectedClassId),
+                  );
+                  try {
+                    const data = await fetchAlunosDaTurma(supabase, selectedClassId, turma);
+                    await applyStudentsLoaded(data);
+                  } catch {
+                    /* ignore */
+                  }
                 }}
                 reavaliarCorAluno={reavaliarCorAluno}
-                onSondagensImportadas={() => {}}
+                onSondagensImportadas={async () => {
+                  if (!selectedClassId) return;
+                  const turma = (classes || []).find(
+                    (c) => String(c.id) === String(selectedClassId),
+                  );
+                  try {
+                    const data = await fetchAlunosDaTurma(supabase, selectedClassId, turma);
+                    await applyStudentsLoaded(data);
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+                onBoletinsImportados={async () => {
+                  if (!selectedClassId) return;
+                  const turma = (classes || []).find(
+                    (c) => String(c.id) === String(selectedClassId),
+                  );
+                  try {
+                    const data = await fetchAlunosDaTurma(supabase, selectedClassId, turma);
+                    await applyStudentsLoaded(data);
+                  } catch {
+                    /* ignore */
+                  }
+                }}
               />
             )}
 
@@ -4285,6 +4527,9 @@ function App() {
                     !studentsError &&
                     sortedFilteredStudents.map((aluno) => {
                       const badgeClass = getBadgeColorClass(aluno.etiqueta_cor);
+                      const turmaAluno = classesList.find((c) => String(c.id) === String(aluno.turma_id));
+                      const turmaNomeAluno = turmaAluno?.nome || 'Turma não informada';
+                      const professorNomeAluno = turmaAluno?.professor_regente;
                       return (
                         <div 
                           key={aluno.id} 
@@ -4311,12 +4556,12 @@ function App() {
                             )}
                             <div>
                               <strong>{aluno.nome}</strong>
-                              <div style={{ fontSize: '0.8em', color: 'gray' }}>
-                                Frequência:{' '}
-                                {aluno.frequencia != null ? `${aluno.frequencia}%` : 'N/D'}{' '}
-                                • Nível de leitura:{' '}
-                                {aluno.nivel_leitura || 'Não informado'}
-                              </div>
+                              <AlunoListSubtitle
+                                aluno={aluno}
+                                showTurma={!selectedClassName}
+                                turmaNome={turmaNomeAluno}
+                                professorNome={professorNomeAluno}
+                              />
                             </div>
                           </div>
                           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -4701,6 +4946,11 @@ function App() {
         studentFormData={studentFormData}
         classes={classes}
         savingStudent={savingStudent}
+        schoolStudentsPicker={schoolStudentsPicker}
+        schoolStudentsPickerLoading={schoolStudentsPickerLoading}
+        vinculadosTurmaEspecialIds={vinculadosTurmaEspecialIds}
+        onAddExistingStudent={handleAddExistingStudentToTurma}
+        isTurmaEspecial={isTurmaEspecial}
       />
 
       {/* Modal de Professor */}

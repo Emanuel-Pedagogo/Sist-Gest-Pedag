@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 const StudentModal = ({
   showStudentModal,
@@ -13,8 +13,201 @@ const StudentModal = ({
   studentFormData,
   classes,
   savingStudent,
+  schoolStudentsPicker = [],
+  schoolStudentsPickerLoading = false,
+  vinculadosTurmaEspecialIds = new Set(),
+  onAddExistingStudent,
+  isTurmaEspecial,
 }) => {
+  const [nameSearchQuery, setNameSearchQuery] = useState('');
+
+  useEffect(() => {
+    if (!showStudentModal) setNameSearchQuery('');
+  }, [showStudentModal]);
+
+  const resetForm = () => {
+    setStudentFormData({
+      nome: '',
+      data_nascimento: '',
+      turma_id: '',
+      etiqueta_cor: 'azul',
+      matricula: '',
+      nome_responsavel: '',
+      contato: '',
+      aee_deficiencia: '',
+      aee_cid: '',
+      motivo_etiqueta: '',
+    });
+    setAeeFormData({ aee_tem_laudo: false, aee_mediadora: '', aee_plano_individual: '' });
+    setNameSearchQuery('');
+  };
+
+  const turmaDestino = useMemo(
+    () => (classes || []).find((c) => String(c.id) === String(studentFormData.turma_id)),
+    [classes, studentFormData.turma_id],
+  );
+
+  const linkExistingMode =
+    !editingStudent && isTurmaEspecial?.(turmaDestino) && Boolean(studentFormData.turma_id);
+
+  const sugestoesAlunos = useMemo(() => {
+    if (!linkExistingMode || nameSearchQuery.trim().length < 2) return [];
+    const q = nameSearchQuery.toLowerCase().trim();
+
+    return (schoolStudentsPicker || [])
+      .filter((aluno) => {
+        if (vinculadosTurmaEspecialIds.has(String(aluno.id))) return false;
+        const nomeMatch = (aluno.nome || '').toLowerCase().includes(q);
+        const mat = aluno.matricula != null ? String(aluno.matricula).trim() : '';
+        const matMatch = mat && mat.toLowerCase().includes(q);
+        return nomeMatch || matMatch;
+      })
+      .slice(0, 15);
+  }, [linkExistingMode, nameSearchQuery, schoolStudentsPicker, vinculadosTurmaEspecialIds]);
+
+  const turmaNomePorId = (turmaId) =>
+    (classes || []).find((c) => String(c.id) === String(turmaId))?.nome || 'Turma';
+
   if (!showStudentModal) return null;
+
+  if (linkExistingMode) {
+    return (
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 2000,
+        }}
+        onMouseDown={handleBackdropMouseDown}
+        onClick={(e) =>
+          handleBackdropClick(e, () => {
+            setShowStudentModal(false);
+            setEditingStudent(null);
+            resetForm();
+          })
+        }
+      >
+        <div
+          style={{
+            background: 'white',
+            padding: 30,
+            borderRadius: 12,
+            width: '90%',
+            maxWidth: 560,
+            boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h2 style={{ marginBottom: 8, color: 'var(--primary)' }}>
+            Adicionar aluno — {turmaDestino?.nome}
+          </h2>
+          <p style={{ margin: '0 0 20px', fontSize: '0.9em', color: '#6b7280', lineHeight: 1.45 }}>
+            Busque alunos já cadastrados na turma regular. O cadastro é único: ao abrir os detalhes,
+            você verá sempre os dados da turma de escolarização.
+          </p>
+          <div className="input-group" style={{ position: 'relative', marginBottom: 20 }}>
+            <label>Nome ou matrícula *</label>
+            <input
+              type="text"
+              value={nameSearchQuery}
+              onChange={(e) => setNameSearchQuery(e.target.value)}
+              placeholder="Digite para buscar..."
+              autoComplete="off"
+              autoFocus
+            />
+            {nameSearchQuery.trim().length >= 2 && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  background: 'white',
+                  border: '1px solid #ddd',
+                  borderRadius: '0 0 6px 6px',
+                  maxHeight: 280,
+                  overflowY: 'auto',
+                  zIndex: 20,
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                }}
+              >
+                {schoolStudentsPickerLoading && (
+                  <div style={{ padding: 10, fontSize: '0.85em', color: '#666' }}>
+                    Buscando alunos...
+                  </div>
+                )}
+                {!schoolStudentsPickerLoading &&
+                  sugestoesAlunos.map((aluno) => (
+                    <button
+                      key={aluno.id}
+                      type="button"
+                      disabled={savingStudent}
+                      onClick={() => onAddExistingStudent?.(aluno, studentFormData.turma_id)}
+                      style={{
+                        display: 'block',
+                        width: '100%',
+                        textAlign: 'left',
+                        padding: '10px 12px',
+                        border: 'none',
+                        borderBottom: '1px solid #f0f0f0',
+                        background: 'white',
+                        cursor: savingStudent ? 'wait' : 'pointer',
+                        fontSize: '0.9em',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = '#eef4ff';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'white';
+                      }}
+                    >
+                      <div style={{ fontWeight: 600, color: '#111' }}>{aluno.nome}</div>
+                      <div style={{ color: '#666', fontSize: '0.85em', marginTop: 2 }}>
+                        Turma regular: {turmaNomePorId(aluno.turma_id)}
+                        {aluno.matricula ? ` • Matrícula: ${aluno.matricula}` : ''}
+                      </div>
+                    </button>
+                  ))}
+                {!schoolStudentsPickerLoading && sugestoesAlunos.length === 0 && (
+                  <div style={{ padding: 10, fontSize: '0.85em', color: '#666' }}>
+                    Nenhum aluno encontrado ou todos já estão nesta turma.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              type="button"
+              onClick={() => {
+                setShowStudentModal(false);
+                setEditingStudent(null);
+                resetForm();
+              }}
+              style={{
+                padding: '10px 20px',
+                border: '1px solid #ddd',
+                borderRadius: 6,
+                background: 'white',
+                cursor: 'pointer',
+                color: 'var(--text)',
+              }}
+              disabled={savingStudent}
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -31,12 +224,13 @@ const StudentModal = ({
         zIndex: 2000,
       }}
       onMouseDown={handleBackdropMouseDown}
-      onClick={(e) => handleBackdropClick(e, () => {
-        setShowStudentModal(false);
-        setEditingStudent(null);
-        setStudentFormData({ nome: '', data_nascimento: '', turma_id: '', etiqueta_cor: 'azul', matricula: '', nome_responsavel: '', contato: '', aee_deficiencia: '', aee_cid: '', motivo_etiqueta: '' });
-        setAeeFormData({ aee_tem_laudo: false, aee_mediadora: '', aee_plano_individual: '' });
-      })}
+      onClick={(e) =>
+        handleBackdropClick(e, () => {
+          setShowStudentModal(false);
+          setEditingStudent(null);
+          resetForm();
+        })
+      }
     >
       <div
         style={{
@@ -60,7 +254,6 @@ const StudentModal = ({
               gap: '15px',
             }}
           >
-            {/* Linha 1: Nome | Data de Nascimento */}
             <div className="input-group">
               <label>Nome *</label>
               <input
@@ -89,7 +282,6 @@ const StudentModal = ({
               />
             </div>
 
-            {/* Linha 2: Turma | Matrícula */}
             <div className="input-group">
               <label>Turma *</label>
               <select
@@ -104,11 +296,13 @@ const StudentModal = ({
                 }}
               >
                 <option value="">Selecione uma turma...</option>
-                {classes.map((turma) => (
-                  <option key={turma.id} value={turma.id}>
-                    {turma.nome} - {turma.codigo}
-                  </option>
-                ))}
+                {(classes || [])
+                  .filter((turma) => !isTurmaEspecial?.(turma))
+                  .map((turma) => (
+                    <option key={turma.id} value={turma.id}>
+                      {turma.nome} - {turma.codigo}
+                    </option>
+                  ))}
               </select>
             </div>
 
@@ -122,7 +316,6 @@ const StudentModal = ({
               />
             </div>
 
-            {/* Linha 3: Responsável | Contato */}
             <div className="input-group">
               <label>Nome do Responsável</label>
               <input
@@ -148,7 +341,6 @@ const StudentModal = ({
               />
             </div>
 
-            {/* Linha 4: Etiqueta | Motivo/Deficiência/Condição/CID (2 colunas) */}
             <div className="input-group">
               <label>Etiqueta (Cor) *</label>
               <select
@@ -185,17 +377,15 @@ const StudentModal = ({
                     }
                     onChange={(e) => {
                       const value = e.target.value;
-                      // Separar deficiência e CID se houver "CID:" no texto
                       const cidMatch = value.match(/CID:\s*([A-Z0-9.]+)/i);
                       let cid = '';
                       let deficiencia = value;
-                      
+
                       if (cidMatch) {
                         cid = cidMatch[1].trim();
-                        // Remover a parte do CID do texto
                         deficiencia = value.replace(/CID:\s*[A-Z0-9.]+/i, '').replace(/\s*-\s*$/, '').trim();
                       }
-                      
+
                       setStudentFormData({
                         ...studentFormData,
                         aee_deficiencia: deficiencia,
@@ -247,8 +437,7 @@ const StudentModal = ({
               onClick={() => {
                 setShowStudentModal(false);
                 setEditingStudent(null);
-                setStudentFormData({ nome: '', data_nascimento: '', turma_id: '', etiqueta_cor: 'azul', matricula: '', nome_responsavel: '', contato: '', aee_deficiencia: '', aee_cid: '', motivo_etiqueta: '' });
-                setAeeFormData({ aee_tem_laudo: false, aee_mediadora: '', aee_plano_individual: '' });
+                resetForm();
               }}
               style={{
                 padding: '10px 20px',

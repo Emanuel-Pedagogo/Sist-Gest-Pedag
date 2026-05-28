@@ -36,7 +36,16 @@ const ClassModal = ({
       onClick={(e) => handleBackdropClick(e, () => {
         setShowClassModal(false);
         setEditingClass(null);
-        setClassFormData({ nome: '', ano: [], codigo: '', professor_regente: '', aluno_representante: '', escola_id: activeSchoolId || '', ano_letivo: selectedYear });
+        setClassFormData({
+          nome: '',
+          ano: [],
+          codigo: '',
+          professor_regente: '',
+          aluno_representante: '',
+          escola_id: activeSchoolId || '',
+          ano_letivo: selectedYear,
+          turma_especial: false,
+        });
       })}
     >
       <div
@@ -111,9 +120,42 @@ const ClassModal = ({
               </select>
             </div>
 
+            <div className="input-group" style={{ gridColumn: '1 / -1' }}>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 10,
+                  cursor: 'pointer',
+                  padding: '10px 12px',
+                  background: classFormData.turma_especial ? '#ede9fe' : '#f9fafb',
+                  border: `1px solid ${classFormData.turma_especial ? '#c4b5fd' : '#e5e7eb'}`,
+                  borderRadius: 8,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={Boolean(classFormData.turma_especial)}
+                  onChange={(e) =>
+                    setClassFormData({ ...classFormData, turma_especial: e.target.checked })
+                  }
+                  style={{ marginTop: 3, width: 16, height: 16, flexShrink: 0 }}
+                />
+                <span>
+                  <strong style={{ display: 'block', marginBottom: 4 }}>Turma especial</strong>
+                  <span style={{ fontSize: '0.85em', color: '#6b7280', lineHeight: 1.4 }}>
+                    Ex.: Libras, AEE. Reúne alunos de várias turmas regulares, com diário de frequência
+                    próprio (participação voluntária — não altera o histórico escolar do aluno).
+                  </span>
+                </span>
+              </label>
+            </div>
+
             {/* Linha 2: Anos Escolares (2 colunas) */}
             <div className="input-group" style={{ gridColumn: '1 / -1' }}>
-              <label style={{ fontSize: '0.9em' }}>Anos Escolares * (selecione um ou mais)</label>
+              <label style={{ fontSize: '0.9em' }}>
+                Anos Escolares {classFormData.turma_especial ? '(opcional)' : '*'} (selecione um ou mais)
+              </label>
               <div
                 style={{
                   display: 'flex',
@@ -166,7 +208,7 @@ const ClassModal = ({
                   </label>
                 ))}
               </div>
-              {classFormData.ano.length === 0 && (
+              {classFormData.ano.length === 0 && !classFormData.turma_especial && (
                 <div style={{ color: 'var(--danger)', fontSize: '0.8em', marginTop: 3 }}>
                   Selecione pelo menos um ano escolar
                 </div>
@@ -253,7 +295,16 @@ const ClassModal = ({
               onClick={() => {
                 setShowClassModal(false);
                 setEditingClass(null);
-                setClassFormData({ nome: '', ano: [], codigo: '', professor_regente: '', aluno_representante: '', escola_id: activeSchoolId || '', ano_letivo: selectedYear });
+                setClassFormData({
+                  nome: '',
+                  ano: [],
+                  codigo: '',
+                  professor_regente: '',
+                  aluno_representante: '',
+                  escola_id: activeSchoolId || '',
+                  ano_letivo: selectedYear,
+                  turma_especial: false,
+                });
               }}
               style={{
                 padding: '8px 16px',

@@ -29,6 +29,16 @@ export async function extractSondagensFromImage({ imageBase64, mimeType, anoEsco
   });
 }
 
+/** Extrai notas e faltas de boletim PDF da turma (vários alunos, EducaMais). */
+export async function extractBoletinsFromPdf({ pdfBase64, mimeType, modoBoletim, disciplinas }) {
+  return invokeGeminiFunction('extract-boletins-pdf', {
+    pdfBase64,
+    mimeType: mimeType || 'application/pdf',
+    modoBoletim: modoBoletim || 'fund2',
+    disciplinas: disciplinas || [],
+  });
+}
+
 /** Gera resumo pedagógico em texto a partir dos dados do aluno. */
 export async function generateResumoPedagogico(payload) {
   return invokeGeminiFunction('generate-resumo-aluno', payload);
