@@ -45,16 +45,7 @@ const StudentsView = ({
           <i className="fas fa-arrow-left" /> Voltar para Turmas
         </div>
       )}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 20,
-          flexWrap: 'wrap',
-          gap: 15,
-        }}
-      >
+      <div className="page-toolbar students-toolbar">
         <h2 style={{ margin: 0 }}>
           Alunos {selectedClassName ? `- ${selectedClassName}` : activeSchool ? `- ${activeSchool.nome}` : ''}
         </h2>
@@ -84,15 +75,7 @@ const StudentsView = ({
         </button>
       </div>
 
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: 12,
-          alignItems: 'flex-end',
-          marginBottom: 20,
-        }}
-      >
+      <div className="filter-bar students-filters">
         <div style={{ flex: 1, minWidth: 200 }}>
           <input
             type="text"

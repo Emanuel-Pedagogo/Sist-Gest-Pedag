@@ -26,11 +26,12 @@ const DashboardView = ({
   dashboardDayEvents,
   setCurrentDate,
   setAgendaView,
+  onOpenEventDetail,
 }) => {
   return (
     <div id="view-dashboard" className="view-section">
       {/* Blocos clicáveis (etiquetas) – acima dos dias da semana */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10, marginBottom: 20 }}>
+      <div className="dashboard-etiquetas-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10, marginBottom: 20 }}>
         {[
           { label: 'Adequado', count: totalAzul, cor: 'azul', color: '#007bff' },
           { label: 'Atenção', count: totalAtencao, cor: 'amarelo', color: '#ffc107' },
@@ -182,6 +183,10 @@ const DashboardView = ({
                   cursor: 'pointer',
                 }}
                 onClick={() => {
+                  if (onOpenEventDetail) {
+                    onOpenEventDetail(event);
+                    return;
+                  }
                   setCurrentView('agenda');
                   setCurrentDate(eventDate);
                   setAgendaView('day');

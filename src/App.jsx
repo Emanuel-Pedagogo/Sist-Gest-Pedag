@@ -14,6 +14,7 @@ import ReportsView from './views/ReportsView';
 import LibraryView from './views/LibraryView';
 import ChartsView from './views/ChartsView';
 import AgendaView from './views/AgendaView';
+import AgendaEventDetailView from './views/AgendaEventDetailView';
 import TeacherDetailView from './views/TeacherDetailView';
 import StudentDetailView from './views/StudentDetailView';
 import EventModal from './components/modals/EventModal';
@@ -28,6 +29,18 @@ import ClassModal from './components/modals/ClassModal';
 import StudentModal from './components/modals/StudentModal';
 import TeacherModal from './components/modals/TeacherModal';
 import { isTurmaEspecial } from './utils/turmas';
+import { INITIAL_EVENT_FORM_DATA } from './utils/agendaConstants';
+import {
+  generateRecurringOccurrences,
+  parseLocalDate,
+  inferRecorrenciaFromSerie,
+} from './utils/agendaRecorrencia';
+import {
+  getAgendaExportRange,
+  filterEventsForExport,
+  exportAgendaPDF,
+  exportAgendaWord,
+} from './utils/agendaExport';
 import {
   contarEtiquetasAlunos,
   desvincularAlunoTurmaEspecial,
@@ -39,7 +52,9 @@ import AlunoListSubtitle from './components/AlunoListSubtitle';
 import SettingsView from './views/SettingsView';
 
 import { evaluateStudentColor, getMotivoOrigemEtiqueta } from './utils/studentColorEvaluator';
-import { enrichAlunosEtiquetaMotivo } from './utils/alunosEtiquetaMotivo';
+import { Capacitor } from '@capacitor/core';
+import { getAuthRedirectUrl } from './utils/authRedirect';
+import { signInWithGoogleNative } from './utils/nativeAuth';
 
 function App() {
   // Data local em YYYY-MM-DD (evita dia anterior por timezone)
@@ -310,19 +325,16 @@ function App() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [showEventModal, setShowEventModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
-  const [eventFormData, setEventFormData] = useState({
-    titulo: '',
-    descricao: '',
-    data_inicio: '',
-    hora_inicio: '08:00',
-    data_fim: '',
-    hora_fim: '09:00',
-    cor_etiqueta: '#3498DB',
-    anexo_nome: '',
-    anexo_file: null, // Arquivo selecionado para upload
-  });
+  const [eventFormData, setEventFormData] = useState({ ...INITIAL_EVENT_FORM_DATA });
   const [savingEvent, setSavingEvent] = useState(false);
+  const [exportingAgenda, setExportingAgenda] = useState(false);
   const [agendaBirthdayAlunos, setAgendaBirthdayAlunos] = useState([]); // alunos (id, nome, data_nascimento) para exibir aniversários na agenda
+  const [selectedAgendaEvent, setSelectedAgendaEvent] = useState(null);
+  const [agendaAnotacoesText, setAgendaAnotacoesText] = useState('');
+  const [savingAgendaAnotacoes, setSavingAgendaAnotacoes] = useState(false);
+  const [agendaEventAnexos, setAgendaEventAnexos] = useState([]);
+  const [loadingAgendaAnexos, setLoadingAgendaAnexos] = useState(false);
+  const [uploadingAgendaAnexos, setUploadingAgendaAnexos] = useState(false);
 
   // Relatórios: filtros e lista gerada
   const [reportYear, setReportYear] = useState(() => new Date().getFullYear());
@@ -388,6 +400,13 @@ function App() {
       }
     });
     return () => subscription?.unsubscribe();
+  }, []);
+
+  // Recuperação de senha via deep link (app Android)
+  useEffect(() => {
+    const onRecovery = () => setShowRecoveryPasswordForm(true);
+    window.addEventListener('sacp:auth-recovery', onRecovery);
+    return () => window.removeEventListener('sacp:auth-recovery', onRecovery);
   }, []);
 
   // Mantém refs sincronizadas (para handlers fora do React lifecycle)
@@ -663,11 +682,21 @@ function App() {
   const handleGoogleAuth = async () => {
     setAuthLoading(true);
     clearAuthMessages();
-       
-      // eslint-disable-next-line no-unused-vars
-      const { data, error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
-    setAuthLoading(false);
-    if (error) setAuthError(error.message);
+    try {
+      if (Capacitor.isNativePlatform()) {
+        await signInWithGoogleNative();
+      } else {
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: { redirectTo: getAuthRedirectUrl() },
+        });
+        if (error) setAuthError(error.message);
+      }
+    } catch (err) {
+      setAuthError(err?.message || 'Erro ao entrar com Google.');
+    } finally {
+      setAuthLoading(false);
+    }
   };
 
   const handleRecoverPassword = async (e) => {
@@ -681,7 +710,7 @@ function App() {
        
       // eslint-disable-next-line no-unused-vars
       const { data, error } = await supabase.auth.resetPasswordForEmail(recoverEmail.trim(), {
-      redirectTo: `${window.location.origin}/`,
+      redirectTo: getAuthRedirectUrl(),
     });
     setAuthLoading(false);
     if (error) {
@@ -782,6 +811,7 @@ function App() {
       teachers: 'Gestão de Professores',
       'teacher-detail': 'Perfil do Professor',
       'student-detail': 'Detalhes do Aluno',
+      'agenda-event-detail': 'Anotações do Evento',
       reports: 'Relatórios',
       emprestimos: 'Biblioteca e Empréstimos',
       settings: 'Configurações',
@@ -789,6 +819,9 @@ function App() {
     };
     if (currentView === 'classes' && selectedSchool) {
       return `Gestão de Turmas - ${selectedSchool}`;
+    }
+    if (currentView === 'agenda-event-detail' && selectedAgendaEvent?.titulo) {
+      return selectedAgendaEvent.titulo;
     }
     return titles[currentView] || 'SACP';
   };
@@ -801,6 +834,7 @@ function App() {
   const getActiveNav = () => {
     if (currentView === 'student-detail') return selectedClassId ? 'classes' : 'students';
     if (currentView === 'teacher-detail') return 'teachers';
+    if (currentView === 'agenda-event-detail') return 'agenda';
     if (currentView === 'students' && selectedClassId) return 'classes';
     return currentView;
   };
@@ -1289,7 +1323,7 @@ function App() {
 
   // Carregar eventos da agenda e alunos para aniversários quando a view de agenda for aberta
   useEffect(() => {
-    if (currentView === 'agenda' && activeSchoolId) {
+    if ((currentView === 'agenda' || currentView === 'agenda-event-detail') && activeSchoolId) {
       loadAgendaEvents();
       loadAgendaBirthdayAlunos();
     }
@@ -3275,6 +3309,22 @@ function App() {
     return sanitized + extension;
   };
 
+  const buildEventDateTimes = (form) => {
+    const [anoInicio, mesInicio, diaInicio] = form.data_inicio.split('-').map(Number);
+    const [horaInicio, minutoInicio] = form.hora_inicio.split(':').map(Number);
+    const start = new Date(anoInicio, mesInicio - 1, diaInicio, horaInicio, minutoInicio);
+    if (isNaN(start.getTime())) return null;
+
+    let end = start;
+    if (form.data_fim && form.hora_fim) {
+      const [anoFim, mesFim, diaFim] = form.data_fim.split('-').map(Number);
+      const [horaFim, minutoFim] = form.hora_fim.split(':').map(Number);
+      const endDate = new Date(anoFim, mesFim - 1, diaFim, horaFim, minutoFim);
+      if (!isNaN(endDate.getTime())) end = endDate;
+    }
+    return { start, end };
+  };
+
   const handleSaveEvent = async (e) => {
     e.preventDefault();
     if (!eventFormData.titulo || !eventFormData.data_inicio) {
@@ -3282,56 +3332,209 @@ function App() {
       return;
     }
 
-    setSavingEvent(true);
-    
-    // Pega os valores puros dos inputs - data de início
-    const [anoInicio, mesInicio, diaInicio] = eventFormData.data_inicio.split('-').map(Number);
-    const [horaInicio, minutoInicio] = eventFormData.hora_inicio.split(':').map(Number);
-    // Cria a data preservando o número exato que o usuário digitou (evita UTC no Brasil)
-    const start = new Date(anoInicio, mesInicio - 1, diaInicio, horaInicio, minutoInicio);
-    if (isNaN(start.getTime())) {
+    const dates = buildEventDateTimes(eventFormData);
+    if (!dates) {
       alert('Data/hora de início inválida.');
-      setSavingEvent(false);
       return;
     }
-    const dataInicioISO = start.toISOString();
 
-    // Data de fim (ou mesma de início se não informada)
-    let dataFimISO;
-    if (eventFormData.data_fim && eventFormData.hora_fim) {
-      const [anoFim, mesFim, diaFim] = eventFormData.data_fim.split('-').map(Number);
-      const [horaFim, minutoFim] = eventFormData.hora_fim.split(':').map(Number);
-      const end = new Date(anoFim, mesFim - 1, diaFim, horaFim, minutoFim);
-      dataFimISO = isNaN(end.getTime()) ? dataInicioISO : end.toISOString();
-    } else {
-      dataFimISO = dataInicioISO;
+    const { start, end } = dates;
+    const tipoRec = eventFormData.recorrencia_tipo || 'nenhuma';
+    const wantsRecurring = tipoRec !== 'nenhuma' && eventFormData.recorrencia_ate;
+    const isNewRecurring = !editingEvent && wantsRecurring;
+    const weekendOpts = {
+      incluirSabado: !!eventFormData.incluir_sabado,
+      incluirDomingo: !!eventFormData.incluir_domingo,
+    };
+
+    if (wantsRecurring) {
+      const ate = parseLocalDate(eventFormData.recorrencia_ate);
+      if (ate.getTime() < new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime()) {
+        alert('A data "Repetir até" deve ser igual ou posterior à data de início.');
+        return;
+      }
     }
-    
-    // Preparar dados do evento (sem anexo ainda)
-    const eventData = {
+
+    setSavingEvent(true);
+
+    const basePayload = {
       titulo: eventFormData.titulo,
       descricao: eventFormData.descricao || null,
-      data_inicio: dataInicioISO,
-      data_fim: dataFimISO,
       cor_etiqueta: eventFormData.cor_etiqueta,
       turma_id: null,
       nivel_planejamento: null,
-      anexo_url: editingEvent?.anexo_url || null, // Manter anexo existente se não houver novo
+      anexo_url: editingEvent?.anexo_url || null,
     };
 
-    // Criar ou atualizar evento primeiro para ter o ID
     let eventId;
     let error;
+
+    const insertRecurringRows = async (occurrences, serieId) => {
+      const rows = occurrences.map((occ) => ({
+        ...basePayload,
+        data_inicio: occ.start.toISOString(),
+        data_fim: occ.end.toISOString(),
+        serie_id: serieId,
+      }));
+      let insertResult = await supabase.from('agenda_eventos').insert(rows).select();
+      if (insertResult.error?.message?.includes('serie_id')) {
+        const rowsSemSerie = rows.map(({ serie_id: _s, ...rest }) => rest);
+        insertResult = await supabase.from('agenda_eventos').insert(rowsSemSerie).select();
+      }
+      return insertResult;
+    };
+
     if (editingEvent) {
       eventId = editingEvent.id;
-       
-      // eslint-disable-next-line no-unused-vars
-      const { data: updateData, error: updateError } = await supabase
-        .from('agenda_eventos')
-        .update(eventData)
-        .eq('id', editingEvent.id);
-      error = updateError;
+
+      if (wantsRecurring) {
+        const ate = parseLocalDate(eventFormData.recorrencia_ate);
+        const occurrences = generateRecurringOccurrences({
+          start,
+          end,
+          tipo: tipoRec,
+          ate,
+          ...weekendOpts,
+        });
+
+        if (occurrences.length === 0) {
+          alert(
+            'Nenhuma ocorrência gerada. Verifique as datas ou marque a inclusão de sábados/domingos se necessário.'
+          );
+          setSavingEvent(false);
+          return;
+        }
+
+        if (editingEvent.serie_id) {
+          const regenerate = window.confirm(
+            'Alterar a recorrência recriará todos os eventos desta série com os novos parâmetros.\n\nOK = recriar série\nCancelar = salvar só este evento (sem alterar os demais)'
+          );
+
+          if (regenerate) {
+            await supabase.from('agenda_eventos').delete().eq('serie_id', editingEvent.serie_id);
+            const serieId = crypto.randomUUID();
+            const insertResult = await insertRecurringRows(occurrences, serieId);
+            error = insertResult.error;
+            if (!error && insertResult.data?.length) {
+              const match =
+                insertResult.data.find(
+                  (ev) => new Date(ev.data_inicio).getTime() === start.getTime()
+                ) || insertResult.data[0];
+              eventId = match.id;
+            }
+          } else {
+            const { error: updateError } = await supabase
+              .from('agenda_eventos')
+              .update({
+                ...basePayload,
+                data_inicio: start.toISOString(),
+                data_fim: end.toISOString(),
+              })
+              .eq('id', editingEvent.id);
+            error = updateError;
+          }
+        } else {
+          const serieId = crypto.randomUUID();
+          const { error: updateError } = await supabase
+            .from('agenda_eventos')
+            .update({
+              ...basePayload,
+              data_inicio: start.toISOString(),
+              data_fim: end.toISOString(),
+              serie_id: serieId,
+            })
+            .eq('id', editingEvent.id);
+
+          error = updateError;
+          if (!error) {
+            const toInsert = occurrences.filter((occ) => occ.start.getTime() !== start.getTime());
+            if (toInsert.length) {
+              const insertResult = await insertRecurringRows(toInsert, serieId);
+              error = insertResult.error;
+            }
+          }
+        }
+      } else {
+        const applyToSeries =
+          editingEvent.serie_id &&
+          window.confirm(
+            'Este evento faz parte de uma série recorrente.\n\nOK = aplicar título, observação e cor a TODOS os eventos da série\nCancelar = alterar apenas este evento'
+          );
+
+        if (applyToSeries) {
+          const { error: seriesError } = await supabase
+            .from('agenda_eventos')
+            .update({
+              titulo: basePayload.titulo,
+              descricao: basePayload.descricao,
+              cor_etiqueta: basePayload.cor_etiqueta,
+            })
+            .eq('serie_id', editingEvent.serie_id);
+
+          const { error: dateError } = await supabase
+            .from('agenda_eventos')
+            .update({
+              data_inicio: start.toISOString(),
+              data_fim: end.toISOString(),
+            })
+            .eq('id', editingEvent.id);
+
+          error = seriesError || dateError;
+        } else {
+          const { error: updateError } = await supabase
+            .from('agenda_eventos')
+            .update({
+              ...basePayload,
+              data_inicio: start.toISOString(),
+              data_fim: end.toISOString(),
+            })
+            .eq('id', editingEvent.id);
+          error = updateError;
+        }
+      }
+    } else if (isNewRecurring) {
+      const ate = parseLocalDate(eventFormData.recorrencia_ate);
+      const occurrences = generateRecurringOccurrences({
+        start,
+        end,
+        tipo: tipoRec,
+        ate,
+        ...weekendOpts,
+      });
+
+      if (occurrences.length === 0) {
+        alert(
+          'Nenhuma ocorrência gerada. Verifique as datas ou marque a inclusão de sábados/domingos se necessário.'
+        );
+        setSavingEvent(false);
+        return;
+      }
+
+      const serieId = crypto.randomUUID();
+      const rows = occurrences.map((occ) => ({
+        ...basePayload,
+        data_inicio: occ.start.toISOString(),
+        data_fim: occ.end.toISOString(),
+        serie_id: serieId,
+      }));
+
+      let insertResult = await supabase.from('agenda_eventos').insert(rows).select();
+
+      if (insertResult.error?.message?.includes('serie_id')) {
+        const rowsSemSerie = rows.map(({ serie_id: _s, ...rest }) => rest);
+        insertResult = await supabase.from('agenda_eventos').insert(rowsSemSerie).select();
+      }
+
+      error = insertResult.error;
+      if (!error && insertResult.data?.length) {
+        eventId = insertResult.data[0].id;
+      }
     } else {
+      const eventData = {
+        ...basePayload,
+        data_inicio: start.toISOString(),
+        data_fim: end.toISOString(),
+      };
       const { data: newEvent, error: insertError } = await supabase
         .from('agenda_eventos')
         .insert([eventData])
@@ -3343,7 +3546,6 @@ function App() {
       }
     }
 
-    // Se houver erro ou não conseguir obter ID, parar aqui
     if (error || !eventId) {
       alert('Erro ao salvar evento: ' + (error?.message || 'Erro desconhecido'));
       setSavingEvent(false);
@@ -3404,38 +3606,295 @@ function App() {
     // Fechar modal e recarregar lista — NÃO alterar currentDate para o calendário manter o mês visível
     setShowEventModal(false);
     setEditingEvent(null);
-    setEventFormData({
-      titulo: '',
-      descricao: '',
-      data_inicio: '',
-      hora_inicio: '08:00',
-      data_fim: '',
-      hora_fim: '09:00',
-      cor_etiqueta: '#3498DB',
-      anexo_nome: '',
-      anexo_file: null,
-    });
+    setEventFormData({ ...INITIAL_EVENT_FORM_DATA });
     setSavingEvent(false);
     await loadAgendaEvents();
     await loadTodayEvents();
+    if (selectedAgendaEvent?.id === eventId) {
+      const { data: refreshed } = await supabase
+        .from('agenda_eventos')
+        .select('*')
+        .eq('id', eventId)
+        .single();
+      if (refreshed) {
+        setSelectedAgendaEvent(refreshed);
+        setAgendaAnotacoesText(refreshed.anotacoes || '');
+        loadAgendaEventAnexos(eventId, refreshed);
+      }
+    }
   };
 
   const handleDeleteAgendaEvent = async () => {
     if (!editingEvent?.id) return;
     if (!window.confirm('Tem certeza que deseja excluir este evento?')) return;
 
-       
-      // eslint-disable-next-line no-unused-vars
-      const { data, error } = await supabase.from('agenda_eventos').delete().eq('id', editingEvent.id);
+    let error;
+    let deleteEntireSeries = false;
+    if (editingEvent.serie_id) {
+      deleteEntireSeries = window.confirm(
+        'Este evento faz parte de uma série recorrente.\n\nOK = excluir TODA a série\nCancelar = excluir apenas este evento'
+      );
+      if (deleteEntireSeries) {
+        ({ error } = await supabase.from('agenda_eventos').delete().eq('serie_id', editingEvent.serie_id));
+      } else {
+        ({ error } = await supabase.from('agenda_eventos').delete().eq('id', editingEvent.id));
+      }
+    } else {
+      ({ error } = await supabase.from('agenda_eventos').delete().eq('id', editingEvent.id));
+    }
 
     if (error) {
       alert('Erro ao excluir evento: ' + error.message);
       return;
     }
-    setAgendaEvents((prev) => prev.filter((ev) => ev.id !== editingEvent.id));
+    setAgendaEvents((prev) => {
+      if (editingEvent.serie_id && deleteEntireSeries) {
+        return prev.filter((ev) => ev.serie_id !== editingEvent.serie_id);
+      }
+      return prev.filter((ev) => ev.id !== editingEvent.id);
+    });
     setShowEventModal(false);
     setEditingEvent(null);
+    if (selectedAgendaEvent?.id === editingEvent.id) {
+      setSelectedAgendaEvent(null);
+      setCurrentView('agenda');
+    }
     await loadTodayEvents();
+  };
+
+  const loadAgendaEventAnexos = async (eventId, legacyEvent) => {
+    if (!eventId) return;
+    setLoadingAgendaAnexos(true);
+    try {
+      const anexosMap = new Map();
+
+      const { data: files, error } = await supabase.storage
+        .from('agenda-arquivos')
+        .list(String(eventId), { limit: 100, sortBy: { column: 'created_at', order: 'desc' } });
+
+      if (!error && files?.length) {
+        for (const file of files) {
+          if (!file.name || file.name === '.emptyFolderPlaceholder') continue;
+          const path = `${eventId}/${file.name}`;
+          const { data: urlData } = supabase.storage.from('agenda-arquivos').getPublicUrl(path);
+          const displayName = file.name.includes('_')
+            ? file.name.replace(/^\d+_/, '').replace(/_/g, ' ')
+            : file.name;
+          anexosMap.set(path, {
+            path,
+            name: file.name,
+            displayName,
+            url: urlData?.publicUrl,
+          });
+        }
+      }
+
+      if (legacyEvent?.anexo_url && !Array.from(anexosMap.values()).some((a) => a.url === legacyEvent.anexo_url)) {
+        anexosMap.set(`legacy-${eventId}`, {
+          path: null,
+          name: legacyEvent.anexo_nome || 'Documento anexado',
+          displayName: legacyEvent.anexo_nome || 'Documento anexado',
+          url: legacyEvent.anexo_url,
+        });
+      }
+
+      setAgendaEventAnexos(Array.from(anexosMap.values()));
+    } catch (err) {
+      console.error('Erro ao carregar anexos:', err);
+      setAgendaEventAnexos([]);
+    } finally {
+      setLoadingAgendaAnexos(false);
+    }
+  };
+
+  const openAgendaEventDetail = (ev) => {
+    setSelectedAgendaEvent(ev);
+    setAgendaAnotacoesText(ev.anotacoes || '');
+    setCurrentView('agenda-event-detail');
+    loadAgendaEventAnexos(ev.id, ev);
+  };
+
+  const openAgendaEventEditModalFromEvent = (ev) => {
+    if (!ev) return;
+    const inicio = splitDateTime(ev.data_inicio);
+    const fim = ev.data_fim ? splitDateTime(ev.data_fim) : inicio;
+    const cor =
+      typeof ev.cor_etiqueta === 'string' && ev.cor_etiqueta.startsWith('#')
+        ? ev.cor_etiqueta
+        : ev.cor_etiqueta === 'vermelho'
+          ? '#ef4444'
+          : ev.cor_etiqueta === 'verde'
+            ? '#10b981'
+            : ev.cor_etiqueta === 'amarelo'
+              ? '#eab308'
+              : '#3b82f6';
+    const recorrencia = inferRecorrenciaFromSerie(ev, agendaEvents);
+    setEditingEvent(ev);
+    setEventFormData({
+      ...INITIAL_EVENT_FORM_DATA,
+      titulo: ev.titulo || '',
+      descricao: ev.descricao || '',
+      data_inicio: inicio.date,
+      hora_inicio: inicio.time,
+      data_fim: fim.date,
+      hora_fim: fim.time,
+      cor_etiqueta: cor,
+      anexo_nome: ev.anexo_nome || '',
+      recorrencia_tipo: recorrencia.recorrencia_tipo,
+      recorrencia_ate: recorrencia.recorrencia_ate,
+      incluir_sabado: recorrencia.incluir_sabado,
+      incluir_domingo: recorrencia.incluir_domingo,
+    });
+    setShowEventModal(true);
+  };
+
+  const openAgendaEventEditModal = () => {
+    if (!selectedAgendaEvent) return;
+    openAgendaEventEditModalFromEvent(selectedAgendaEvent);
+  };
+
+  const getAgendaExportMeta = () => {
+    const range = getAgendaExportRange(agendaView, currentDate);
+    return {
+      periodLabel: range.label,
+      schoolName: activeSchool?.nome || selectedSchool || '',
+      userName: authUser?.user_metadata?.full_name || authUser?.email?.split('@')[0] || '',
+      range,
+    };
+  };
+
+  const exportAgendaPlanejamentoPDF = async () => {
+    const { range, ...meta } = getAgendaExportMeta();
+    const events = filterEventsForExport(agendaEvents, range);
+    if (events.length === 0) {
+      alert('Não há eventos no período visível para exportar.');
+      return;
+    }
+    setExportingAgenda(true);
+    try {
+      await exportAgendaPDF(events, meta);
+    } catch (err) {
+      alert('Erro ao exportar PDF: ' + (err?.message || err));
+    } finally {
+      setExportingAgenda(false);
+    }
+  };
+
+  const exportAgendaPlanejamentoWord = async () => {
+    const { range, ...meta } = getAgendaExportMeta();
+    const events = filterEventsForExport(agendaEvents, range);
+    if (events.length === 0) {
+      alert('Não há eventos no período visível para exportar.');
+      return;
+    }
+    setExportingAgenda(true);
+    try {
+      await exportAgendaWord(events, meta);
+    } catch (err) {
+      alert('Erro ao exportar Word: ' + (err?.message || err));
+    } finally {
+      setExportingAgenda(false);
+    }
+  };
+
+  const handleSaveAgendaAnotacoes = async () => {
+    if (!selectedAgendaEvent?.id) return;
+    setSavingAgendaAnotacoes(true);
+    try {
+      let { error } = await supabase
+        .from('agenda_eventos')
+        .update({ anotacoes: agendaAnotacoesText || null })
+        .eq('id', selectedAgendaEvent.id);
+
+      if (error?.message?.includes('anotacoes')) {
+        alert(
+          'Não foi possível salvar as anotações. Execute o script supabase_agenda_anotacoes.sql no Supabase para adicionar a coluna "anotacoes".'
+        );
+        return;
+      }
+
+      if (error) {
+        alert('Erro ao salvar anotações: ' + error.message);
+        return;
+      }
+
+      const updated = { ...selectedAgendaEvent, anotacoes: agendaAnotacoesText || null };
+      setSelectedAgendaEvent(updated);
+      setAgendaEvents((prev) =>
+        prev.map((ev) => (ev.id === selectedAgendaEvent.id ? { ...ev, anotacoes: updated.anotacoes } : ev))
+      );
+    } catch (err) {
+      alert('Erro ao salvar anotações: ' + err.message);
+    } finally {
+      setSavingAgendaAnotacoes(false);
+    }
+  };
+
+  const handleUploadAgendaEventFiles = async (files) => {
+    if (!selectedAgendaEvent?.id || !files?.length) return;
+    setUploadingAgendaAnexos(true);
+    try {
+      const eventId = selectedAgendaEvent.id;
+      for (const file of files) {
+        const originalFileName = file.name;
+        const sanitizedFileName = sanitizeFileName(originalFileName);
+        const fileName = `${Date.now()}_${sanitizedFileName}`;
+        const filePath = `${eventId}/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('agenda-arquivos')
+          .upload(filePath, file, { cacheControl: '3600', upsert: true });
+
+        if (uploadError) {
+          alert(`Erro ao enviar "${originalFileName}": ${uploadError.message}`);
+          continue;
+        }
+
+        if (!selectedAgendaEvent.anexo_url) {
+          const { data: urlData } = supabase.storage.from('agenda-arquivos').getPublicUrl(filePath);
+          await supabase
+            .from('agenda_eventos')
+            .update({
+              anexo_url: urlData?.publicUrl || filePath,
+              anexo_nome: originalFileName,
+            })
+            .eq('id', eventId);
+        }
+      }
+      await loadAgendaEvents();
+      const { data: refreshed } = await supabase
+        .from('agenda_eventos')
+        .select('*')
+        .eq('id', eventId)
+        .single();
+      if (refreshed) setSelectedAgendaEvent(refreshed);
+      await loadAgendaEventAnexos(eventId, refreshed || selectedAgendaEvent);
+    } catch (err) {
+      alert('Erro no upload: ' + err.message);
+    } finally {
+      setUploadingAgendaAnexos(false);
+    }
+  };
+
+  const handleDeleteAgendaEventAnexo = async (filePath, fileName) => {
+    if (!filePath) return;
+    if (!window.confirm(`Remover o arquivo "${fileName || 'anexo'}"?`)) return;
+
+    const { error } = await supabase.storage.from('agenda-arquivos').remove([filePath]);
+    if (error) {
+      alert('Erro ao remover anexo: ' + error.message);
+      return;
+    }
+
+    if (selectedAgendaEvent?.anexo_url?.includes(filePath.split('/').pop())) {
+      await supabase
+        .from('agenda_eventos')
+        .update({ anexo_url: null, anexo_nome: null })
+        .eq('id', selectedAgendaEvent.id);
+    }
+
+    await loadAgendaEventAnexos(selectedAgendaEvent.id, selectedAgendaEvent);
+    await loadAgendaEvents();
   };
 
   const handleDeleteStudent = async (studentId) => {
@@ -4186,7 +4645,7 @@ function App() {
           </aside>
 
           <main>
-            <header>
+            <header className="app-header">
               <button
                 className="mobile-menu-btn"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -4195,20 +4654,14 @@ function App() {
                 ☰
               </button>
               <h1>{getPageTitle()}</h1>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
+              <div className="app-header-controls">
                 <select
+                  className="app-header-select app-header-select-school"
                   value={activeSchoolId ?? ''}
                   onChange={(e) => handleChangeActiveSchool(e.target.value || null)}
                   disabled={schoolsLoading || activeSchoolsList.length === 0}
                   style={{
-                    padding: '8px 12px',
-                    border: '1px solid #ddd',
-                    borderRadius: 6,
-                    fontSize: '0.9em',
-                    background: 'white',
-                    color: 'var(--text)',
                     cursor: schoolsLoading || activeSchoolsList.length === 0 ? 'not-allowed' : 'pointer',
-                    minWidth: 180,
                   }}
                   title={schoolsError || (activeSchoolsList.length === 0 && !schoolsLoading ? 'Cadastre ou desarquive uma escola em Gestão de Escolas' : '')}
                 >
@@ -4229,17 +4682,9 @@ function App() {
                   <span style={{ fontSize: '0.8em', color: 'var(--danger)' }}>{schoolsError}</span>
                 )}
                 <select
+                  className="app-header-select"
                   value={selectedYear}
                   onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                  style={{
-                    padding: '8px 12px',
-                    border: '1px solid #ddd',
-                    borderRadius: 6,
-                    fontSize: '0.9em',
-                    background: 'white',
-                    color: 'var(--text)',
-                    cursor: 'pointer',
-                  }}
                 >
                   <option value={2024}>2024</option>
                   <option value={2025}>2025</option>
@@ -4286,6 +4731,7 @@ function App() {
                 dashboardDayEvents={dashboardDayEvents}
                 setCurrentDate={setCurrentDate}
                 setAgendaView={setAgendaView}
+                onOpenEventDetail={openAgendaEventDetail}
               />
             )}
 
@@ -4778,11 +5224,32 @@ function App() {
                 setEditingEvent={setEditingEvent}
                 setEventFormData={setEventFormData}
                 setShowEventModal={setShowEventModal}
+                onOpenEventDetail={openAgendaEventDetail}
                 currentDate={currentDate}
                 setCurrentDate={setCurrentDate}
                 agendaEvents={agendaEvents}
                 getBirthdayEventsForDay={getBirthdayEventsForDay}
                 splitDateTime={splitDateTime}
+                onExportPDF={exportAgendaPlanejamentoPDF}
+                onExportWord={exportAgendaPlanejamentoWord}
+                exportingAgenda={exportingAgenda}
+              />
+            )}
+
+            {currentView === 'agenda-event-detail' && (
+              <AgendaEventDetailView
+                navigate={navigate}
+                selectedAgendaEvent={selectedAgendaEvent}
+                anotacoesText={agendaAnotacoesText}
+                setAnotacoesText={setAgendaAnotacoesText}
+                savingAnotacoes={savingAgendaAnotacoes}
+                onSaveAnotacoes={handleSaveAgendaAnotacoes}
+                anexos={agendaEventAnexos}
+                loadingAnexos={loadingAgendaAnexos}
+                uploadingAnexos={uploadingAgendaAnexos}
+                onUploadFiles={handleUploadAgendaEventFiles}
+                onDeleteAnexo={handleDeleteAgendaEventAnexo}
+                onEditEvent={openAgendaEventEditModal}
               />
             )}
             {/* --- FIM DA AGENDA RECUPERADA --- */}
@@ -4811,7 +5278,7 @@ function App() {
        
       // eslint-disable-next-line no-unused-vars
       const { data, error } = await supabase.auth.resetPasswordForEmail(authUser.email, {
-                          redirectTo: `${window.location.origin}/`,
+                          redirectTo: getAuthRedirectUrl(),
                         });
                         setAuthLoading(false);
                         if (error) setAuthError(error.message);

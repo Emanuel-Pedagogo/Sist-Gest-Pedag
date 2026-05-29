@@ -1,4 +1,5 @@
 import React from 'react';
+import ModalShell from '../ModalShell';
 
 const ClassModal = ({
   showClassModal,
@@ -16,52 +17,35 @@ const ClassModal = ({
   generateTurmaNome,
   savingClass,
 }) => {
-  if (!showClassModal) return null;
+  const resetForm = () => {
+    setClassFormData({
+      nome: '',
+      ano: [],
+      codigo: '',
+      professor_regente: '',
+      aluno_representante: '',
+      escola_id: activeSchoolId || '',
+      ano_letivo: selectedYear,
+      turma_especial: false,
+    });
+  };
+
+  const closeModal = () => {
+    setShowClassModal(false);
+    setEditingClass(null);
+    resetForm();
+  };
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100%',
-        height: '100%',
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 2000,
-      }}
-      onMouseDown={handleBackdropMouseDown}
-      onClick={(e) => handleBackdropClick(e, () => {
-        setShowClassModal(false);
-        setEditingClass(null);
-        setClassFormData({
-          nome: '',
-          ano: [],
-          codigo: '',
-          professor_regente: '',
-          aluno_representante: '',
-          escola_id: activeSchoolId || '',
-          ano_letivo: selectedYear,
-          turma_especial: false,
-        });
-      })}
+    <ModalShell
+      open={showClassModal}
+      disabled={savingClass}
+      onClose={closeModal}
+      maxWidth={750}
+      handleBackdropMouseDown={handleBackdropMouseDown}
+      handleBackdropClick={handleBackdropClick}
     >
-      <div
-        style={{
-          background: 'white',
-          padding: 20,
-          borderRadius: 12,
-          width: '90%',
-          maxWidth: 750,
-          maxHeight: '90vh',
-          overflowY: 'auto',
-          boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 style={{ marginBottom: 12, color: 'var(--primary)', fontSize: '1.3em' }}>
+        <h2 style={{ marginBottom: 12, fontSize: '1.3em' }}>
           {editingClass ? 'Editar Turma' : 'Nova Turma'}
         </h2>
         <form onSubmit={handleSaveClass}>
@@ -329,8 +313,7 @@ const ClassModal = ({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </ModalShell>
   );
 };
 
