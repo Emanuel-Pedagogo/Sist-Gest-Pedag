@@ -69,41 +69,19 @@ const AgendaEventDetailView = ({
   };
 
   return (
-    <div id="view-agenda-event-detail" className="view-section">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+    <div id="view-agenda-event-detail" className="view-section agenda-event-detail">
+      <div className="agenda-detail-toolbar">
         <button
           type="button"
+          className="btn-secondary agenda-detail-toolbar__btn"
           onClick={() => navigate('agenda')}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '8px 14px',
-            border: '1px solid #ddd',
-            borderRadius: 8,
-            background: 'white',
-            color: 'var(--primary)',
-            cursor: 'pointer',
-            fontSize: '0.9em',
-            fontWeight: 500,
-          }}
         >
           <i className="fas fa-arrow-left" /> Voltar à agenda
         </button>
         <button
           type="button"
+          className="btn-secondary agenda-detail-toolbar__btn"
           onClick={onEditEvent}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '8px 14px',
-            border: '1px solid #ddd',
-            borderRadius: 8,
-            background: 'white',
-            cursor: 'pointer',
-            fontSize: '0.9em',
-          }}
         >
           <i className="fas fa-pen" /> Editar evento
         </button>
@@ -219,13 +197,12 @@ const AgendaEventDetailView = ({
             boxSizing: 'border-box',
           }}
         />
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+        <div className="agenda-detail-save-row">
           <button
             type="button"
             className="btn-primary"
             onClick={onSaveAnotacoes}
             disabled={savingAnotacoes}
-            style={{ width: 'auto', padding: '10px 24px' }}
           >
             {savingAnotacoes ? 'Salvando...' : 'Salvar anotações'}
           </button>

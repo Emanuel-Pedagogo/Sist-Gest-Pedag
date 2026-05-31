@@ -340,7 +340,7 @@ function ImportarBoletim({
   };
 
   return (
-    <div style={{ padding: 20, background: '#fff', borderRadius: 8, border: '1px solid #e5e7eb', marginBottom: 20 }}>
+    <div className="import-panel">
       <h3 style={{ marginTop: 0, marginBottom: 16, fontSize: 18, color: '#374151' }}>
         <i className="fas fa-file-pdf" style={{ color: '#ef4444', marginRight: 8 }}></i>
         Importar Boletim do EducaMais
@@ -353,7 +353,7 @@ function ImportarBoletim({
               ? 'Selecione o PDF do boletim individual deste aluno (EducaMais). As notas serão aplicadas só a ele.'
               : 'Selecione o arquivo PDF gerado pelo sistema EducaMais para extrair as notas automaticamente.'}
           </p>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <div className="import-actions">
             <input 
               type="file" 
               accept=".pdf" 
@@ -394,7 +394,7 @@ function ImportarBoletim({
                 ? 'Dados extraídos para este aluno.'
                 : `${alunosExtraidos.length} aluno(s) encontrado(s) no PDF.`}
             </p>
-            <div style={{ display: 'flex', gap: 10 }}>
+            <div className="import-actions">
               <button
                 onClick={() => setStep('upload')}
                 style={{
@@ -427,7 +427,7 @@ function ImportarBoletim({
 
           {error && <p style={{ color: '#dc2626', marginBottom: 16, fontSize: 14 }}>{error}</p>}
 
-          <div style={{ maxHeight: 400, overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 6 }}>
+          <div className="import-table-wrap">
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead style={{ background: '#f9fafb', position: 'sticky', top: 0, zIndex: 10 }}>
                 <tr>

@@ -44,16 +44,8 @@ const LibraryView = ({
       {/* Aba: Controle de empréstimos (padrão) */}
       {libraryTab === 'loans' && (
         <div className="tab-content active">
-          <div
-            style={{
-              background: 'white',
-              padding: 20,
-              borderRadius: 12,
-              border: '1px solid #eee',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-            }}
-          >
-            <h3 style={{ marginTop: 0, marginBottom: 10 }}>Controle de empréstimos</h3>
+          <div className="library-panel">
+          <h3 style={{ marginTop: 0, marginBottom: 10 }}>Controle de empréstimos</h3>
             <p style={{ fontSize: '0.85em', color: 'var(--text-light)', marginBottom: 16 }}>
               Registre quem está com cada livro e a data prevista para devolução.
             </p>
@@ -99,13 +91,7 @@ const LibraryView = ({
                 });
                 setLoanStudentQuery('');
               }}
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'minmax(0, 1.1fr) minmax(0, 0.9fr)',
-                gap: 10,
-                marginBottom: 18,
-                alignItems: 'flex-end',
-              }}
+              className="library-loan-form"
             >
               <div className="input-group" style={{ marginBottom: 0 }}>
                 <label>Livro *</label>
@@ -162,20 +148,7 @@ const LibraryView = ({
                   autoComplete="off"
                 />
                 {loanStudentQuery.length >= 2 && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: '100%',
-                      left: 0,
-                      right: 0,
-                      background: 'white',
-                      border: '1px solid #ddd',
-                      borderRadius: '0 0 6px 6px',
-                      maxHeight: 220,
-                      overflowY: 'auto',
-                      zIndex: 10,
-                    }}
-                  >
+                  <div className="modal-autocomplete-dropdown">
                     {studentsLoading && (
                       <div style={{ padding: 8, fontSize: '0.85em' }}>Carregando alunos...</div>
                     )}
@@ -291,7 +264,7 @@ const LibraryView = ({
                   }
                 />
               </div>
-              <div style={{ gridColumn: '1 / -1' }}>
+              <div className="library-loan-form__full">
                 <button
                   type="submit"
                   className="btn-primary"
@@ -376,7 +349,7 @@ const LibraryView = ({
                           )}
                         </div>
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
+                      <div className="list-item-actions" style={{ flexDirection: 'column', alignItems: 'flex-end' }}>
                         <span
                           style={{
                             fontSize: '0.75em',
@@ -392,6 +365,8 @@ const LibraryView = ({
                         {!isReturned && (
                           <button
                             type="button"
+                            className="btn-icon btn-icon--success"
+                            style={{ fontSize: '0.8em', width: 'auto', minWidth: 0, padding: '6px 10px' }}
                             onClick={() => {
                               setBookLoans((prev) =>
                                 prev.map((l) =>
@@ -400,15 +375,6 @@ const LibraryView = ({
                                     : l
                                 )
                               );
-                            }}
-                            style={{
-                              background: 'var(--success)',
-                              color: 'white',
-                              border: 'none',
-                              padding: '6px 10px',
-                              borderRadius: 6,
-                              cursor: 'pointer',
-                              fontSize: '0.8em',
                             }}
                           >
                             <i className="fas fa-check" style={{ marginRight: 4 }} />
@@ -427,16 +393,8 @@ const LibraryView = ({
       {/* Aba: Cadastro de livros */}
       {libraryTab === 'books' && (
         <div className="tab-content active">
-          <div
-            style={{
-              background: 'white',
-              padding: 20,
-              borderRadius: 12,
-              border: '1px solid #eee',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-            }}
-          >
-            <h3 style={{ marginTop: 0, marginBottom: 10 }}>Cadastro de livros</h3>
+          <div className="library-panel">
+          <h3 style={{ marginTop: 0, marginBottom: 10 }}>Cadastro de livros</h3>
             <p style={{ fontSize: '0.85em', color: 'var(--text-light)', marginBottom: 16 }}>
               Registre aqui os títulos disponíveis para empréstimo.
             </p>
@@ -526,7 +484,7 @@ const LibraryView = ({
                           {livro.codigo && <span>Cód.: {livro.codigo}</span>}
                         </div>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div className="list-item-actions">
                         {emprestado && (
                           <span
                             className="badge badge-warning"
@@ -537,6 +495,8 @@ const LibraryView = ({
                         )}
                         <button
                           type="button"
+                          className="btn-icon btn-icon--danger"
+                          style={{ fontSize: '0.8em', minWidth: 0, padding: '6px 10px' }}
                           onClick={() => {
                             const hasActiveLoan = bookLoans.some(
                               (loan) => loan.livroId === livro.id && !loan.dataDevolucao
@@ -548,15 +508,6 @@ const LibraryView = ({
                             setLibraryBooks((prev) =>
                               prev.filter((b) => b.id !== livro.id)
                             );
-                          }}
-                          style={{
-                            background: 'var(--danger)',
-                            color: 'white',
-                            border: 'none',
-                            padding: '6px 10px',
-                            borderRadius: 6,
-                            cursor: 'pointer',
-                            fontSize: '0.8em',
                           }}
                         >
                           <i className="fas fa-trash" />

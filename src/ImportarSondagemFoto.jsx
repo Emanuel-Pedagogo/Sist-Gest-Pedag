@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { supabase } from './supabaseClient';
 import { extractSondagensFromImage, fileToBase64 } from './services/geminiApi';
+import { pickPhotoAsFile } from './utils/nativeCamera';
 import {
   inferAnoEscolarSet,
   getOpcoesPorAnoSet,
@@ -78,6 +80,18 @@ function ImportarSondagemFoto({
     } else {
       setFile(null);
       setError('Selecione uma imagem (JPG, PNG ou WEBP).');
+    }
+  };
+
+  const handleNativePhoto = async () => {
+    setError('');
+    try {
+      const photoFile = await pickPhotoAsFile('sondagem');
+      setFile(photoFile);
+    } catch (err) {
+      if (err?.message !== 'User cancelled photos app') {
+        setError(err?.message || 'Não foi possível obter a foto.');
+      }
     }
   };
 
@@ -200,15 +214,7 @@ function ImportarSondagemFoto({
   };
 
   return (
-    <div
-      style={{
-        padding: 20,
-        background: '#fff',
-        borderRadius: 8,
-        border: '1px solid #e5e7eb',
-        marginBottom: 20,
-      }}
-    >
+    <div className="import-panel">
       <h3 style={{ marginTop: 0, marginBottom: 12, fontSize: 17, color: '#374151' }}>
         <i className="fas fa-camera" style={{ marginRight: 8, color: '#7c3aed' }} />
         Importar sondagens por foto (IA)
@@ -221,7 +227,19 @@ function ImportarSondagemFoto({
             leitura/escrita e data. Você revisa antes de salvar. Etapa detectada para níveis:{' '}
             <strong>{anoSet === '1-2' ? '1º–2º ano' : anoSet === '3-5' ? '3º–5º ano' : '6º–9º ano'}</strong>.
           </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+          <div className="import-actions">
+            {Capacitor.isNativePlatform() && (
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ padding: '8px 16px', background: '#2563eb' }}
+                disabled={loading}
+                onClick={handleNativePhoto}
+              >
+                <i className="fas fa-camera" style={{ marginRight: 6 }} />
+                Câmera / Galeria
+              </button>
+            )}
             <input type="file" accept="image/jpeg,image/png,image/webp,image/*" onChange={handleFileChange} />
             <button
               type="button"
@@ -256,15 +274,7 @@ function ImportarSondagemFoto({
             {linhas.length} registro(s) extraído(s). Vincule alunos e confira os níveis antes de salvar.
           </p>
           {error && <p style={{ color: '#b91c1c', marginBottom: 10 }}>{error}</p>}
-          <div
-            style={{
-              maxHeight: 360,
-              overflow: 'auto',
-              border: '1px solid #e5e7eb',
-              borderRadius: 8,
-              marginBottom: 14,
-            }}
-          >
+          <div className="import-table-wrap" style={{ maxHeight: 360, marginBottom: 14 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead style={{ background: '#f9fafb', position: 'sticky', top: 0 }}>
                 <tr>
@@ -345,7 +355,7 @@ function ImportarSondagemFoto({
               </tbody>
             </table>
           </div>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <div className="import-actions">
             <button type="button" className="btn-primary" style={{ padding: '8px 16px' }} onClick={salvarNoBanco}>
               Cadastrar sondagens
             </button>

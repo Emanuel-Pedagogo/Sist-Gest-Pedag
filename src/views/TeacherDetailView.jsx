@@ -118,17 +118,8 @@ const TeacherDetailView = ({
 
           {teacherProfileTab === 'entregas' && (
             <div className="tab-content active">
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: 16,
-                  flexWrap: 'wrap',
-                  gap: 12,
-                }}
-              >
-                <h3 style={{ margin: 0 }}>Entregas pedagógicas</h3>
+              <div className="teacher-tab-toolbar">
+                <h3>Entregas pedagógicas</h3>
                 <button
                   type="button"
                   className="btn-primary"
@@ -165,7 +156,7 @@ const TeacherDetailView = ({
                 </div>
               </div>
 
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+              <div className="filter-chips">
                 {[
                   { id: 'todos', label: 'Todos' },
                   { id: 'pendente', label: 'Pendente' },
@@ -175,15 +166,8 @@ const TeacherDetailView = ({
                   <button
                     key={f.id}
                     type="button"
+                    className={`filter-chip${entregaFilter === f.id ? ' is-active' : ''}`}
                     onClick={() => setEntregaFilter(f.id)}
-                    style={{
-                      padding: '8px 14px',
-                      borderRadius: 20,
-                      border: entregaFilter === f.id ? '2px solid var(--primary)' : '1px solid #ddd',
-                      background: entregaFilter === f.id ? 'rgba(13, 110, 253, 0.08)' : 'white',
-                      cursor: 'pointer',
-                      fontSize: '0.9em',
-                    }}
                   >
                     {f.label}
                   </button>
@@ -249,34 +233,20 @@ const TeacherDetailView = ({
                             </div>
                           )}
                         </div>
-                        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                        <div className="list-item-actions">
                           <button
                             type="button"
+                            className="btn-secondary"
+                            style={{ width: 'auto', padding: '6px 12px', fontSize: 13 }}
                             onClick={() => openEntregaModal(e)}
-                            style={{
-                              padding: '6px 12px',
-                              border: '1px solid #0d6efd',
-                              borderRadius: 6,
-                              background: 'white',
-                              color: '#0d6efd',
-                              cursor: 'pointer',
-                              fontSize: 13,
-                            }}
                           >
                             Editar
                           </button>
                           <button
                             type="button"
+                            className="btn-secondary"
+                            style={{ width: 'auto', padding: '6px 12px', fontSize: 13, color: 'var(--danger)', borderColor: 'var(--danger)' }}
                             onClick={() => handleDeleteEntrega(e)}
-                            style={{
-                              padding: '6px 12px',
-                              border: '1px solid #dc3545',
-                              borderRadius: 6,
-                              background: 'white',
-                              color: '#dc3545',
-                              cursor: 'pointer',
-                              fontSize: 13,
-                            }}
                           >
                             Excluir
                           </button>
@@ -291,17 +261,8 @@ const TeacherDetailView = ({
 
           {teacherProfileTab === 'acompanhamento' && (
             <div className="tab-content active">
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: 16,
-                  flexWrap: 'wrap',
-                  gap: 12,
-                }}
-              >
-                <h3 style={{ margin: 0 }}>Acompanhamento pedagógico</h3>
+              <div className="teacher-tab-toolbar">
+                <h3>Acompanhamento pedagógico</h3>
                 <button
                   type="button"
                   className="btn-primary"
@@ -340,27 +301,8 @@ const TeacherDetailView = ({
               {!registrosCoordLoading && !registrosCoordError && registrosCoordenacao.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                   {registrosCoordenacao.map((r) => (
-                    <div
-                      key={r.id}
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: '120px 1fr',
-                        gap: 16,
-                        background: 'white',
-                        borderRadius: 8,
-                        border: '1px solid #eee',
-                        boxShadow: '0 2px 5px rgba(0,0,0,0.05)',
-                        overflow: 'hidden',
-                      }}
-                    >
-                      <div
-                        style={{
-                          background: '#f8f9fa',
-                          padding: 16,
-                          textAlign: 'center',
-                          borderRight: '1px solid #eee',
-                        }}
-                      >
+                    <div key={r.id} className="teacher-registro-card">
+                      <div className="teacher-registro-card__date">
                         <div style={{ fontSize: '0.75em', color: 'var(--text-light)', textTransform: 'uppercase' }}>
                           Data
                         </div>
@@ -374,7 +316,7 @@ const TeacherDetailView = ({
                             : '—'}
                         </div>
                       </div>
-                      <div style={{ padding: 16 }}>
+                      <div className="teacher-registro-card__body">
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                           <strong style={{ fontSize: '1.05em', color: 'var(--primary)' }}>{r.assunto || 'Sem assunto'}</strong>
                           <div style={{ display: 'flex', gap: 8 }}>

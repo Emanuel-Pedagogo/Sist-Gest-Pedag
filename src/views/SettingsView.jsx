@@ -293,12 +293,13 @@ const SettingsView = ({ activeSchoolId, supabase }) => {
 
   return (
     <div className="view-section">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <h2>Configurações de Tags</h2>
+      <div className="settings-header">
+        <h2 style={{ margin: 0 }}>Configurações de Tags</h2>
         <button 
           className="btn-primary" 
           onClick={handleSave} 
           disabled={saving || loading}
+          style={{ width: 'auto' }}
         >
           {saving ? 'Salvando...' : 'Salvar Configurações'}
         </button>
@@ -313,39 +314,26 @@ const SettingsView = ({ activeSchoolId, supabase }) => {
       {loading ? (
         <p>Carregando configurações...</p>
       ) : (
-        <div style={{ display: 'flex', gap: 20 }}>
-          {/* Menu lateral de cores */}
-          <div style={{ width: '250px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div className="settings-layout">
+          <div className="settings-nav">
             {cores.map(cor => (
               <button
                 key={cor.id}
+                type="button"
+                className={`settings-nav-btn${activeTab === cor.id ? ' is-active' : ''}`}
                 onClick={() => setActiveTab(cor.id)}
-                style={{
-                  padding: '12px 15px',
-                  border: 'none',
-                  borderRadius: '8px',
-                  background: activeTab === cor.id ? cor.color : '#f5f5f5',
-                  color: activeTab === cor.id ? 'white' : '#333',
-                  fontWeight: activeTab === cor.id ? 'bold' : 'normal',
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10
-                }}
+                style={activeTab === cor.id ? { background: cor.color } : undefined}
               >
-                <span style={{ 
-                  width: 16, height: 16, borderRadius: '50%', 
-                  background: activeTab === cor.id ? 'white' : cor.color 
-                }}></span>
+                <span
+                  className="settings-nav-btn__dot"
+                  style={{ background: activeTab === cor.id ? 'white' : cor.color }}
+                />
                 {cor.label}
               </button>
             ))}
           </div>
 
-          {/* Área de configuração */}
-          <div style={{ flex: 1, background: '#fff', padding: 25, borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+          <div className="settings-panel">
             <h3 style={{ marginTop: 0, color: cores.find(c => c.id === activeTab)?.color }}>
               Critérios para a Tag {cores.find(c => c.id === activeTab)?.label}
             </h3>
@@ -356,7 +344,7 @@ const SettingsView = ({ activeSchoolId, supabase }) => {
                 Aplica-se do 2º ano em diante. Alunos de Pré I, Pré II e 1º ano recebem a etiqueta
                 apenas com base em nível de leitura, escrita e ocorrências.
               </p>
-              <div style={{ display: 'flex', gap: 15, alignItems: 'center', marginTop: 10 }}>
+              <div className="settings-notas-row">
                 <div>
                   <label style={{ display: 'block', marginBottom: 5, fontSize: '0.9em' }}>Nota Mínima</label>
                   <input 
@@ -368,7 +356,7 @@ const SettingsView = ({ activeSchoolId, supabase }) => {
                     placeholder="Ex: 0"
                   />
                 </div>
-                <span style={{ marginTop: 25 }}>até</span>
+                <span>até</span>
                 <div>
                   <label style={{ display: 'block', marginBottom: 5, fontSize: '0.9em' }}>Nota Máxima</label>
                   <input 

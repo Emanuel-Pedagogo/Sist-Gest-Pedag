@@ -20,17 +20,8 @@ const ChartsView = ({
         Visualize a distribuição de alunos por etiqueta, turma e nível de leitura. Use os filtros para o mesmo escopo de escola e ano dos relatórios — assim os dados não se conflitam.
       </p>
 
-      <div
-        style={{
-          background: 'white',
-          padding: 24,
-          borderRadius: 12,
-          marginBottom: 24,
-          border: '1px solid #eee',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-        }}
-      >
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+      <div className="analytics-panel">
+        <div className="analytics-filters">
           <div className="input-group" style={{ minWidth: 180 }}>
             <label style={{ margin: 0, marginBottom: 6, fontSize: 14, fontWeight: 600, color: '#222' }}>Escola</label>
             <select
@@ -103,9 +94,9 @@ const ChartsView = ({
               .sort((a, b) => b.total - a.total);
 
             return (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
-                <div style={{ background: 'white', padding: 24, borderRadius: 12, border: '1px solid #eee', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-                  <h4 style={{ margin: '0 0 16px 0', fontSize: 16 }}>Alunos por etiqueta</h4>
+              <div className="charts-stack">
+                <div className="chart-card">
+                  <h4>Alunos por etiqueta</h4>
                   <ResponsiveContainer width="100%" height={280}>
                     <PieChart>
                       <Pie
@@ -126,8 +117,8 @@ const ChartsView = ({
                   </ResponsiveContainer>
                 </div>
 
-                <div style={{ background: 'white', padding: 24, borderRadius: 12, border: '1px solid #eee', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-                  <h4 style={{ margin: '0 0 16px 0', fontSize: 16 }}>Alunos por turma</h4>
+                <div className="chart-card">
+                  <h4>Alunos por turma</h4>
                   <ResponsiveContainer width="100%" height={320}>
                     <BarChart data={barTurmaData} margin={{ top: 8, right: 16, left: 8, bottom: 60 }}>
                       <CartesianGrid strokeDasharray="3 3" />
@@ -139,8 +130,8 @@ const ChartsView = ({
                   </ResponsiveContainer>
                 </div>
 
-                <div style={{ background: 'white', padding: 24, borderRadius: 12, border: '1px solid #eee', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-                  <h4 style={{ margin: '0 0 16px 0', fontSize: 16 }}>Alunos por nível de leitura</h4>
+                <div className="chart-card">
+                  <h4>Alunos por nível de leitura</h4>
                   <ResponsiveContainer width="100%" height={Math.max(320, barNivelData.length * 28)}>
                     <BarChart data={barNivelData} layout="vertical" margin={{ left: 120, right: 24 }}>
                       <CartesianGrid strokeDasharray="3 3" />

@@ -103,9 +103,9 @@ const ClassDashboardView = ({ classId, className, students }) => {
     <div className="class-dashboard" style={{ padding: '10px 0' }}>
       <h3 style={{ marginBottom: 20 }}>Dashboard da Turma: {className}</h3>
       
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 20 }}>
+      <div className="class-dashboard-grid">
         {/* Gráfico de Cores */}
-        <div style={{ background: 'white', padding: 20, borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+        <div className="class-dashboard-chart">
           <h4 style={{ textAlign: 'center', marginBottom: 20 }}>Etiquetas de Cores</h4>
           {colorTagsData.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
@@ -125,7 +125,7 @@ const ClassDashboardView = ({ classId, className, students }) => {
         </div>
 
         {/* Gráfico de Notas */}
-        <div style={{ background: 'white', padding: 20, borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+        <div className="class-dashboard-chart">
           <h4 style={{ textAlign: 'center', marginBottom: 20 }}>Classificação de Notas</h4>
           {notasData.some(d => d.value > 0) ? (
             <ResponsiveContainer width="100%" height={300}>
@@ -145,7 +145,7 @@ const ClassDashboardView = ({ classId, className, students }) => {
         </div>
 
         {/* Gráfico de Níveis de Leitura */}
-        <div style={{ background: 'white', padding: 20, borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+        <div className="class-dashboard-chart">
           <h4 style={{ textAlign: 'center', marginBottom: 20 }}>Níveis de Leitura (Alfabetiza Pará)</h4>
           {leituraData.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
@@ -163,7 +163,7 @@ const ClassDashboardView = ({ classId, className, students }) => {
         </div>
 
         {/* Gráfico de Níveis de Escrita */}
-        <div style={{ background: 'white', padding: 20, borderRadius: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+        <div className="class-dashboard-chart">
           <h4 style={{ textAlign: 'center', marginBottom: 20 }}>Níveis de Escrita (Alfabetiza Pará)</h4>
           {escritaData.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>

@@ -17,17 +17,8 @@ const TeachersView = ({
 }) => {
   return (
     <div id="view-teachers" className="view-section">
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 20,
-          flexWrap: 'wrap',
-          gap: 15,
-        }}
-      >
-        <h2 style={{ margin: 0 }}>
+      <div className="page-toolbar">
+        <h2>
           Professores {activeSchool ? `- ${activeSchool.nome}` : ''}
         </h2>
         <button
@@ -44,20 +35,16 @@ const TeachersView = ({
         </button>
       </div>
 
-      <div style={{ marginBottom: 20, display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
-        <div style={{ flex: 1, minWidth: 240 }}>
-          <input
-            type="text"
-            placeholder="Digite o nome ou a disciplina..."
-            value={teacherSearchTerm}
-            onChange={(e) => setTeacherSearchTerm(e.target.value)}
-            style={{
-              width: '100%',
-              padding: 10,
-              border: '1px solid #ddd',
-              borderRadius: 6,
-            }}
-          />
+      <div className="sticky-search-bar">
+        <div className="filter-bar" style={{ marginBottom: 0 }}>
+          <div>
+            <input
+              type="text"
+              placeholder="Digite o nome ou a disciplina..."
+              value={teacherSearchTerm}
+              onChange={(e) => setTeacherSearchTerm(e.target.value)}
+            />
+          </div>
         </div>
       </div>
 
@@ -92,48 +79,36 @@ const TeachersView = ({
                 onClick={() => selectTeacher(p)}
                 title="Abrir perfil do professor"
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
-                  <i className="fas fa-chalkboard-teacher" style={{ color: 'var(--primary)', fontSize: '1.2em', width: 24, textAlign: 'center' }} />
-                  <div>
+                <div className="list-item__main">
+                  <i className="fas fa-chalkboard-teacher" style={{ color: 'var(--primary)', fontSize: '1.2em', width: 24, textAlign: 'center', flexShrink: 0 }} />
+                  <div style={{ minWidth: 0 }}>
                     <strong>{p.nome}</strong>
-                    <div style={{ fontSize: '0.8em', color: 'gray' }}>
+                    <div className="list-item__meta">
                       Disciplina: {p.disciplina || 'Não informado'}
                       {turmaNomes.length > 0 ? ` • Turmas: ${turmaNomes.join(', ')}` : ' • Turmas: -'}
                     </div>
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <div className="list-item-actions">
                   <button
                     type="button"
+                    className="btn-icon btn-icon--accent"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleEditTeacher(p);
                     }}
-                    style={{
-                      background: 'var(--accent)',
-                      color: 'white',
-                      border: 'none',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      cursor: 'pointer',
-                    }}
+                    title="Editar professor"
                   >
                     <i className="fas fa-edit" />
                   </button>
                   <button
                     type="button"
+                    className="btn-icon btn-icon--danger"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleDeleteTeacher(p.id);
                     }}
-                    style={{
-                      background: 'var(--danger)',
-                      color: 'white',
-                      border: 'none',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      cursor: 'pointer',
-                    }}
+                    title="Excluir professor"
                   >
                     <i className="fas fa-trash" />
                   </button>

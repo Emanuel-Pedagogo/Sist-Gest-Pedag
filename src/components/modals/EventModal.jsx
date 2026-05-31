@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import ModalShell from '../ModalShell';
-import { RECORRENCIA_OPCOES, INITIAL_EVENT_FORM_DATA } from '../../utils/agendaConstants';
+import { RECORRENCIA_OPCOES, INITIAL_EVENT_FORM_DATA, ETIQUETA_CORES } from '../../utils/agendaConstants';
 import { countRecurringOccurrences, getDefaultRecorrenciaAte } from '../../utils/agendaRecorrencia';
 
 const EventModal = ({  showEventModal,
@@ -298,31 +298,51 @@ const EventModal = ({  showEventModal,
           )}
 
           <div className="input-group" style={{ marginBottom: 20 }}>
-            <label>Cor da Etiqueta</label>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              {['#3498DB', '#E74C3C', '#2ECC71', '#F39C12', '#9B59B6', '#1ABC9C', '#E67E22'].map((color) => (
-                <div
-                  key={color}
-                  onClick={() => setEventFormData({ ...eventFormData, cor_etiqueta: color })}
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: '50%',
-                    background: color,
-                    cursor: 'pointer',
-                    border: eventFormData.cor_etiqueta === color ? '3px solid #333' : '2px solid #ddd',
-                    transition: 'all 0.2s',
-                  }}
-                  title={color}
-                />
-              ))}
+            <label>Tipo / Cor da Etiqueta</label>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))',
+                gap: 8,
+              }}
+            >
+              {ETIQUETA_CORES.filter((e) => e.id !== 'aniversario').map((cat) => {
+                const selected = eventFormData.cor_etiqueta === cat.color;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setEventFormData({ ...eventFormData, cor_etiqueta: cat.color })}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      border: selected ? '2px solid #333' : '1px solid #ddd',
+                      background: selected ? '#f5f5f5' : 'white',
+                      cursor: 'pointer',
+                      fontSize: '0.85em',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 18,
+                        height: 18,
+                        borderRadius: '50%',
+                        background: cat.color,
+                        flexShrink: 0,
+                      }}
+                    />
+                    {cat.label}
+                  </button>
+                );
+              })}
             </div>
-            <input
-              type="color"
-              value={eventFormData.cor_etiqueta}
-              onChange={(e) => setEventFormData({ ...eventFormData, cor_etiqueta: e.target.value })}
-              style={{ marginTop: 10, width: '100%', height: 40, cursor: 'pointer' }}
-            />
+            <p style={{ margin: '8px 0 0', fontSize: '0.8em', color: '#888' }}>
+              Aniversários de alunos aparecem automaticamente na cor rosa.
+            </p>
           </div>
 
           <div className="input-group" style={{ marginBottom: 20 }}>

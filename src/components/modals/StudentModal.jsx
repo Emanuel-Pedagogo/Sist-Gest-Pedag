@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import ModalShell from '../ModalShell';
 
 const StudentModal = ({
   showStudentModal,
@@ -68,44 +69,23 @@ const StudentModal = ({
   const turmaNomePorId = (turmaId) =>
     (classes || []).find((c) => String(c.id) === String(turmaId))?.nome || 'Turma';
 
-  if (!showStudentModal) return null;
+  const closeModal = () => {
+    setShowStudentModal(false);
+    setEditingStudent(null);
+    resetForm();
+  };
 
   if (linkExistingMode) {
     return (
-      <div
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '100%',
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 2000,
-        }}
-        onMouseDown={handleBackdropMouseDown}
-        onClick={(e) =>
-          handleBackdropClick(e, () => {
-            setShowStudentModal(false);
-            setEditingStudent(null);
-            resetForm();
-          })
-        }
+      <ModalShell
+        open={showStudentModal}
+        disabled={savingStudent}
+        onClose={closeModal}
+        maxWidth={560}
+        handleBackdropMouseDown={handleBackdropMouseDown}
+        handleBackdropClick={handleBackdropClick}
       >
-        <div
-          style={{
-            background: 'white',
-            padding: 30,
-            borderRadius: 12,
-            width: '90%',
-            maxWidth: 560,
-            boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <h2 style={{ marginBottom: 8, color: 'var(--primary)' }}>
+          <h2 style={{ marginBottom: 8 }}>
             Adicionar aluno — {turmaDestino?.nome}
           </h2>
           <p style={{ margin: '0 0 20px', fontSize: '0.9em', color: '#6b7280', lineHeight: 1.45 }}>
@@ -123,21 +103,7 @@ const StudentModal = ({
               autoFocus
             />
             {nameSearchQuery.trim().length >= 2 && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  right: 0,
-                  background: 'white',
-                  border: '1px solid #ddd',
-                  borderRadius: '0 0 6px 6px',
-                  maxHeight: 280,
-                  overflowY: 'auto',
-                  zIndex: 20,
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                }}
-              >
+              <div className="modal-autocomplete-dropdown">
                 {schoolStudentsPickerLoading && (
                   <div style={{ padding: 10, fontSize: '0.85em', color: '#666' }}>
                     Buscando alunos...
@@ -183,77 +149,26 @@ const StudentModal = ({
               </div>
             )}
           </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <button
-              type="button"
-              onClick={() => {
-                setShowStudentModal(false);
-                setEditingStudent(null);
-                resetForm();
-              }}
-              style={{
-                padding: '10px 20px',
-                border: '1px solid #ddd',
-                borderRadius: 6,
-                background: 'white',
-                cursor: 'pointer',
-                color: 'var(--text)',
-              }}
-              disabled={savingStudent}
-            >
+          <div className="modal-actions">
+            <button type="button" className="btn-secondary" onClick={closeModal} disabled={savingStudent}>
               Fechar
             </button>
           </div>
-        </div>
-      </div>
+      </ModalShell>
     );
   }
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100%',
-        height: '100%',
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 2000,
-      }}
-      onMouseDown={handleBackdropMouseDown}
-      onClick={(e) =>
-        handleBackdropClick(e, () => {
-          setShowStudentModal(false);
-          setEditingStudent(null);
-          resetForm();
-        })
-      }
+    <ModalShell
+      open={showStudentModal}
+      disabled={savingStudent}
+      onClose={closeModal}
+      handleBackdropMouseDown={handleBackdropMouseDown}
+      handleBackdropClick={handleBackdropClick}
     >
-      <div
-        style={{
-          background: 'white',
-          padding: 30,
-          borderRadius: 12,
-          width: '90%',
-          maxWidth: 600,
-          boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 style={{ marginBottom: 20, color: 'var(--primary)' }}>
-          {editingStudent ? 'Editar Aluno' : 'Novo Aluno'}
-        </h2>
+        <h2>{editingStudent ? 'Editar Aluno' : 'Novo Aluno'}</h2>
         <form onSubmit={handleSaveStudent}>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '15px',
-            }}
-          >
+          <div className="modal-form-grid">
             <div className="input-group">
               <label>Nome *</label>
               <input
@@ -431,38 +346,16 @@ const StudentModal = ({
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
-            <button
-              type="button"
-              onClick={() => {
-                setShowStudentModal(false);
-                setEditingStudent(null);
-                resetForm();
-              }}
-              style={{
-                padding: '10px 20px',
-                border: '1px solid #ddd',
-                borderRadius: 6,
-                background: 'white',
-                cursor: 'pointer',
-                color: 'var(--text)',
-              }}
-              disabled={savingStudent}
-            >
+          <div className="modal-actions">
+            <button type="button" className="btn-secondary" onClick={closeModal} disabled={savingStudent}>
               Cancelar
             </button>
-            <button
-              type="submit"
-              className="btn-primary"
-              style={{ width: 'auto', padding: '10px 20px' }}
-              disabled={savingStudent}
-            >
+            <button type="submit" className="btn-primary" disabled={savingStudent}>
               {savingStudent ? 'Salvando...' : 'Salvar'}
             </button>
           </div>
         </form>
-      </div>
-    </div>
+    </ModalShell>
   );
 };
 

@@ -1,5 +1,7 @@
-import React from 'react';
-import { INITIAL_EVENT_FORM_DATA } from '../utils/agendaConstants';
+import React, { useState } from 'react';
+import { INITIAL_EVENT_FORM_DATA, ETIQUETA_CORES, getEventColor } from '../utils/agendaConstants';
+import ExportAgendaModal from '../components/modals/ExportAgendaModal';
+import { getAgendaExportRange } from '../utils/agendaExport';
 
 const DAY_NAMES = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 const DAY_NAMES_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -26,14 +28,6 @@ const isToday = (d) => isSameCalendarDay(d, new Date());
 
 const formatDateStr = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-
-const getEventColor = (ev) => {
-  if (typeof ev.cor_etiqueta === 'string' && ev.cor_etiqueta.startsWith('#')) return ev.cor_etiqueta;
-  if (ev.cor_etiqueta === 'vermelho') return '#ef4444';
-  if (ev.cor_etiqueta === 'verde') return '#10b981';
-  if (ev.cor_etiqueta === 'amarelo') return '#eab308';
-  return '#3b82f6';
-};
 
 const navBtnStyle = {
   padding: '6px 10px',
@@ -69,7 +63,22 @@ const AgendaView = ({
   onExportPDF,
   onExportWord,
   exportingAgenda,
+  handleBackdropMouseDown,
+  handleBackdropClick,
 }) => {
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [hoveredEvent, setHoveredEvent] = useState(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const exportPeriodLabel = getAgendaExportRange(agendaView, currentDate).label;
+
+  const showEventTooltip = (ev, e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setHoveredEvent(ev);
+    setTooltipPos({ x: rect.left + rect.width / 2, y: rect.top });
+  };
+
+  const hideEventTooltip = () => setHoveredEvent(null);
+
   const openNewEventModal = (dateStr, horaInicio = '08:00', horaFim = '09:00') => {
     setEditingEvent(null);
     setEventFormData({
@@ -108,23 +117,15 @@ const AgendaView = ({
     return (
       <div
         key={ev.id}
+        className={`agenda-event-chip ${isAniversario ? 'agenda-event-chip--static' : 'agenda-event-chip--interactive'}`}
         onClick={(e) => {
           e.stopPropagation();
           if (isAniversario) return;
           onOpenEventDetail(ev);
         }}
-        style={{
-          fontSize: '0.75rem',
-          padding: '3px 6px',
-          borderRadius: '4px',
-          color: 'white',
-          background: cor,
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          cursor: isAniversario ? 'default' : 'pointer',
-        }}
-        title={ev.titulo}
+        onMouseEnter={(e) => showEventTooltip(ev, e)}
+        onMouseLeave={hideEventTooltip}
+        style={{ background: cor }}
       >
         {timeLabel}
         {ev.titulo}
@@ -132,9 +133,7 @@ const AgendaView = ({
     );
   };
 
-  const renderDayCell = (date, { minHeight = 64, compact = false } = {}) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
+  const renderDayCell = (date, { compact = false } = {}) => {
     const day = date.getDate();
     const dayEvents = getEventsForDate(date);
     const dateStr = formatDateStr(date);
@@ -143,16 +142,7 @@ const AgendaView = ({
     return (
       <div
         key={dateStr}
-        style={{
-          borderBottom: '1px solid #eee',
-          borderRight: '1px solid #eee',
-          padding: compact ? '6px' : '8px',
-          minHeight,
-          position: 'relative',
-          cursor: 'pointer',
-          fontSize: '0.8rem',
-          background: today ? '#f0f7ff' : 'white',
-        }}
+        className={`agenda-day-cell ${compact ? 'agenda-day-cell--compact' : 'agenda-day-cell--week'}${today ? ' agenda-day-cell--today' : ''}`}
         onClick={() => openNewEventModal(dateStr)}
       >
         <span
@@ -168,6 +158,7 @@ const AgendaView = ({
             color: today ? 'white' : '#333',
             fontSize: compact ? '0.85rem' : '0.9rem',
             padding: today ? '2px 6px' : 0,
+            flexShrink: 0,
           }}
         >
           {day}
@@ -177,7 +168,7 @@ const AgendaView = ({
             {DAY_NAMES_SHORT[date.getDay()]}
           </span>
         )}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '6px' }}>
+        <div className="agenda-day-cell__events">
           {dayEvents.map((ev) => renderEventChip(ev, agendaView !== 'month'))}
         </div>
       </div>
@@ -260,13 +251,13 @@ const AgendaView = ({
       slots.push(
         <div
           key={`empty-${i}`}
-          style={{ background: '#fafafa', borderBottom: '1px solid #eee', borderRight: '1px solid #eee' }}
+          className="agenda-day-cell agenda-day-cell--empty agenda-day-cell--compact"
         />
       );
     }
 
     for (let day = 1; day <= daysInMonth; day++) {
-      slots.push(renderDayCell(new Date(year, month, day), { minHeight: 64, compact: true }));
+      slots.push(renderDayCell(new Date(year, month, day), { compact: true }));
     }
 
     return slots;
@@ -274,7 +265,7 @@ const AgendaView = ({
 
   const renderWeekGrid = () => {
     const weekDays = getWeekDaysFromDate(currentDate);
-    return weekDays.map((date) => renderDayCell(date, { minHeight: 280, compact: false }));
+    return weekDays.map((date) => renderDayCell(date, { compact: false }));
   };
 
   const renderDayView = () => {
@@ -434,9 +425,9 @@ const AgendaView = ({
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <button
             type="button"
-            onClick={onExportPDF}
+            onClick={() => setShowExportModal(true)}
             disabled={exportingAgenda}
-            title="Exportar planejamento do período visível em PDF"
+            title="Exportar planejamento do período visível"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -449,28 +440,8 @@ const AgendaView = ({
               fontSize: '0.8rem',
             }}
           >
-            <i className="fas fa-file-pdf" style={{ color: '#c0392b' }} />
-            {exportingAgenda ? 'Exportando...' : 'PDF'}
-          </button>
-          <button
-            type="button"
-            onClick={onExportWord}
-            disabled={exportingAgenda}
-            title="Exportar planejamento do período visível em Word"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 5,
-              padding: '8px 10px',
-              border: '1px solid #ddd',
-              borderRadius: 6,
-              background: 'white',
-              cursor: exportingAgenda ? 'wait' : 'pointer',
-              fontSize: '0.8rem',
-            }}
-          >
-            <i className="fas fa-file-word" style={{ color: '#2b579a' }} />
-            Word
+            <i className="fas fa-file-export" style={{ color: '#555' }} />
+            {exportingAgenda ? 'Exportando...' : 'Exportar'}
           </button>
           <button
             type="button"
@@ -545,6 +516,53 @@ const AgendaView = ({
         </div>
       </div>
 
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '10px 16px',
+          marginBottom: 10,
+          padding: '8px 12px',
+          background: '#fafafa',
+          borderRadius: 8,
+          border: '1px solid #eee',
+          fontSize: '0.75rem',
+          color: '#555',
+        }}
+      >
+        {ETIQUETA_CORES.map((cat) => (
+          <span key={cat.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            <span
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: '50%',
+                background: cat.color,
+                flexShrink: 0,
+              }}
+            />
+            {cat.label}
+          </span>
+        ))}
+      </div>
+
+      <ExportAgendaModal
+        open={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        onExportPDF={(ids) => {
+          setShowExportModal(false);
+          onExportPDF(ids);
+        }}
+        onExportWord={(ids) => {
+          setShowExportModal(false);
+          onExportWord(ids);
+        }}
+        exporting={exportingAgenda}
+        periodLabel={exportPeriodLabel}
+        handleBackdropMouseDown={handleBackdropMouseDown}
+        handleBackdropClick={handleBackdropClick}
+      />
+
       <div className="agenda-calendar-card" style={{ background: 'white', borderRadius: '8px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
         {agendaView === 'day' ? (
           renderDayView()
@@ -576,17 +594,33 @@ const AgendaView = ({
               </div>
             )}
             <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(7, 1fr)',
-                minHeight: agendaView === 'week' ? 280 : 320,
-              }}
+              className={`agenda-calendar-grid agenda-calendar-grid--${agendaView === 'month' ? 'month' : 'week'}`}
             >
               {agendaView === 'month' ? renderMonthGrid() : renderWeekGrid()}
             </div>
           </>
         )}
       </div>
+
+      {hoveredEvent && (
+        <div
+          className="agenda-event-floating-tooltip"
+          style={{ left: tooltipPos.x, top: tooltipPos.y }}
+          role="tooltip"
+        >
+          <span className="agenda-event-floating-tooltip__title">{hoveredEvent.titulo}</span>
+          {hoveredEvent.descricao?.trim() ? (
+            <p className="agenda-event-floating-tooltip__obs">
+              <span className="agenda-event-floating-tooltip__obs-label">Obs.: </span>
+              {hoveredEvent.descricao.trim()}
+            </p>
+          ) : (
+            <p className="agenda-event-floating-tooltip__obs">
+              <span className="agenda-event-floating-tooltip__obs-label">Sem observação.</span>
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 };

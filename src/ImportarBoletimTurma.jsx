@@ -278,15 +278,7 @@ function ImportarBoletimTurma({
     ).length;
 
   return (
-    <div
-      style={{
-        padding: 20,
-        background: '#fff',
-        borderRadius: 8,
-        border: '1px solid #e5e7eb',
-        marginBottom: 20,
-      }}
-    >
+    <div className="import-panel">
       <h3 style={{ marginTop: 0, marginBottom: 12, fontSize: 17, color: '#374151' }}>
         <i className="fas fa-file-pdf" style={{ marginRight: 8, color: '#dc2626' }} />
         Importar boletins da turma (IA)
@@ -307,7 +299,7 @@ function ImportarBoletimTurma({
             </strong>
             .
           </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+          <div className="import-actions">
             <input type="file" accept="application/pdf" onChange={handleFileChange} />
             <button
               type="button"
@@ -347,15 +339,7 @@ function ImportarBoletimTurma({
             {alunos.length} aluno(s) no PDF. Vincule quem não foi reconhecido e confira as notas.
           </p>
           {error && <p style={{ color: '#b91c1c', marginBottom: 10 }}>{error}</p>}
-          <div
-            style={{
-              maxHeight: 420,
-              overflow: 'auto',
-              border: '1px solid #e5e7eb',
-              borderRadius: 8,
-              marginBottom: 14,
-            }}
-          >
+          <div className="import-table-wrap" style={{ maxHeight: 420, marginBottom: 14 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead style={{ background: '#f9fafb', position: 'sticky', top: 0, zIndex: 1 }}>
                 <tr>
@@ -398,7 +382,7 @@ function ImportarBoletimTurma({
               </tbody>
             </table>
           </div>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <div className="import-actions">
             <button type="button" className="btn-primary" style={{ background: '#16a34a' }} onClick={salvarNoBanco}>
               Salvar notas na turma
             </button>

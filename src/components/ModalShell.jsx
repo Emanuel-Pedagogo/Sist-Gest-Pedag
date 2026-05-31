@@ -9,6 +9,7 @@ function ModalShell({
   disabled = false,
   children,
   maxWidth = 600,
+  panelClassName = '',
   handleBackdropMouseDown,
   handleBackdropClick,
 }) {
@@ -27,7 +28,7 @@ function ModalShell({
       }}
     >
       <div
-        className="modal-panel"
+        className={`modal-panel${panelClassName ? ` ${panelClassName}` : ''}`}
         style={{ maxWidth }}
         onClick={(e) => e.stopPropagation()}
       >

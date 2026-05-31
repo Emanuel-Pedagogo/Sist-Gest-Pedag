@@ -33,18 +33,9 @@ const ReportsView = ({
         Gere listas de alunos por escola, turma, etiqueta ou nível de leitura e exporte em PDF ou Word.
       </p>
 
-      <div
-        style={{
-          background: 'white',
-          padding: 24,
-          borderRadius: 12,
-          marginBottom: 20,
-          border: '1px solid #eee',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-        }}
-      >
+      <div className="analytics-panel">
         {/* Linha 1: Escola, Ano e Turmas na mesma linha */}
-        <div style={{ display: 'flex', gap: 16, marginBottom: 20, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <div className="reports-filters-row">
           <div className="input-group" style={{ minWidth: 180, marginBottom: 0 }}>
             <div style={{ minHeight: 24, display: 'flex', alignItems: 'center', marginBottom: 6 }}>
               <label style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#222' }}>Escola</label>
@@ -129,21 +120,7 @@ const ReportsView = ({
                 </div>
               )}
             </div>
-            <div
-              style={{
-                border: '1px solid #ddd',
-                borderRadius: 6,
-                padding: 4,
-                minHeight: 38,
-                background: '#fafafa',
-                display: 'flex',
-                flexWrap: 'nowrap',
-                gap: 2,
-                alignItems: 'center',
-                flex: 1,
-                minWidth: 0,
-              }}
-            >
+            <div className="reports-grade-picker">
               {reportClasses.length === 0 ? (
                 <span style={{ color: '#999', fontSize: 12 }}>Carregando...</span>
               ) : (
@@ -194,14 +171,7 @@ const ReportsView = ({
         </div>
 
         {/* Linha 2: Etiqueta, Nível de leitura, Notas, Faltas, Gerar lista - tudo na mesma linha */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'minmax(100px, 1fr) minmax(140px, 1.5fr) minmax(100px, 1fr) minmax(90px, 1fr) auto',
-            gap: 12,
-            alignItems: 'flex-end',
-          }}
-        >
+        <div className="reports-filters-grid">
           <div className="input-group" style={{ minWidth: 0 }}>
             <label style={{ margin: 0, marginBottom: 6, fontSize: 14, fontWeight: 600, color: '#222' }}>Etiqueta</label>
             <select
@@ -292,54 +262,24 @@ const ReportsView = ({
       </div>
 
       {reportGenerated && (
-        <div
-          style={{
-            background: 'white',
-            padding: 24,
-            borderRadius: 12,
-            border: '1px solid #eee',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+        <div className="analytics-panel">
+          <div className="reports-results-header">
             <h4 style={{ margin: 0 }}>
               {reportList.length} aluno(s) encontrado(s)
             </h4>
             {reportList.length > 0 && (
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div className="reports-export-actions">
                 <button
                   type="button"
+                  className="reports-export-btn reports-export-btn--pdf"
                   onClick={exportReportPDF}
-                  style={{
-                    padding: '10px 18px',
-                    border: '1px solid #dc3545',
-                    borderRadius: 6,
-                    background: 'white',
-                    color: '#dc3545',
-                    cursor: 'pointer',
-                    fontSize: 14,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                  }}
                 >
                   <i className="fas fa-file-pdf" /> Exportar PDF
                 </button>
                 <button
                   type="button"
+                  className="reports-export-btn reports-export-btn--word"
                   onClick={exportReportWord}
-                  style={{
-                    padding: '10px 18px',
-                    border: '1px solid #0d6efd',
-                    borderRadius: 6,
-                    background: 'white',
-                    color: '#0d6efd',
-                    cursor: 'pointer',
-                    fontSize: 14,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                  }}
                 >
                   <i className="fas fa-file-word" /> Exportar Word
                 </button>
@@ -348,7 +288,9 @@ const ReportsView = ({
           </div>
 
           {reportList.length > 0 ? (
-            <div style={{ overflowX: 'auto' }}>
+            <>
+              <p className="table-scroll-hint">Deslize horizontalmente para ver todas as colunas.</p>
+              <div className="table-wrapper reports-table-wrap">
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
                 <thead>
                   <tr style={{ background: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
@@ -389,7 +331,8 @@ const ReportsView = ({
                   ))}
                 </tbody>
               </table>
-            </div>
+              </div>
+            </>
           ) : (
             <p style={{ color: 'var(--text-light)', margin: 0 }}>
               Nenhum aluno encontrado com os filtros selecionados. Ajuste os critérios e tente novamente.

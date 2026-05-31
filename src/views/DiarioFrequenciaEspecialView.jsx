@@ -137,16 +137,7 @@ const DiarioFrequenciaEspecialView = ({
 
   return (
     <div>
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: 12,
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: 16,
-        }}
-      >
+      <div className="diario-header">
         <div>
           <h3 style={{ margin: '0 0 4px', color: 'var(--primary)', fontSize: '1.1rem' }}>
             <i className="fas fa-calendar-check" style={{ marginRight: 8 }} />
@@ -158,7 +149,7 @@ const DiarioFrequenciaEspecialView = ({
             célula: vazio → presente → falta → vazio.
           </p>
         </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+        <div className="diario-controls">
           <select
             value={mes}
             onChange={(e) => setMes(parseInt(e.target.value, 10))}
@@ -193,15 +184,7 @@ const DiarioFrequenciaEspecialView = ({
         </div>
       </div>
 
-      <div
-        style={{
-          display: 'flex',
-          gap: 16,
-          marginBottom: 12,
-          fontSize: '0.85em',
-          flexWrap: 'wrap',
-        }}
-      >
+      <div className="diario-legend">
         <span>
           <span
             style={{
@@ -244,8 +227,10 @@ const DiarioFrequenciaEspecialView = ({
       {loading ? (
         <p style={{ color: '#6b7280' }}>Carregando diário...</p>
       ) : (
-        <div style={{ overflowX: 'auto', border: '1px solid #e5e7eb', borderRadius: 8 }}>
-          <table style={{ borderCollapse: 'collapse', fontSize: '0.75rem', minWidth: '100%' }}>
+        <>
+          <p className="table-scroll-hint">Deslize horizontalmente para marcar presença por dia.</p>
+          <div className="diario-grid-wrap">
+          <table style={{ minWidth: '100%' }}>
             <thead>
               <tr style={{ background: '#f3f4f6' }}>
                 <th
@@ -401,7 +386,8 @@ const DiarioFrequenciaEspecialView = ({
               })}
             </tbody>
           </table>
-        </div>
+          </div>
+        </>
       )}
     </div>
   );

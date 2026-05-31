@@ -355,11 +355,11 @@ function BoletimView({
   if (isPreEscola) {
     const labels = { 1: '1º Bimestre', 2: '2º Bimestre', 3: '3º Bimestre', 4: '4º Bimestre' };
     return (
-      <div style={{ padding: 20, maxWidth: 960, margin: '0 auto' }}>
+      <div className="boletim-view">
         <h3 style={{ marginBottom: 16, color: '#374151', fontSize: 18 }}>
           Registro de avaliação e acompanhamento
         </h3>
-        <div style={{ display: 'flex', gap: 10, marginBottom: 20, alignItems: 'center' }}>
+        <div className="boletim-toolbar">
           <button
             type="button"
             onClick={() => setIsEditing(true)}
@@ -444,8 +444,8 @@ function BoletimView({
   }
 
   return (
-    <div style={{ padding: 20, maxWidth: 960, margin: '0 auto' }}>
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+    <div className="boletim-view">
+      <div className="boletim-toolbar">
         <button
           type="button"
           onClick={() => setIsEditing(true)}
@@ -514,8 +514,9 @@ function BoletimView({
         />
       )}
 
-      <div style={{ overflowX: 'auto', border: '1px solid #e0e0e0', borderRadius: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+      <p className="table-scroll-hint">Deslize horizontalmente para ver todas as disciplinas e bimestres.</p>
+      <div className="boletim-table-wrap">
+        <table>
           <thead>
             <tr style={{ background: '#f5f5f5' }}>
               <th style={{ padding: '12px 14px', textAlign: 'left', borderBottom: '2px solid #e0e0e0', fontWeight: 600, color: '#374151' }}>

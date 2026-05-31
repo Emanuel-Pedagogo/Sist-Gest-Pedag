@@ -49,13 +49,7 @@ const ClassModal = ({
           {editingClass ? 'Editar Turma' : 'Nova Turma'}
         </h2>
         <form onSubmit={handleSaveClass}>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '12px',
-            }}
-          >
+          <div className="modal-form-grid">
             {/* Linha 1: Escola | Ano Letivo */}
             <div className="input-group">
               <label>Escola *</label>

@@ -14,30 +14,33 @@ const SchoolsView = ({
 }) => {
   return (
     <div id="view-schools" className="view-section">
-      <button
-        className="btn-primary"
-        style={{ width: 'auto', marginBottom: 20 }}
-        onClick={() => {
-          setEditingSchool(null);
-          setSchoolFormData({ nome: '', inep: '', endereco: '', tipo: 'Polo' });
-          setShowSchoolModal(true);
-        }}
-      >
-        + Nova Escola
-      </button>
-      <div className="list-container">
+      <div className="page-toolbar">
+        <h2>Escolas</h2>
+        <button
+          className="btn-primary"
+          style={{ width: 'auto' }}
+          onClick={() => {
+            setEditingSchool(null);
+            setSchoolFormData({ nome: '', inep: '', endereco: '', tipo: 'Polo' });
+            setShowSchoolModal(true);
+          }}
+        >
+          + Nova Escola
+        </button>
+      </div>
+      <div className="list-container schools-grid">
         {schoolsLoading && (
-          <div className="list-item">
+          <div className="list-item list-item--full-width school-card">
             <span>Carregando escolas...</span>
           </div>
         )}
         {schoolsError && (
-          <div className="list-item">
+          <div className="list-item list-item--full-width school-card">
             <span>{schoolsError}</span>
           </div>
         )}
         {!schoolsLoading && !schoolsError && schools.length === 0 && (
-          <div className="list-item">
+          <div className="list-item list-item--full-width school-card">
             <span>Nenhuma escola encontrada.</span>
           </div>
         )}
@@ -47,14 +50,14 @@ const SchoolsView = ({
             .sort((a, b) => {
               const arqA = a.arquivada ? 1 : 0;
               const arqB = b.arquivada ? 1 : 0;
-              if (arqA !== arqB) return arqA - arqB; // ativas primeiro
+              if (arqA !== arqB) return arqA - arqB;
               return (a.nome || '').localeCompare(b.nome || '', 'pt-BR');
             })
             .map((school) => (
-              <div key={school.id} className="list-item">
-                <div style={{ flex: 1 }}>
+              <div key={school.id} className="list-item school-card">
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <strong>{school.nome}</strong>
-                  <div style={{ fontSize: '0.8em', color: 'gray' }}>
+                  <div className="list-item__meta">
                     INEP: {school.inep || 'Não informado'} • {school.endereco || 'Endereço não informado'}
                   </div>
                   <span
@@ -80,68 +83,46 @@ const SchoolsView = ({
                     </span>
                   )}
                 </div>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <div className="list-item-actions">
                   <button
+                    type="button"
+                    className={`btn-icon ${school.arquivada ? 'btn-icon--muted' : 'btn-icon--warning'}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleToggleArchiveSchool(school);
-                    }}
-                    style={{
-                      background: school.arquivada ? '#374151' : '#f59e0b',
-                      color: 'white',
-                      border: 'none',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      cursor: 'pointer',
                     }}
                     title={school.arquivada ? 'Desarquivar escola' : 'Arquivar escola'}
                   >
                     <i className={`fas ${school.arquivada ? 'fa-box-open' : 'fa-archive'}`} />
                   </button>
                   <button
+                    type="button"
+                    className="btn-icon btn-icon--accent"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleEditSchool(school);
                     }}
-                    style={{
-                      background: 'var(--accent)',
-                      color: 'white',
-                      border: 'none',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      cursor: 'pointer',
-                    }}
+                    title="Editar escola"
                   >
                     <i className="fas fa-edit" />
                   </button>
                   <button
+                    type="button"
+                    className="btn-icon btn-icon--danger"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleDeleteSchool(school.id);
                     }}
-                    style={{
-                      background: 'var(--danger)',
-                      color: 'white',
-                      border: 'none',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      cursor: 'pointer',
-                    }}
+                    title="Excluir escola"
                   >
                     <i className="fas fa-trash" />
                   </button>
                   <button
+                    type="button"
+                    className="btn-icon btn-icon--primary"
                     onClick={(e) => {
                       e.stopPropagation();
                       selectSchool(school);
-                    }}
-                    style={{
-                      background: 'var(--primary)',
-                      color: 'white',
-                      border: 'none',
-                      padding: '8px 12px',
-                      borderRadius: 6,
-                      cursor: 'pointer',
                     }}
                     title="Acessar turmas desta escola"
                   >

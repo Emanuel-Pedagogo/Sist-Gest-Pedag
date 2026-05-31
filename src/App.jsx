@@ -29,7 +29,7 @@ import ClassModal from './components/modals/ClassModal';
 import StudentModal from './components/modals/StudentModal';
 import TeacherModal from './components/modals/TeacherModal';
 import { isTurmaEspecial } from './utils/turmas';
-import { INITIAL_EVENT_FORM_DATA } from './utils/agendaConstants';
+import { INITIAL_EVENT_FORM_DATA, ETIQUETA_CORES, normalizeEventColor } from './utils/agendaConstants';
 import {
   generateRecurringOccurrences,
   parseLocalDate,
@@ -37,10 +37,11 @@ import {
 } from './utils/agendaRecorrencia';
 import {
   getAgendaExportRange,
-  filterEventsForExport,
+  getEventsForExport,
   exportAgendaPDF,
   exportAgendaWord,
 } from './utils/agendaExport';
+import { saveBlob, savePdfDocument } from './utils/nativeExport';
 import {
   contarEtiquetasAlunos,
   desvincularAlunoTurmaEspecial,
@@ -1903,7 +1904,7 @@ function App() {
           data.cell.styles.fontStyle = 'bold';
         },
       });
-      doc.save(`relatorio-alunos-${new Date().toISOString().slice(0, 10)}.pdf`);
+      await savePdfDocument(doc, `relatorio-alunos-${new Date().toISOString().slice(0, 10)}.pdf`);
     } catch (err) {
       alert('Erro ao exportar PDF: ' + (err?.message || err));
     }
@@ -1916,7 +1917,6 @@ function App() {
     }
     try {
       const docx = await import('docx');
-      const { saveAs } = await import('file-saver');
       const { Document, Packer, Paragraph, Table, TableCell, TableRow, WidthType } = docx;
       const showNotas = reportNotasFilter === 'acima' || reportNotasFilter === 'abaixo';
       const showFaltas = reportFaltasFilter === 'sim';
@@ -2020,7 +2020,7 @@ function App() {
       }],
     });
       const blob = await Packer.toBlob(doc);
-      saveAs(blob, `relatorio-alunos-${new Date().toISOString().slice(0, 10)}.docx`);
+      await saveBlob(blob, `relatorio-alunos-${new Date().toISOString().slice(0, 10)}.docx`);
     } catch (err) {
       alert('Erro ao exportar Word: ' + (err?.message || err));
     }
@@ -3163,7 +3163,7 @@ function App() {
           data_inicio: dataStr + 'T00:00:00',
           data_fim: dataStr + 'T00:00:00',
           tipo: 'aniversario',
-          cor_etiqueta: '#e91e63',
+          cor_etiqueta: ETIQUETA_CORES.find((e) => e.id === 'aniversario').color,
         };
       });
   };
@@ -3718,16 +3718,7 @@ function App() {
     if (!ev) return;
     const inicio = splitDateTime(ev.data_inicio);
     const fim = ev.data_fim ? splitDateTime(ev.data_fim) : inicio;
-    const cor =
-      typeof ev.cor_etiqueta === 'string' && ev.cor_etiqueta.startsWith('#')
-        ? ev.cor_etiqueta
-        : ev.cor_etiqueta === 'vermelho'
-          ? '#ef4444'
-          : ev.cor_etiqueta === 'verde'
-            ? '#10b981'
-            : ev.cor_etiqueta === 'amarelo'
-              ? '#eab308'
-              : '#3b82f6';
+    const cor = normalizeEventColor(ev.cor_etiqueta);
     const recorrencia = inferRecorrenciaFromSerie(ev, agendaEvents);
     setEditingEvent(ev);
     setEventFormData({
@@ -3753,21 +3744,29 @@ function App() {
     openAgendaEventEditModalFromEvent(selectedAgendaEvent);
   };
 
-  const getAgendaExportMeta = () => {
+  const getAgendaExportMeta = (selectedCategoryIds) => {
     const range = getAgendaExportRange(agendaView, currentDate);
     return {
       periodLabel: range.label,
       schoolName: activeSchool?.nome || selectedSchool || '',
       userName: authUser?.user_metadata?.full_name || authUser?.email?.split('@')[0] || '',
       range,
+      agendaView,
+      currentDate,
+      selectedCategoryIds,
     };
   };
 
-  const exportAgendaPlanejamentoPDF = async () => {
-    const { range, ...meta } = getAgendaExportMeta();
-    const events = filterEventsForExport(agendaEvents, range);
+  const exportAgendaPlanejamentoPDF = async (selectedCategoryIds) => {
+    const { range, ...meta } = getAgendaExportMeta(selectedCategoryIds);
+    const events = getEventsForExport(
+      agendaEvents,
+      range,
+      selectedCategoryIds,
+      getBirthdayEventsForDay
+    );
     if (events.length === 0) {
-      alert('Não há eventos no período visível para exportar.');
+      alert('Não há eventos das categorias selecionadas no período visível para exportar.');
       return;
     }
     setExportingAgenda(true);
@@ -3780,11 +3779,16 @@ function App() {
     }
   };
 
-  const exportAgendaPlanejamentoWord = async () => {
-    const { range, ...meta } = getAgendaExportMeta();
-    const events = filterEventsForExport(agendaEvents, range);
+  const exportAgendaPlanejamentoWord = async (selectedCategoryIds) => {
+    const { range, ...meta } = getAgendaExportMeta(selectedCategoryIds);
+    const events = getEventsForExport(
+      agendaEvents,
+      range,
+      selectedCategoryIds,
+      getBirthdayEventsForDay
+    );
     if (events.length === 0) {
-      alert('Não há eventos no período visível para exportar.');
+      alert('Não há eventos das categorias selecionadas no período visível para exportar.');
       return;
     }
     setExportingAgenda(true);
@@ -5233,6 +5237,8 @@ function App() {
                 onExportPDF={exportAgendaPlanejamentoPDF}
                 onExportWord={exportAgendaPlanejamentoWord}
                 exportingAgenda={exportingAgenda}
+                handleBackdropMouseDown={handleBackdropMouseDown}
+                handleBackdropClick={handleBackdropClick}
               />
             )}
 
