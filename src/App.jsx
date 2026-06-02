@@ -4351,7 +4351,7 @@ function App() {
         <div className="login-screen">
           <div className="login-box">
             <h2>Definir nova senha</h2>
-            <p style={{ marginBottom: 20, color: '#666' }}>
+            <p className="login-subtitle">
               Digite e confirme sua nova senha abaixo.
             </p>
             {authError && <div className="auth-message auth-error">{authError}</div>}
@@ -4390,7 +4390,7 @@ function App() {
         <div className="login-screen">
           <div className="login-box">
             <h2>SACP</h2>
-            <p style={{ marginBottom: 20, color: '#666' }}>
+            <p className="login-subtitle">
               Sistema de Apoio à Coordenação Pedagógica
             </p>
 
