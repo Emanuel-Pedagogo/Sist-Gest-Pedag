@@ -41,6 +41,12 @@ import {
   exportAgendaPDF,
   exportAgendaWord,
 } from './utils/agendaExport';
+import {
+  useSemedAgenda,
+  USUARIO_EVENT_EXTRAS,
+  SemedCalendarImportWizard,
+} from './agendaSemed';
+import { filterAgendaEvents } from './utils/semEdCalendarImport';
 import { saveBlob, savePdfDocument } from './utils/nativeExport';
 import {
   contarEtiquetasAlunos,
@@ -336,6 +342,13 @@ function App() {
   const [agendaEventAnexos, setAgendaEventAnexos] = useState([]);
   const [loadingAgendaAnexos, setLoadingAgendaAnexos] = useState(false);
   const [uploadingAgendaAnexos, setUploadingAgendaAnexos] = useState(false);
+
+  const loadAgendaEventsRef = useRef(null);
+  const semedAgenda = useSemedAgenda({
+    currentView,
+    agendaEvents,
+    loadAgendaEvents: () => loadAgendaEventsRef.current?.(),
+  });
 
   // Relatórios: filtros e lista gerada
   const [reportYear, setReportYear] = useState(() => new Date().getFullYear());
@@ -3114,6 +3127,8 @@ function App() {
     }
   };
 
+  loadAgendaEventsRef.current = loadAgendaEvents;
+
   const loadAgendaBirthdayAlunos = async () => {
     if (!activeSchoolId) return;
     try {
@@ -3364,6 +3379,7 @@ function App() {
       turma_id: null,
       nivel_planejamento: null,
       anexo_url: editingEvent?.anexo_url || null,
+      ...USUARIO_EVENT_EXTRAS,
     };
 
     let eventId;
@@ -3754,16 +3770,23 @@ function App() {
       agendaView,
       currentDate,
       selectedCategoryIds,
+      includeSemedMarcos: semedAgenda.showSemedMarcos,
     };
+  };
+
+  const getAgendaEventsForExport = () => {
+    if (semedAgenda.showSemedMarcos) return agendaEvents;
+    return filterAgendaEvents(agendaEvents, { onlyUsuario: true });
   };
 
   const exportAgendaPlanejamentoPDF = async (selectedCategoryIds) => {
     const { range, ...meta } = getAgendaExportMeta(selectedCategoryIds);
     const events = getEventsForExport(
-      agendaEvents,
+      getAgendaEventsForExport(),
       range,
       selectedCategoryIds,
-      getBirthdayEventsForDay
+      getBirthdayEventsForDay,
+      { includeSemedMarcos: semedAgenda.showSemedMarcos }
     );
     if (events.length === 0) {
       alert('Não há eventos das categorias selecionadas no período visível para exportar.');
@@ -3782,10 +3805,11 @@ function App() {
   const exportAgendaPlanejamentoWord = async (selectedCategoryIds) => {
     const { range, ...meta } = getAgendaExportMeta(selectedCategoryIds);
     const events = getEventsForExport(
-      agendaEvents,
+      getAgendaEventsForExport(),
       range,
       selectedCategoryIds,
-      getBirthdayEventsForDay
+      getBirthdayEventsForDay,
+      { includeSemedMarcos: semedAgenda.showSemedMarcos }
     );
     if (events.length === 0) {
       alert('Não há eventos das categorias selecionadas no período visível para exportar.');
@@ -5231,12 +5255,16 @@ function App() {
                 onOpenEventDetail={openAgendaEventDetail}
                 currentDate={currentDate}
                 setCurrentDate={setCurrentDate}
-                agendaEvents={agendaEvents}
+                agendaEvents={semedAgenda.filteredForView}
                 getBirthdayEventsForDay={getBirthdayEventsForDay}
                 splitDateTime={splitDateTime}
                 onExportPDF={exportAgendaPlanejamentoPDF}
                 onExportWord={exportAgendaPlanejamentoWord}
                 exportingAgenda={exportingAgenda}
+                onOpenSemedImport={() => semedAgenda.setShowSemedImportWizard(true)}
+                showSemedMarcos={semedAgenda.showSemedMarcos}
+                setShowSemedMarcos={semedAgenda.setShowSemedMarcos}
+                hasSemedImport={semedAgenda.hasSemedImport}
                 handleBackdropMouseDown={handleBackdropMouseDown}
                 handleBackdropClick={handleBackdropClick}
               />
@@ -5468,6 +5496,16 @@ function App() {
         handleSaveRegistroCoord={handleSaveRegistroCoord}
         registroCoordFormData={registroCoordFormData}
         setRegistroCoordFormData={setRegistroCoordFormData}
+      />
+
+      <SemedCalendarImportWizard
+        open={semedAgenda.showSemedImportWizard}
+        onClose={semedAgenda.closeWizard}
+        supabase={supabase}
+        escolaId={activeSchoolId}
+        onSuccess={semedAgenda.onImportSuccess}
+        handleBackdropMouseDown={handleBackdropMouseDown}
+        handleBackdropClick={handleBackdropClick}
       />
 
       {/* Modal de Evento da Agenda */}

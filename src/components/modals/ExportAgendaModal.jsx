@@ -9,6 +9,9 @@ const ExportAgendaModal = ({
   onExportWord,
   exporting,
   periodLabel,
+  showSemedMarcos = false,
+  setShowSemedMarcos,
+  hasSemedImport = false,
   handleBackdropMouseDown,
   handleBackdropClick,
 }) => {
@@ -47,6 +50,45 @@ const ExportAgendaModal = ({
       <p style={{ margin: '0 0 10px', fontSize: '0.85em', color: '#555' }}>
         Selecione os tipos de evento que deseja incluir na exportação:
       </p>
+
+      {hasSemedImport && setShowSemedMarcos && (
+        <label
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            marginBottom: 14,
+            padding: '10px 12px',
+            borderRadius: 8,
+            border: showSemedMarcos ? '2px solid #c4b5fd' : '1px solid #ddd',
+            background: showSemedMarcos ? '#f5f3ff' : '#fafafa',
+            cursor: exporting ? 'default' : 'pointer',
+            fontSize: '0.9em',
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={showSemedMarcos}
+            disabled={exporting}
+            onChange={(e) => setShowSemedMarcos(e.target.checked)}
+          />
+          <span
+            style={{
+              width: 14,
+              height: 14,
+              borderRadius: '50%',
+              background: '#9ca3af',
+              flexShrink: 0,
+            }}
+          />
+          <span>
+            <strong>Incluir calendário SEMED</strong>
+            <span style={{ display: 'block', fontSize: '0.85em', color: '#666', marginTop: 2 }}>
+              Feriados e marcos oficiais (mesmo filtro da agenda)
+            </span>
+          </span>
+        </label>
+      )}
 
       <div
         style={{

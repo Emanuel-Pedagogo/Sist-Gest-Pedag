@@ -1,19 +1,19 @@
 export const ETIQUETA_CORES = [
-  { id: 'aniversario', label: 'Aniversário', color: '#E91E63' },
-  { id: 'reuniao', label: 'Reunião', color: '#3498DB' },
-  { id: 'pedagogico', label: 'Pedagógico', color: '#2ECC71' },
-  { id: 'projeto', label: 'Projeto', color: '#9B59B6' },
-  { id: 'formacao', label: 'Formação', color: '#1ABC9C' },
-  { id: 'evento', label: 'Evento', color: '#F39C12' },
+  { id: 'aniversario', label: 'Aniversário', color: '#BE185D' },
+  { id: 'reuniao', label: 'Reunião', color: '#1D4ED8' },
+  { id: 'pedagogico', label: 'Pedagógico', color: '#15803D' },
+  { id: 'projeto', label: 'Projeto', color: '#6D28D9' },
+  { id: 'formacao', label: 'Formação', color: '#0F766E' },
+  { id: 'evento', label: 'Evento', color: '#B45309' },
 ];
 
 export const ALL_ETIQUETA_IDS = ETIQUETA_CORES.map((e) => e.id);
 
 const LEGACY_COLOR_MAP = {
-  vermelho: '#E74C3C',
-  verde: '#2ECC71',
-  amarelo: '#F39C12',
-  azul: '#3498DB',
+  vermelho: '#BE185D',
+  verde: '#15803D',
+  amarelo: '#B45309',
+  azul: '#1D4ED8',
 };
 
 export const INITIAL_EVENT_FORM_DATA = {

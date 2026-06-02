@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { INITIAL_EVENT_FORM_DATA, ETIQUETA_CORES, getEventColor } from '../utils/agendaConstants';
+import AgendaSemedToolbar from '../agendaSemed/AgendaSemedToolbar';
 import ExportAgendaModal from '../components/modals/ExportAgendaModal';
 import { getAgendaExportRange } from '../utils/agendaExport';
 
@@ -63,6 +64,10 @@ const AgendaView = ({
   onExportPDF,
   onExportWord,
   exportingAgenda,
+  onOpenSemedImport,
+  showSemedMarcos = true,
+  setShowSemedMarcos,
+  hasSemedImport = false,
   handleBackdropMouseDown,
   handleBackdropClick,
 }) => {
@@ -423,6 +428,14 @@ const AgendaView = ({
           </button>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          {onOpenSemedImport && (
+            <AgendaSemedToolbar
+              onOpenImport={onOpenSemedImport}
+              showSemedMarcos={showSemedMarcos}
+              setShowSemedMarcos={setShowSemedMarcos}
+              hasSemedImport={hasSemedImport}
+            />
+          )}
           <button
             type="button"
             onClick={() => setShowExportModal(true)}
@@ -559,6 +572,9 @@ const AgendaView = ({
         }}
         exporting={exportingAgenda}
         periodLabel={exportPeriodLabel}
+        showSemedMarcos={showSemedMarcos}
+        setShowSemedMarcos={setShowSemedMarcos}
+        hasSemedImport={hasSemedImport}
         handleBackdropMouseDown={handleBackdropMouseDown}
         handleBackdropClick={handleBackdropClick}
       />
