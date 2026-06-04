@@ -9,7 +9,7 @@ describe('semEdCalendarImport', () => {
   it('seleciona por padrão feriados e marcos, não avaliações', () => {
     const itens = getItensPadraoSelecionados();
     const aval = itens.filter((i) => i.tipo === 'avaliacao');
-    expect(avali.every((i) => !i.selecionado)).toBe(true);
+    expect(aval.every((i) => !i.selecionado)).toBe(true);
     const feriados = itens.filter((i) => i.tipo === 'feriado');
     expect(feriados.every((i) => i.selecionado)).toBe(true);
   });

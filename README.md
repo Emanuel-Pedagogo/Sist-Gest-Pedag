@@ -1,6 +1,51 @@
 # SACP - Sistema de Apoio à Coordenação Pedagógica
 
-React + Vite. Autenticação via Supabase (e-mail/senha e Google).
+Aplicação React + Vite para apoiar a coordenação pedagógica no acompanhamento de escolas, turmas, alunos, professores, agenda, sondagens, boletins, ocorrências e relatórios.
+
+O backend usa Supabase (Auth, PostgreSQL, Storage e Edge Functions). Recursos de IA usam Gemini via Edge Functions, mantendo a chave da API fora do frontend.
+
+## Como rodar
+
+```bash
+npm install
+cp .env.example .env
+npm run dev
+```
+
+Configure no `.env`:
+
+```bash
+VITE_SUPABASE_URL=https://seu-projeto.supabase.co
+VITE_SUPABASE_ANON_KEY=sua_chave_anon_publica
+```
+
+O código mantém fallback para o projeto Supabase atual, mas o uso de `.env` é recomendado para separar desenvolvimento, piloto e produção.
+
+## Verificações
+
+```bash
+npm test
+npm run lint
+npm run build
+```
+
+## Documentação principal
+
+- [`docs/PILOTO-CONFIAVEL.md`](./docs/PILOTO-CONFIAVEL.md): plano operacional para validar o sistema em piloto controlado.
+- [`docs/GEMINI-SETUP.md`](./docs/GEMINI-SETUP.md): configuração das Edge Functions com Gemini.
+- [`docs/CHECKLIST-USUARIO.md`](./docs/CHECKLIST-USUARIO.md): checklist rápido para testes de usuário e Android.
+- [`docs/ANDROID-SETUP.md`](./docs/ANDROID-SETUP.md): preparação do ambiente Android.
+- [`docs/PLANO-ANDROID-PLAY-STORE.md`](./docs/PLANO-ANDROID-PLAY-STORE.md): referência para publicação futura na Play Store.
+
+## Foco do piloto
+
+Antes de usar dados reais de alunos, valide:
+
+- tabelas e buckets Supabase;
+- políticas de acesso com usuário autenticado;
+- Edge Functions e secret `GEMINI_API_KEY`;
+- fluxos essenciais de escola, turma, aluno, sondagem, boletim, agenda e relatórios;
+- revisão humana de qualquer dado extraído ou gerado por IA.
 
 ## Login e cadastro
 
@@ -13,22 +58,3 @@ React + Vite. Autenticação via Supabase (e-mail/senha e Google).
 1. No [Supabase Dashboard](https://supabase.com/dashboard), abra o projeto.
 2. **Authentication** → **Providers** → **Google** → ative e preencha Client ID e Client Secret (obtidos no [Google Cloud Console](https://console.cloud.google.com/apis/credentials)).
 3. Em **Authentication** → **URL Configuration**, adicione a URL do seu app em **Redirect URLs** (ex.: `http://localhost:5173/` para dev e a URL de produção).
-
----
-
-# React + Vite (template)
-
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
-
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
