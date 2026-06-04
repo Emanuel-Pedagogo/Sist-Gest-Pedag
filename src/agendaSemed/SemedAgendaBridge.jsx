@@ -58,5 +58,3 @@ export function SemedAgendaBridge({
     </>
   );
 }
-
-export { USUARIO_EVENT_EXTRAS, useSemedAgenda };

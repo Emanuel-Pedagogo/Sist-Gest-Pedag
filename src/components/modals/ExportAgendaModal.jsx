@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import ModalShell from '../ModalShell';
 import { ETIQUETA_CORES, ALL_ETIQUETA_IDS } from '../../utils/agendaConstants';
 
@@ -17,10 +17,6 @@ const ExportAgendaModal = ({
 }) => {
   const [selectedIds, setSelectedIds] = useState([...ALL_ETIQUETA_IDS]);
 
-  useEffect(() => {
-    if (open) setSelectedIds([...ALL_ETIQUETA_IDS]);
-  }, [open]);
-
   const toggleCategory = (id) => {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
@@ -33,11 +29,15 @@ const ExportAgendaModal = ({
   };
 
   const canExport = selectedIds.length > 0 && !exporting;
+  const handleClose = () => {
+    setSelectedIds([...ALL_ETIQUETA_IDS]);
+    onClose();
+  };
 
   return (
     <ModalShell
       open={open}
-      onClose={onClose}
+      onClose={handleClose}
       disabled={exporting}
       maxWidth={480}
       handleBackdropMouseDown={handleBackdropMouseDown}
@@ -170,7 +170,7 @@ const ExportAgendaModal = ({
       <div className="modal-actions" style={{ justifyContent: 'flex-end', gap: 8 }}>
         <button
           type="button"
-          onClick={onClose}
+          onClick={handleClose}
           disabled={exporting}
           style={{
             padding: '10px 20px',

@@ -78,6 +78,27 @@ const navBtnStyle = (enabled) => ({
   opacity: enabled ? 1 : 0.65,
 });
 
+const SondagemTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+
+  return (
+    <div style={{ background: 'white', padding: 10, border: '1px solid #ccc', borderRadius: 5 }}>
+      <p style={{ margin: 0, fontWeight: 'bold' }}>{label}</p>
+      {payload.map((p, index) => {
+        const val =
+          p.dataKey === 'nivelLeituraNum'
+            ? p.payload?.nivelLeituraLabel
+            : p.payload?.nivelEscritaLabel;
+        return (
+          <p key={index} style={{ margin: 0, color: p.color }}>
+            {p.name}: {val || 'Não informado'}
+          </p>
+        );
+      })}
+    </div>
+  );
+};
+
 const StudentDetailView = ({
   navigate,
   selectedClassId,
@@ -144,27 +165,11 @@ const StudentDetailView = ({
         dataFormatada: s.data ? formatDate(s.data) : '-',
         nivelLeituraNum: leituraIndex >= 0 ? leituraIndex : null,
         nivelEscritaNum: escritaIndex >= 0 ? escritaIndex : null,
+        nivelLeituraLabel: leituraIndex >= 0 ? opcoesLeitura[leituraIndex] : s.nivel_leitura,
+        nivelEscritaLabel: escritaIndex >= 0 ? opcoesEscrita[escritaIndex] : s.nivel_escrita,
       };
     });
 
-  const CustomTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div style={{ background: 'white', padding: 10, border: '1px solid #ccc', borderRadius: 5 }}>
-          <p style={{ margin: 0, fontWeight: 'bold' }}>{label}</p>
-          {payload.map((p, index) => {
-            const val = p.dataKey === 'nivelLeituraNum' ? opcoesLeitura[p.value] : opcoesEscrita[p.value];
-            return (
-              <p key={index} style={{ margin: 0, color: p.color }}>
-                {p.name}: {val || 'Não informado'}
-              </p>
-            );
-          })}
-        </div>
-      );
-    }
-    return null;
-  };
   return (
     <div id="view-student-detail" className="view-section">
       <div
@@ -516,7 +521,7 @@ const StudentDetailView = ({
                           width={130}
                           tick={{ fontSize: 10, fill: '#0d6efd' }}
                         />
-                        <Tooltip content={<CustomTooltip />} />
+                        <Tooltip content={<SondagemTooltip />} />
                         <Line 
                           type="monotone" 
                           dataKey="nivelLeituraNum" 
@@ -547,7 +552,7 @@ const StudentDetailView = ({
                           width={130}
                           tick={{ fontSize: 10, fill: '#198754' }}
                         />
-                        <Tooltip content={<CustomTooltip />} />
+                        <Tooltip content={<SondagemTooltip />} />
                         <Line 
                           type="monotone" 
                           dataKey="nivelEscritaNum" 

@@ -59,6 +59,7 @@ import AlunoListSubtitle from './components/AlunoListSubtitle';
 import SettingsView from './views/SettingsView';
 
 import { evaluateStudentColor, getMotivoOrigemEtiqueta } from './utils/studentColorEvaluator';
+import { enrichAlunosEtiquetaMotivo } from './utils/alunosEtiquetaMotivo';
 import { Capacitor } from '@capacitor/core';
 import { getAuthRedirectUrl } from './utils/authRedirect';
 import { signInWithGoogleNative } from './utils/nativeAuth';
@@ -3394,7 +3395,11 @@ function App() {
       }));
       let insertResult = await supabase.from('agenda_eventos').insert(rows).select();
       if (insertResult.error?.message?.includes('serie_id')) {
-        const rowsSemSerie = rows.map(({ serie_id: _s, ...rest }) => rest);
+        const rowsSemSerie = rows.map((row) => {
+          const rowSemSerie = { ...row };
+          delete rowSemSerie.serie_id;
+          return rowSemSerie;
+        });
         insertResult = await supabase.from('agenda_eventos').insert(rowsSemSerie).select();
       }
       return insertResult;
@@ -3537,7 +3542,11 @@ function App() {
       let insertResult = await supabase.from('agenda_eventos').insert(rows).select();
 
       if (insertResult.error?.message?.includes('serie_id')) {
-        const rowsSemSerie = rows.map(({ serie_id: _s, ...rest }) => rest);
+        const rowsSemSerie = rows.map((row) => {
+          const rowSemSerie = { ...row };
+          delete rowSemSerie.serie_id;
+          return rowSemSerie;
+        });
         insertResult = await supabase.from('agenda_eventos').insert(rowsSemSerie).select();
       }
 
