@@ -75,8 +75,10 @@ ${n.escrita.map((x) => `- ${x}`).join('\n')}
 
 Regras:
 - Não invente alunos ou dados.
+- Preserve rigorosamente a ordem visual da ficha, de cima para baixo.
 - data_sondagem em AAAA-MM-DD; se só houver dia/mês na ficha, use o ano letivo visível ou null.
 - matricula: número do coletor/matrícula se existir, senão null.
+- ordem_ficha: inteiro começando em 1, indicando a posição do aluno na ficha original.
 - confianca: "alta" | "media" | "baixa".
 - duvidas: array de strings (vazio se nenhuma).
 
@@ -86,6 +88,7 @@ Responda SOMENTE JSON válido neste formato:
   "data_referencia": "AAAA-MM-DD ou null",
   "registros": [
     {
+      "ordem_ficha": 1,
       "nome_completo": "string",
       "matricula": "string ou null",
       "data_sondagem": "AAAA-MM-DD ou null",

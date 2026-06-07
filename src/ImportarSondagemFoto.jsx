@@ -8,6 +8,11 @@ import {
   getOpcoesPorAnoSet,
   matchNivelOficial,
 } from './utils/sondagemNiveis';
+import {
+  buildSondagemImportKey,
+  getSondagemPersistenceAction,
+  normalizeExtractedSondagens,
+} from './utils/sondagemImport';
 
 function normalizarNome(n) {
   return String(n || '')
@@ -35,7 +40,8 @@ function ImportarSondagemFoto({
   const [error, setError] = useState('');
   const [step, setStep] = useState('upload');
   const [linhas, setLinhas] = useState([]);
-  const [resumoImport, setResumoImport] = useState({ inseridos: 0, ignorados: 0, erros: [] });
+  const [sobrescreverExistentes, setSobrescreverExistentes] = useState(false);
+  const [resumoImport, setResumoImport] = useState({ inseridos: 0, atualizados: 0, ignorados: 0, erros: [] });
 
   const anoSet = useMemo(() => inferAnoEscolarSet(turma), [turma]);
   const { leitura: opcoesLeitura, escrita: opcoesEscrita } = useMemo(
@@ -56,6 +62,14 @@ function ImportarSondagemFoto({
     (students || []).forEach((a) => {
       const m = normalizarMatricula(a.matricula);
       if (m) map.set(m, a);
+    });
+    return map;
+  }, [students]);
+
+  const alunosPorId = useMemo(() => {
+    const map = new Map();
+    (students || []).forEach((a) => {
+      map.set(a.id, a);
     });
     return map;
   }, [students]);
@@ -107,7 +121,7 @@ function ImportarSondagemFoto({
         anoEscolar: anoSet,
       });
 
-      const registros = data?.registros || [];
+      const registros = normalizeExtractedSondagens(data?.registros || []);
       if (registros.length === 0) {
         setError('Nenhum aluno encontrado na imagem. Tente outra foto com melhor iluminação.');
         setLoading(false);
@@ -118,7 +132,8 @@ function ImportarSondagemFoto({
         const nivelLeitura = matchNivelOficial(r.nivel_leitura, opcoesLeitura) || r.nivel_leitura || '';
         const nivelEscrita = matchNivelOficial(r.nivel_escrita, opcoesEscrita) || r.nivel_escrita || '';
         const row = {
-          id: `row-${idx}`,
+          id: `row-${r.ordem_original ?? idx}`,
+          ordem_ficha: r.ordem_ficha ?? idx + 1,
           nome_completo: r.nome_completo || '',
           matricula: r.matricula || '',
           data_sondagem: r.data_sondagem || data?.data_referencia || '',
@@ -160,57 +175,121 @@ function ImportarSondagemFoto({
 
   const salvarNoBanco = async () => {
     if (!turmaId || linhas.length === 0) return;
+    if (
+      sobrescreverExistentes &&
+      !window.confirm(
+        'As sondagens existentes para os mesmos alunos e datas serao atualizadas. Deseja continuar?',
+      )
+    ) {
+      return;
+    }
+
     setStep('saving');
     setError('');
-    const erros = [];
-    let inseridos = 0;
-    let ignorados = 0;
-    const alunosReavaliar = new Set();
+    try {
+      const erros = [];
+      let inseridos = 0;
+      let atualizados = 0;
+      let ignorados = 0;
+      const alunosReavaliar = new Set();
+      const linhasValidas = [];
 
-    for (const row of linhas) {
-      if (!row.aluno_id) {
-        ignorados += 1;
-        erros.push(`${row.nome_completo || 'Sem nome'}: aluno não encontrado na turma.`);
-        continue;
-      }
-      if (!row.nivel_leitura || !row.nivel_escrita) {
-        ignorados += 1;
-        erros.push(`${row.nome_completo}: níveis de leitura/escrita incompletos.`);
-        continue;
-      }
-      if (!row.data_sondagem) {
-        ignorados += 1;
-        erros.push(`${row.nome_completo}: data da sondagem obrigatória.`);
-        continue;
+      for (const row of linhas) {
+        if (!row.aluno_id) {
+          ignorados += 1;
+          erros.push(`${row.nome_completo || 'Sem nome'}: aluno nao encontrado na turma.`);
+          continue;
+        }
+        if (!row.nivel_leitura || !row.nivel_escrita) {
+          ignorados += 1;
+          erros.push(`${row.nome_completo}: niveis de leitura/escrita incompletos.`);
+          continue;
+        }
+        if (!row.data_sondagem) {
+          ignorados += 1;
+          erros.push(`${row.nome_completo}: data da sondagem obrigatoria.`);
+          continue;
+        }
+        linhasValidas.push(row);
       }
 
-      const payload = {
-        aluno_id: row.aluno_id,
-        data: row.data_sondagem,
-        nivel_leitura: row.nivel_leitura,
-        nivel_escrita: row.nivel_escrita,
-        observacoes: row.observacoes?.trim() || null,
-      };
+      const alunoIds = [...new Set(linhasValidas.map((row) => row.aluno_id))];
+      const datas = [...new Set(linhasValidas.map((row) => row.data_sondagem))];
+      let existingKeys = new Set();
 
-      const { error: insertError } = await supabase.from('sondagens').insert([payload]);
-      if (insertError) {
-        ignorados += 1;
-        erros.push(`${row.nome_completo}: ${insertError.message}`);
-      } else {
-        inseridos += 1;
+      if (alunoIds.length > 0 && datas.length > 0) {
+        const { data: existingRows, error: existingError } = await supabase
+          .from('sondagens')
+          .select('aluno_id, data')
+          .in('aluno_id', alunoIds)
+          .in('data', datas);
+
+        if (existingError) {
+          throw new Error(`Nao foi possivel verificar sondagens existentes: ${existingError.message}`);
+        }
+
+        existingKeys = new Set(
+          (existingRows || []).map((registro) => buildSondagemImportKey(registro.aluno_id, registro.data)),
+        );
+      }
+
+      for (const row of linhasValidas) {
+        const action = getSondagemPersistenceAction({
+          alunoId: row.aluno_id,
+          dataSondagem: row.data_sondagem,
+          overwriteExisting: sobrescreverExistentes,
+          existingKeys,
+        });
+
+        if (action === 'skip-existing') {
+          ignorados += 1;
+          erros.push(
+            `${row.nome_completo}: ja existe sondagem nessa data para este aluno. Marque a opcao de sobrescrever para atualizar.`,
+          );
+          continue;
+        }
+
+        const payload = {
+          aluno_id: row.aluno_id,
+          data: row.data_sondagem,
+          nivel_leitura: row.nivel_leitura,
+          nivel_escrita: row.nivel_escrita,
+          observacoes: row.observacoes?.trim() || null,
+        };
+
+        const { error: persistError } =
+          action === 'update'
+            ? await supabase.from('sondagens').update(payload).eq('aluno_id', row.aluno_id).eq('data', row.data_sondagem)
+            : await supabase.from('sondagens').insert([payload]);
+
+        if (persistError) {
+          ignorados += 1;
+          erros.push(`${row.nome_completo}: ${persistError.message}`);
+          continue;
+        }
+
+        existingKeys.add(buildSondagemImportKey(row.aluno_id, row.data_sondagem));
         alunosReavaliar.add(row.aluno_id);
+        if (action === 'update') {
+          atualizados += 1;
+        } else {
+          inseridos += 1;
+        }
       }
-    }
 
-    if (reavaliarCorAluno) {
-      for (const alunoId of alunosReavaliar) {
-        await reavaliarCorAluno(alunoId);
+      if (reavaliarCorAluno) {
+        for (const alunoId of alunosReavaliar) {
+          await reavaliarCorAluno(alunoId);
+        }
       }
-    }
 
-    setResumoImport({ inseridos, ignorados, erros });
-    setStep('success');
-    if (onImportComplete) onImportComplete();
+      setResumoImport({ inseridos, atualizados, ignorados, erros });
+      setStep('success');
+    } catch (err) {
+      console.error(err);
+      setError(err?.message || 'Erro ao salvar sondagens.');
+      setStep('review');
+    }
   };
 
   return (
@@ -271,15 +350,20 @@ function ImportarSondagemFoto({
       {step === 'review' && (
         <div>
           <p style={{ marginBottom: 12, color: '#15803d', fontWeight: 600 }}>
-            {linhas.length} registro(s) extraído(s). Vincule alunos e confira os níveis antes de salvar.
+            {linhas.length} registro(s) extraido(s). Confira na mesma ordem da ficha antes de salvar.
+          </p>
+          <p style={{ marginTop: 0, marginBottom: 12, color: '#4b5563', fontSize: 13 }}>
+            A numeracao abaixo segue a ordem original da ficha. Ajuste o vinculo do aluno, niveis e data antes de
+            confirmar.
           </p>
           {error && <p style={{ color: '#b91c1c', marginBottom: 10 }}>{error}</p>}
           <div className="import-table-wrap" style={{ maxHeight: 360, marginBottom: 14 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead style={{ background: '#f9fafb', position: 'sticky', top: 0 }}>
                 <tr>
-                  <th style={{ padding: 8, textAlign: 'left' }}>Aluno na turma</th>
-                  <th style={{ padding: 8, textAlign: 'left' }}>Nome na ficha</th>
+                  <th style={{ padding: 8, textAlign: 'left' }}>Linha</th>
+                  <th style={{ padding: 8, textAlign: 'left' }}>Nome lido pela IA</th>
+                  <th style={{ padding: 8, textAlign: 'left' }}>Aluno vinculado na turma</th>
                   <th style={{ padding: 8 }}>Data</th>
                   <th style={{ padding: 8, textAlign: 'left' }}>Leitura</th>
                   <th style={{ padding: 8, textAlign: 'left' }}>Escrita</th>
@@ -288,8 +372,27 @@ function ImportarSondagemFoto({
               </thead>
               <tbody>
                 {linhas.map((row) => (
-                  <tr key={row.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                    <td style={{ padding: 6, minWidth: 140 }}>
+                  <tr
+                    key={row.id}
+                    style={{
+                      borderBottom: '1px solid #f3f4f6',
+                      background: row.aluno_id ? 'white' : '#fff7ed',
+                    }}
+                  >
+                    <td style={{ padding: 6, whiteSpace: 'nowrap', fontWeight: 700, color: '#374151' }}>
+                      {row.ordem_ficha}.
+                    </td>
+                    <td style={{ padding: 6, minWidth: 170 }}>
+                      <input
+                        value={row.nome_completo}
+                        onChange={(e) => updateLinha(row.id, 'nome_completo', e.target.value)}
+                        style={{ width: '100%', fontSize: 11, padding: 4 }}
+                      />
+                      <div style={{ marginTop: 4, fontSize: 10, color: '#6b7280' }}>
+                        {row.matricula ? `Matricula lida: ${row.matricula}` : 'Matricula nao identificada'}
+                      </div>
+                    </td>
+                    <td style={{ padding: 6, minWidth: 180 }}>
                       <select
                         value={row.aluno_id || ''}
                         onChange={(e) => updateLinha(row.id, 'aluno_id', e.target.value || null)}
@@ -303,13 +406,11 @@ function ImportarSondagemFoto({
                           </option>
                         ))}
                       </select>
-                    </td>
-                    <td style={{ padding: 6 }}>
-                      <input
-                        value={row.nome_completo}
-                        onChange={(e) => updateLinha(row.id, 'nome_completo', e.target.value)}
-                        style={{ width: '100%', fontSize: 11, padding: 4 }}
-                      />
+                      <div style={{ marginTop: 4, fontSize: 10, color: row.aluno_id ? '#166534' : '#b45309' }}>
+                        {row.aluno_id
+                          ? `Vinculado: ${alunosPorId.get(row.aluno_id)?.nome || 'Aluno selecionado'}`
+                          : 'Sem vinculo com aluno da turma'}
+                      </div>
                     </td>
                     <td style={{ padding: 6 }}>
                       <input
@@ -355,6 +456,39 @@ function ImportarSondagemFoto({
               </tbody>
             </table>
           </div>
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 8,
+              marginBottom: 10,
+              fontSize: 13,
+              color: '#374151',
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={sobrescreverExistentes}
+              onChange={(e) => setSobrescreverExistentes(e.target.checked)}
+              style={{ marginTop: 2 }}
+            />
+            <span>Sobrescrever sondagens ja cadastradas para o mesmo aluno e data</span>
+          </label>
+          {sobrescreverExistentes && (
+            <p
+              style={{
+                marginTop: 0,
+                marginBottom: 14,
+                padding: 10,
+                borderRadius: 8,
+                background: '#fff7ed',
+                color: '#9a3412',
+                fontSize: 12,
+              }}
+            >
+              As sondagens existentes para os mesmos alunos e datas serao atualizadas.
+            </p>
+          )}
           <div className="import-actions">
             <button type="button" className="btn-primary" style={{ padding: '8px 16px' }} onClick={salvarNoBanco}>
               Cadastrar sondagens
@@ -365,6 +499,7 @@ function ImportarSondagemFoto({
               onClick={() => {
                 setStep('upload');
                 setLinhas([]);
+                setSobrescreverExistentes(false);
               }}
             >
               Nova foto
@@ -380,8 +515,9 @@ function ImportarSondagemFoto({
       {step === 'success' && (
         <div>
           <p style={{ color: '#15803d', fontWeight: 600, marginBottom: 8 }}>
-            Concluído: {resumoImport.inseridos} sondagem(ns) cadastrada(s).
-            {resumoImport.ignorados > 0 && ` ${resumoImport.ignorados} ignorada(s).`}
+            Concluido: {resumoImport.inseridos} criada(s), {resumoImport.atualizados} atualizada(s)
+            {resumoImport.ignorados > 0 && ` e ${resumoImport.ignorados} ignorada(s).`}
+            {resumoImport.ignorados === 0 && '.'}
           </p>
           {resumoImport.erros.length > 0 && (
             <ul style={{ fontSize: 13, color: '#b45309', marginBottom: 12 }}>

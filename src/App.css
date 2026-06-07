@@ -963,6 +963,39 @@ h1 {
   min-width: 0;
 }
 
+.class-dashboard-sondagens-section {
+  grid-column: 1 / -1;
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.class-dashboard-sondagens-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.class-dashboard-month-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.875rem;
+  color: #444;
+  min-width: 180px;
+}
+
+.class-dashboard-month-picker input[type='month'] {
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 1rem;
+  min-height: 44px;
+}
+
 .teacher-tab-toolbar {
   display: flex;
   justify-content: space-between;

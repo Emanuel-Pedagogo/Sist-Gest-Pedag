@@ -32,6 +32,8 @@ npm run build
 ## Documentação principal
 
 - [`docs/PILOTO-CONFIAVEL.md`](./docs/PILOTO-CONFIAVEL.md): plano operacional para validar o sistema em piloto controlado.
+- [`docs/SUPABASE-CHECKLIST-PILOTO.md`](./docs/SUPABASE-CHECKLIST-PILOTO.md): checklist Supabase (tabelas, RLS, buckets, Edge Functions).
+- [`docs/ROTEIRO-VALIDACAO-PILOTO.md`](./docs/ROTEIRO-VALIDACAO-PILOTO.md): roteiro passo a passo para validar fluxos antes do piloto.
 - [`docs/GEMINI-SETUP.md`](./docs/GEMINI-SETUP.md): configuração das Edge Functions com Gemini.
 - [`docs/CHECKLIST-USUARIO.md`](./docs/CHECKLIST-USUARIO.md): checklist rápido para testes de usuário e Android.
 - [`docs/ANDROID-SETUP.md`](./docs/ANDROID-SETUP.md): preparação do ambiente Android.

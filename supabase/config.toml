@@ -6,3 +6,6 @@ verify_jwt = false
 
 [functions.generate-resumo-aluno]
 verify_jwt = false
+
+[functions.extract-boletins-pdf]
+verify_jwt = false

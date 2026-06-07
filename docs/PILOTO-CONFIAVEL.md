@@ -66,6 +66,8 @@ O código ainda mantém fallback para o projeto atual, mas o piloto deve usar va
 
 ### 4.2 Supabase
 
+Checklist detalhado com auditoria e scripts: [`SUPABASE-CHECKLIST-PILOTO.md`](./SUPABASE-CHECKLIST-PILOTO.md).
+
 Antes de inserir dados reais, confirme:
 
 - [ ] tabelas base existem: `escolas`, `turmas`, `alunos`, `ocorrencias`, `notas`, `frequencia_historico`, `agenda_eventos`;
@@ -103,6 +105,8 @@ Para um piloto responsável com dados de alunos:
 - [ ] publicar uma política de privacidade simples antes de uso externo.
 
 ## 6. Roteiro de validação funcional
+
+Guia detalhado com passos na interface: [`ROTEIRO-VALIDACAO-PILOTO.md`](./ROTEIRO-VALIDACAO-PILOTO.md).
 
 Execute estes fluxos em ordem. Um fluxo só deve ser considerado pronto quando salvar, recarregar a página e manter os dados corretos.
 
