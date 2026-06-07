@@ -10,7 +10,8 @@
     "test": "vitest run",
     "preview": "vite preview",
     "build:android": "npm run build && npx cap sync android",
-    "open:android": "npx cap open android"
+    "open:android": "npx cap open android",
+    "release:android": "powershell -ExecutionPolicy Bypass -File scripts/build-android-release.ps1"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.2",

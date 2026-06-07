@@ -102,6 +102,25 @@ Checklist: [`CHECKLIST-USUARIO.md`](./CHECKLIST-USUARIO.md)
 - Login Google abre browser in-app e retorna via deep link
 - Recuperação de senha usa o mesmo deep link
 
+## Gerar AAB para Play Store
+
+Com Android Studio instalado:
+
+```powershell
+npm run release:android
+```
+
+O script:
+
+1. Faz `build` web + `cap sync android`
+2. Usa o JDK do Android Studio
+3. Cria `android/sacp-release.keystore` na primeira execução (se ainda não existir)
+4. Gera `release/sacp-<versao>.aab` pronto para upload
+
+**Importante:** se o app **já foi publicado** na Play Store, use o **mesmo keystore de upload** da primeira versão. Copie o arquivo `.keystore` e crie `android/keystore.properties` a partir de `android/keystore.properties.example`.
+
+Credenciais geradas localmente ficam em `android/KEYSTORE-CREDENTIALS.local.txt` (não commitar).
+
 ## Publicação
 
 - Conta Google Play Developer (~US$ 25)

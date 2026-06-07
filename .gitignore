@@ -25,10 +25,15 @@ dist-ssr
 
 .vercel
 
+# Release Android (gerado localmente)
+release/
+
 # Capacitor / Android
 android/.gradle/
 android/app/build/
 android/build/
 android/local.properties
+android/keystore.properties
+android/KEYSTORE-CREDENTIALS.local.txt
 *.keystore
 *.jks
