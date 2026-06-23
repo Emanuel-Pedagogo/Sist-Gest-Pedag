@@ -62,6 +62,7 @@ import { enrichAlunosEtiquetaMotivo } from './utils/alunosEtiquetaMotivo';
 import { Capacitor } from '@capacitor/core';
 import { getAuthRedirectUrl } from './utils/authRedirect';
 import { signInWithGoogleNative } from './utils/nativeAuth';
+import { toast, confirmAction } from './utils/appFeedback';
 
 function App() {
   // Data local em YYYY-MM-DD (evita dia anterior por timezone)
@@ -1534,7 +1535,7 @@ function App() {
         .eq('id', editingOccurrence.id);
 
       if (error) {
-        alert('Erro ao atualizar ocorrência: ' + error.message);
+        toast.error('Erro ao atualizar ocorrência: ' + error.message);
         setSavingOccurrence(false);
       } else {
         setShowModal(false);
@@ -1564,7 +1565,7 @@ function App() {
       ]);
 
       if (error) {
-        alert('Erro ao salvar ocorrência: ' + error.message);
+        toast.error('Erro ao salvar ocorrência: ' + error.message);
         setSavingOccurrence(false);
       } else {
         setShowModal(false);
@@ -1589,14 +1590,15 @@ function App() {
   };
 
   const handleDeleteOccurrence = async (ocorrencia) => {
-    if (!ocorrencia?.id || !confirm('Tem certeza que deseja excluir esta ocorrência?')) return;
+    if (!ocorrencia?.id) return;
+    if (!(await confirmAction({ message: 'Tem certeza que deseja excluir esta ocorrência?', danger: true, confirmLabel: 'Excluir' }))) return;
 
        
       // eslint-disable-next-line no-unused-vars
       const { data, error } = await supabase.from('ocorrencias').delete().eq('id', ocorrencia.id);
 
     if (error) {
-      alert('Erro ao excluir ocorrência: ' + error.message);
+      toast.error('Erro ao excluir ocorrência: ' + error.message);
     } else {
       setOccurrences((prev) => prev.filter((o) => o.id !== ocorrencia.id));
       if (editingOccurrence?.id === ocorrencia.id) {
@@ -1710,7 +1712,7 @@ function App() {
     const turmaIds = turmasForReport.map((t) => t.id);
     if (turmaIds.length === 0) {
       setReportLoading(false);
-      alert('Nenhuma turma encontrada para o ano letivo selecionado.');
+      toast.warn('Nenhuma turma encontrada para o ano letivo selecionado.');
       return;
     }
 
@@ -1720,7 +1722,7 @@ function App() {
 
     const { data: alunos, error } = await query;
     if (error) {
-      alert('Erro ao buscar alunos: ' + error.message);
+      toast.error('Erro ao buscar alunos: ' + error.message);
       setReportLoading(false);
       return;
     }
@@ -1817,7 +1819,7 @@ function App() {
 
   const exportReportPDF = async () => {
     if (reportList.length === 0) {
-      alert('Gere a lista antes de exportar.');
+      toast.warn('Gere a lista antes de exportar.');
       return;
     }
     try {
@@ -1877,13 +1879,13 @@ function App() {
       });
       await savePdfDocument(doc, `relatorio-alunos-${new Date().toISOString().slice(0, 10)}.pdf`);
     } catch (err) {
-      alert('Erro ao exportar PDF: ' + (err?.message || err));
+      toast.error('Erro ao exportar PDF: ' + (err?.message || err));
     }
   };
 
   const exportReportWord = async () => {
     if (reportList.length === 0) {
-      alert('Gere a lista antes de exportar.');
+      toast.warn('Gere a lista antes de exportar.');
       return;
     }
     try {
@@ -1993,7 +1995,7 @@ function App() {
       const blob = await Packer.toBlob(doc);
       await saveBlob(blob, `relatorio-alunos-${new Date().toISOString().slice(0, 10)}.docx`);
     } catch (err) {
-      alert('Erro ao exportar Word: ' + (err?.message || err));
+      toast.error('Erro ao exportar Word: ' + (err?.message || err));
     }
   };
 
@@ -2016,7 +2018,7 @@ function App() {
     ]);
 
     if (error) {
-      alert('Erro ao salvar nota: ' + error.message);
+      toast.error('Erro ao salvar nota: ' + error.message);
       setSavingNote(false);
     } else {
       setShowNoteModal(false);
@@ -2070,7 +2072,7 @@ function App() {
     ]);
 
     if (error) {
-      alert('Erro ao salvar histórico de frequência: ' + error.message);
+      toast.error('Erro ao salvar histórico de frequência: ' + error.message);
       setSavingFrequency(false);
     } else {
       setShowFrequencyModal(false);
@@ -2244,7 +2246,7 @@ function App() {
     if (!selectedStudentId) return;
     if (savingSondagemRef.current) return;
     if (!sondagemFormData.nivel_escrita || !sondagemFormData.nivel_leitura) {
-      alert('Preencha nível de escrita e nível de leitura.');
+      toast.warn('Preencha nível de escrita e nível de leitura.');
       return;
     }
 
@@ -2262,7 +2264,7 @@ function App() {
       ? await supabase.from('sondagens').update(payload).eq('id', editingSondagem.id).select()
       : await supabase.from('sondagens').insert([payload]).select();
     if (error) {
-      alert('Erro ao salvar sondagem: ' + error.message);
+      toast.error('Erro ao salvar sondagem: ' + error.message);
       savingSondagemRef.current = false;
       setSavingSondagem(false);
       return;
@@ -2280,7 +2282,7 @@ function App() {
           .from(BUCKET_SONDAGENS)
           .upload(filePath, sondagemFormData.foto_file, { cacheControl: '3600', upsert: true });
         if (uploadError) {
-          alert('Erro ao enviar foto: ' + (uploadError.message || uploadError).toString() + '\n\nVerifique: Storage > bucket "sondagens-anexos" existe e tem políticas de INSERT e UPDATE.');
+          toast.error('Erro ao enviar foto: ' + (uploadError.message || uploadError).toString() + '\n\nVerifique: Storage > bucket "sondagens-anexos" existe e tem políticas de INSERT e UPDATE.');
           savingSondagemRef.current = false;
           setSavingSondagem(false);
           return;
@@ -2295,7 +2297,7 @@ function App() {
           .from(BUCKET_SONDAGENS)
           .upload(filePath, sondagemFormData.audio_file, { cacheControl: '3600', upsert: true });
         if (uploadError) {
-          alert('Erro ao enviar áudio: ' + (uploadError.message || uploadError).toString() + '\n\nVerifique: Storage > bucket "sondagens-anexos" existe e tem políticas de INSERT e UPDATE.');
+          toast.error('Erro ao enviar áudio: ' + (uploadError.message || uploadError).toString() + '\n\nVerifique: Storage > bucket "sondagens-anexos" existe e tem políticas de INSERT e UPDATE.');
           savingSondagemRef.current = false;
           setSavingSondagem(false);
           return;
@@ -2310,7 +2312,7 @@ function App() {
           .from(BUCKET_SONDAGENS)
           .upload(filePath, sondagemFormData.arquivo_file, { cacheControl: '3600', upsert: true });
         if (uploadError) {
-          alert('Erro ao enviar arquivo: ' + (uploadError.message || uploadError).toString() + '\n\nVerifique: Storage > bucket "sondagens-anexos" existe e tem políticas de INSERT e UPDATE.');
+          toast.error('Erro ao enviar arquivo: ' + (uploadError.message || uploadError).toString() + '\n\nVerifique: Storage > bucket "sondagens-anexos" existe e tem políticas de INSERT e UPDATE.');
           savingSondagemRef.current = false;
           setSavingSondagem(false);
           return;
@@ -2355,12 +2357,13 @@ function App() {
   };
 
   const handleDeleteSondagem = async (sondagem) => {
-    if (!sondagem?.id || !confirm('Tem certeza que deseja excluir esta sondagem?')) return;
+    if (!sondagem?.id) return;
+    if (!(await confirmAction({ message: 'Tem certeza que deseja excluir esta sondagem?', danger: true, confirmLabel: 'Excluir' }))) return;
        
       // eslint-disable-next-line no-unused-vars
       const { data, error } = await supabase.from('sondagens').delete().eq('id', sondagem.id);
     if (error) {
-      alert('Erro ao excluir: ' + error.message);
+      toast.error('Erro ao excluir: ' + error.message);
       return;
     }
     setSondagens((prev) => prev.filter((s) => s.id !== sondagem.id));
@@ -2398,7 +2401,7 @@ function App() {
     }
 
     if (error) {
-      alert('Erro ao salvar escola: ' + error.message);
+      toast.error('Erro ao salvar escola: ' + error.message);
       setSavingSchool(false);
     } else {
       setShowSchoolModal(false);
@@ -2429,14 +2432,14 @@ function App() {
   };
 
   const handleDeleteSchool = async (schoolId) => {
-    if (!confirm('Tem certeza que deseja excluir esta escola?')) return;
+    if (!(await confirmAction({ message: 'Tem certeza que deseja excluir esta escola?', danger: true, confirmLabel: 'Excluir' }))) return;
     
        
       // eslint-disable-next-line no-unused-vars
       const { data, error } = await supabase.from('escolas').delete().eq('id', schoolId);
     
     if (error) {
-      alert('Erro ao excluir escola: ' + error.message);
+      toast.error('Erro ao excluir escola: ' + error.message);
     } else {
       // Recarregar escolas
       const { data: newData } = await supabase.from('escolas').select('*');
@@ -2460,7 +2463,7 @@ function App() {
   const handleToggleArchiveSchool = async (school) => {
     const willArchive = !school?.arquivada;
     const msg = willArchive ? 'Arquivar esta escola?' : 'Desarquivar esta escola?';
-    if (!confirm(msg)) return;
+    if (!(await confirmAction({ message: msg, danger: willArchive, confirmLabel: willArchive ? 'Arquivar' : 'Desarquivar' }))) return;
 
        
       // eslint-disable-next-line no-unused-vars
@@ -2470,7 +2473,7 @@ function App() {
       .eq('id', school.id);
 
     if (error) {
-      alert('Erro ao atualizar escola: ' + error.message);
+      toast.error('Erro ao atualizar escola: ' + error.message);
       return;
     }
 
@@ -2523,13 +2526,13 @@ function App() {
     e.preventDefault();
     const schoolId = classFormData.escola_id || activeSchoolId || selectedSchoolId;
     if (!schoolId) {
-      alert('Selecione uma escola primeiro.');
+      toast.warn('Selecione uma escola primeiro.');
       return;
     }
 
     const ehEspecial = Boolean(classFormData.turma_especial);
     if (!ehEspecial && (!classFormData.ano || classFormData.ano.length === 0)) {
-      alert('Selecione pelo menos um ano escolar.');
+      toast.warn('Selecione pelo menos um ano escolar.');
       return;
     }
 
@@ -2569,7 +2572,7 @@ function App() {
     }
 
     if (error) {
-      alert('Erro ao salvar turma: ' + error.message);
+      toast.error('Erro ao salvar turma: ' + error.message);
       setSavingClass(false);
     } else {
       // Salvar o ID antes de limpar o estado
@@ -2653,14 +2656,14 @@ function App() {
   };
 
   const handleDeleteClass = async (classId) => {
-    if (!confirm('Tem certeza que deseja excluir esta turma?')) return;
+    if (!(await confirmAction({ message: 'Tem certeza que deseja excluir esta turma?', danger: true, confirmLabel: 'Excluir' }))) return;
     
        
       // eslint-disable-next-line no-unused-vars
       const { data, error } = await supabase.from('turmas').delete().eq('id', classId);
     
     if (error) {
-      alert('Erro ao excluir turma: ' + error.message);
+      toast.error('Erro ao excluir turma: ' + error.message);
     } else {
       // Recarregar turmas
       const schoolId = activeSchoolId || selectedSchoolId;
@@ -2708,7 +2711,7 @@ function App() {
 
     const turmaDestino = (classes || []).find((c) => String(c.id) === String(turmaId));
     if (!isTurmaEspecial(turmaDestino)) {
-      alert('Esta função é apenas para turmas especiais.');
+      toast.warn('Esta função é apenas para turmas especiais.');
       return;
     }
 
@@ -2716,7 +2719,7 @@ function App() {
     try {
       const vinculados = await fetchAlunoIdsTurmaEspecial(supabase, turmaId);
       if (vinculados.has(String(alunoOrigem.id))) {
-        alert('Este aluno já está nesta turma especial.');
+        toast.warn('Este aluno já está nesta turma especial.');
         setSavingStudent(false);
         return;
       }
@@ -2742,11 +2745,11 @@ function App() {
     } catch (err) {
       const msg = err?.message || String(err);
       if (msg.includes('alunos_turmas_especiais') || msg.includes('schema cache')) {
-        alert(
+        toast.error(
           'Tabela de vínculos não encontrada. Execute o script supabase_alunos_turmas_especiais.sql no Supabase.',
         );
       } else {
-        alert('Erro ao adicionar aluno: ' + msg);
+        toast.error('Erro ao adicionar aluno: ' + msg);
       }
     } finally {
       setSavingStudent(false);
@@ -2827,7 +2830,7 @@ function App() {
   const handleSaveStudent = async (e) => {
     e.preventDefault();
     if (!studentFormData.turma_id) {
-      alert('Selecione uma turma.');
+      toast.warn('Selecione uma turma.');
       return;
     }
 
@@ -2835,7 +2838,7 @@ function App() {
       (c) => String(c.id) === String(studentFormData.turma_id),
     );
     if (!editingStudent && isTurmaEspecial(turmaSalvar)) {
-      alert(
+      toast.warn(
         'Turmas especiais reúnem alunos já cadastrados na turma regular. Use a busca para adicioná-los.',
       );
       return;
@@ -2878,7 +2881,7 @@ function App() {
     }
 
     if (error) {
-      alert('Erro ao salvar aluno: ' + error.message);
+      toast.error('Erro ao salvar aluno: ' + error.message);
       setSavingStudent(false);
     } else {
       setShowStudentModal(false);
@@ -2969,7 +2972,7 @@ function App() {
     // Validar tipo de arquivo (PDF ou imagens)
     const validTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
     if (!validTypes.includes(file.type)) {
-      alert('Apenas arquivos PDF e imagens são permitidos.');
+      toast.warn('Apenas arquivos PDF e imagens são permitidos.');
       return;
     }
 
@@ -2986,16 +2989,16 @@ function App() {
 
       if (uploadError) {
         if (uploadError.message.includes('already exists')) {
-          alert('Um arquivo com este nome já existe. Renomeie o arquivo e tente novamente.');
+          toast.warn('Um arquivo com este nome já existe. Renomeie o arquivo e tente novamente.');
         } else {
-          alert('Erro ao fazer upload: ' + uploadError.message);
+          toast.error('Erro ao fazer upload: ' + uploadError.message);
         }
       } else {
         // Recarregar lista de documentos
         await loadAeeDocuments();
       }
     } catch (error) {
-      alert('Erro ao fazer upload: ' + error.message);
+      toast.error('Erro ao fazer upload: ' + error.message);
     } finally {
       setUploadingDocument(false);
       // Limpar input
@@ -3005,7 +3008,8 @@ function App() {
 
   // Função para excluir documento
   const handleDeleteDocument = async (fileName) => {
-    if (!selectedStudentId || !confirm('Tem certeza que deseja excluir este documento?')) return;
+    if (!selectedStudentId) return;
+    if (!(await confirmAction({ message: 'Tem certeza que deseja excluir este documento?', danger: true, confirmLabel: 'Excluir' }))) return;
 
     try {
       const filePath = `${selectedStudentId}/${fileName}`;
@@ -3017,13 +3021,13 @@ function App() {
         .remove([filePath]);
 
       if (error) {
-        alert('Erro ao excluir documento: ' + error.message);
+        toast.error('Erro ao excluir documento: ' + error.message);
       } else {
         // Recarregar lista de documentos
         await loadAeeDocuments();
       }
     } catch (error) {
-      alert('Erro ao excluir documento: ' + error.message);
+      toast.error('Erro ao excluir documento: ' + error.message);
     }
   };
 
@@ -3041,13 +3045,13 @@ function App() {
         .createSignedUrl(filePath, 60); // URL válida por 60 segundos
 
       if (error) {
-        alert('Erro ao gerar link de download: ' + error.message);
+        toast.error('Erro ao gerar link de download: ' + error.message);
       } else if (data) {
         // Abrir em nova aba
         window.open(data.signedUrl, '_blank');
       }
     } catch (error) {
-      alert('Erro ao baixar documento: ' + error.message);
+      toast.error('Erro ao baixar documento: ' + error.message);
     }
   };
 
@@ -3301,13 +3305,13 @@ function App() {
   const handleSaveEvent = async (e) => {
     e.preventDefault();
     if (!eventFormData.titulo || !eventFormData.data_inicio) {
-      alert('Preencha pelo menos o título e data de início.');
+      toast.warn('Preencha pelo menos o título e data de início.');
       return;
     }
 
     const dates = buildEventDateTimes(eventFormData);
     if (!dates) {
-      alert('Data/hora de início inválida.');
+      toast.warn('Data/hora de início inválida.');
       return;
     }
 
@@ -3323,7 +3327,7 @@ function App() {
     if (wantsRecurring) {
       const ate = parseLocalDate(eventFormData.recorrencia_ate);
       if (ate.getTime() < new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime()) {
-        alert('A data "Repetir até" deve ser igual ou posterior à data de início.');
+        toast.warn('A data "Repetir até" deve ser igual ou posterior à data de início.');
         return;
       }
     }
@@ -3376,7 +3380,7 @@ function App() {
         });
 
         if (occurrences.length === 0) {
-          alert(
+          toast.warn(
             'Nenhuma ocorrência gerada. Verifique as datas ou marque a inclusão de sábados/domingos se necessário.'
           );
           setSavingEvent(false);
@@ -3384,9 +3388,12 @@ function App() {
         }
 
         if (editingEvent.serie_id) {
-          const regenerate = window.confirm(
-            'Alterar a recorrência recriará todos os eventos desta série com os novos parâmetros.\n\nOK = recriar série\nCancelar = salvar só este evento (sem alterar os demais)'
-          );
+          const regenerate = await confirmAction({
+            title: 'Alterar recorrência',
+            message:
+              'Alterar a recorrência recriará todos os eventos desta série com os novos parâmetros.\n\nConfirmar = recriar série\nCancelar = salvar só este evento (sem alterar os demais)',
+            confirmLabel: 'Recriar série',
+          });
 
           if (regenerate) {
             await supabase.from('agenda_eventos').delete().eq('serie_id', editingEvent.serie_id);
@@ -3435,9 +3442,12 @@ function App() {
       } else {
         const applyToSeries =
           editingEvent.serie_id &&
-          window.confirm(
-            'Este evento faz parte de uma série recorrente.\n\nOK = aplicar título, observação e cor a TODOS os eventos da série\nCancelar = alterar apenas este evento'
-          );
+          (await confirmAction({
+            title: 'Evento recorrente',
+            message:
+              'Este evento faz parte de uma série recorrente.\n\nConfirmar = aplicar título, observação e cor a TODOS os eventos da série\nCancelar = alterar apenas este evento',
+            confirmLabel: 'Aplicar à série',
+          }));
 
         if (applyToSeries) {
           const { error: seriesError } = await supabase
@@ -3481,7 +3491,7 @@ function App() {
       });
 
       if (occurrences.length === 0) {
-        alert(
+        toast.warn(
           'Nenhuma ocorrência gerada. Verifique as datas ou marque a inclusão de sábados/domingos se necessário.'
         );
         setSavingEvent(false);
@@ -3529,7 +3539,7 @@ function App() {
     }
 
     if (error || !eventId) {
-      alert('Erro ao salvar evento: ' + (error?.message || 'Erro desconhecido'));
+      toast.error('Erro ao salvar evento: ' + (error?.message || 'Erro desconhecido'));
       setSavingEvent(false);
       return;
     }
@@ -3551,7 +3561,7 @@ function App() {
           });
 
         if (uploadError) {
-          alert('Erro ao fazer upload do anexo: ' + uploadError.message);
+          toast.error('Erro ao fazer upload do anexo: ' + uploadError.message);
           setSavingEvent(false);
           return;
         }
@@ -3579,7 +3589,7 @@ function App() {
         }
       } catch (error) {
         console.error('Erro ao processar anexo:', error);
-        alert('Erro no upload: ' + error.message);
+        toast.error('Erro no upload: ' + error.message);
         setSavingEvent(false);
         return;
       }
@@ -3608,14 +3618,18 @@ function App() {
 
   const handleDeleteAgendaEvent = async () => {
     if (!editingEvent?.id) return;
-    if (!window.confirm('Tem certeza que deseja excluir este evento?')) return;
+    if (!(await confirmAction({ message: 'Tem certeza que deseja excluir este evento?', danger: true, confirmLabel: 'Excluir' }))) return;
 
     let error;
     let deleteEntireSeries = false;
     if (editingEvent.serie_id) {
-      deleteEntireSeries = window.confirm(
-        'Este evento faz parte de uma série recorrente.\n\nOK = excluir TODA a série\nCancelar = excluir apenas este evento'
-      );
+      deleteEntireSeries = await confirmAction({
+        title: 'Série recorrente',
+        message:
+          'Este evento faz parte de uma série recorrente.\n\nConfirmar = excluir TODA a série\nCancelar = excluir apenas este evento',
+        confirmLabel: 'Excluir série',
+        danger: true,
+      });
       if (deleteEntireSeries) {
         ({ error } = await supabase.from('agenda_eventos').delete().eq('serie_id', editingEvent.serie_id));
       } else {
@@ -3626,7 +3640,7 @@ function App() {
     }
 
     if (error) {
-      alert('Erro ao excluir evento: ' + error.message);
+      toast.error('Erro ao excluir evento: ' + error.message);
       return;
     }
     setAgendaEvents((prev) => {
@@ -3755,14 +3769,14 @@ function App() {
       { includeSemedMarcos: semedAgenda.showSemedMarcos }
     );
     if (events.length === 0) {
-      alert('Não há eventos das categorias selecionadas no período visível para exportar.');
+      toast.warn('Não há eventos das categorias selecionadas no período visível para exportar.');
       return;
     }
     setExportingAgenda(true);
     try {
       await exportAgendaPDF(events, meta);
     } catch (err) {
-      alert('Erro ao exportar PDF: ' + (err?.message || err));
+      toast.error('Erro ao exportar PDF: ' + (err?.message || err));
     } finally {
       setExportingAgenda(false);
     }
@@ -3778,14 +3792,14 @@ function App() {
       { includeSemedMarcos: semedAgenda.showSemedMarcos }
     );
     if (events.length === 0) {
-      alert('Não há eventos das categorias selecionadas no período visível para exportar.');
+      toast.warn('Não há eventos das categorias selecionadas no período visível para exportar.');
       return;
     }
     setExportingAgenda(true);
     try {
       await exportAgendaWord(events, meta);
     } catch (err) {
-      alert('Erro ao exportar Word: ' + (err?.message || err));
+      toast.error('Erro ao exportar Word: ' + (err?.message || err));
     } finally {
       setExportingAgenda(false);
     }
@@ -3801,14 +3815,14 @@ function App() {
         .eq('id', selectedAgendaEvent.id);
 
       if (error?.message?.includes('anotacoes')) {
-        alert(
+        toast.error(
           'Não foi possível salvar as anotações. Execute o script supabase_agenda_anotacoes.sql no Supabase para adicionar a coluna "anotacoes".'
         );
         return;
       }
 
       if (error) {
-        alert('Erro ao salvar anotações: ' + error.message);
+        toast.error('Erro ao salvar anotações: ' + error.message);
         return;
       }
 
@@ -3818,7 +3832,7 @@ function App() {
         prev.map((ev) => (ev.id === selectedAgendaEvent.id ? { ...ev, anotacoes: updated.anotacoes } : ev))
       );
     } catch (err) {
-      alert('Erro ao salvar anotações: ' + err.message);
+      toast.error('Erro ao salvar anotações: ' + err.message);
     } finally {
       setSavingAgendaAnotacoes(false);
     }
@@ -3840,7 +3854,7 @@ function App() {
           .upload(filePath, file, { cacheControl: '3600', upsert: true });
 
         if (uploadError) {
-          alert(`Erro ao enviar "${originalFileName}": ${uploadError.message}`);
+          toast.error(`Erro ao enviar "${originalFileName}": ${uploadError.message}`);
           continue;
         }
 
@@ -3864,7 +3878,7 @@ function App() {
       if (refreshed) setSelectedAgendaEvent(refreshed);
       await loadAgendaEventAnexos(eventId, refreshed || selectedAgendaEvent);
     } catch (err) {
-      alert('Erro no upload: ' + err.message);
+      toast.error('Erro no upload: ' + err.message);
     } finally {
       setUploadingAgendaAnexos(false);
     }
@@ -3872,11 +3886,11 @@ function App() {
 
   const handleDeleteAgendaEventAnexo = async (filePath, fileName) => {
     if (!filePath) return;
-    if (!window.confirm(`Remover o arquivo "${fileName || 'anexo'}"?`)) return;
+    if (!(await confirmAction({ message: `Remover o arquivo "${fileName || 'anexo'}"?`, danger: true, confirmLabel: 'Remover' }))) return;
 
     const { error } = await supabase.storage.from('agenda-arquivos').remove([filePath]);
     if (error) {
-      alert('Erro ao remover anexo: ' + error.message);
+      toast.error('Erro ao remover anexo: ' + error.message);
       return;
     }
 
@@ -3898,9 +3912,11 @@ function App() {
 
     if (isTurmaEspecial(turmaCtx)) {
       if (
-        !confirm(
-          'Remover este aluno da turma especial? O cadastro único na turma regular será mantido.',
-        )
+        !(await confirmAction({
+          message: 'Remover este aluno da turma especial? O cadastro único na turma regular será mantido.',
+          danger: true,
+          confirmLabel: 'Remover',
+        }))
       ) {
         return;
       }
@@ -3908,17 +3924,17 @@ function App() {
         await desvincularAlunoTurmaEspecial(supabase, studentId, selectedClassId);
         await reloadStudentsAfterTurmaChange(selectedClassId);
       } catch (err) {
-        alert('Erro ao remover aluno da turma: ' + (err?.message || String(err)));
+        toast.error('Erro ao remover aluno da turma: ' + (err?.message || String(err)));
       }
       return;
     }
 
-    if (!confirm('Tem certeza que deseja excluir este aluno?')) return;
+    if (!(await confirmAction({ message: 'Tem certeza que deseja excluir este aluno?', danger: true, confirmLabel: 'Excluir' }))) return;
 
     const { error } = await supabase.from('alunos').delete().eq('id', studentId);
 
     if (error) {
-      alert('Erro ao excluir aluno: ' + error.message);
+      toast.error('Erro ao excluir aluno: ' + error.message);
     } else {
       await reloadStudentsAfterTurmaChange(selectedClassId || null);
     }
@@ -3929,16 +3945,16 @@ function App() {
     e.preventDefault();
     const schoolId = activeSchoolId || selectedSchoolId;
     if (!schoolId) {
-      alert('Selecione uma escola.');
+      toast.warn('Selecione uma escola.');
       return;
     }
 
     if (!teacherFormData.nome?.trim()) {
-      alert('Informe o nome do professor.');
+      toast.warn('Informe o nome do professor.');
       return;
     }
     if (!teacherFormData.disciplina?.trim()) {
-      alert('Informe a disciplina.');
+      toast.warn('Informe a disciplina.');
       return;
     }
 
@@ -3969,7 +3985,7 @@ function App() {
     }
 
     if (error) {
-      alert('Erro ao salvar professor: ' + error.message);
+      toast.error('Erro ao salvar professor: ' + error.message);
       setSavingTeacher(false);
       return;
     }
@@ -4000,12 +4016,12 @@ function App() {
   };
 
   const handleDeleteTeacher = async (teacherId) => {
-    if (!confirm('Tem certeza que deseja excluir este professor?')) return;
+    if (!(await confirmAction({ message: 'Tem certeza que deseja excluir este professor?', danger: true, confirmLabel: 'Excluir' }))) return;
        
       // eslint-disable-next-line no-unused-vars
       const { data, error } = await supabase.from('professores').delete().eq('id', teacherId);
     if (error) {
-      alert('Erro ao excluir professor: ' + error.message);
+      toast.error('Erro ao excluir professor: ' + error.message);
       return;
     }
     setTeachers((prev) => prev.filter((t) => String(t.id) !== String(teacherId)));
@@ -4060,12 +4076,12 @@ function App() {
   const handleSaveEntrega = async (e) => {
     e.preventDefault();
     if (!selectedTeacherId || !selectedTeacher) {
-      alert('Professor não selecionado.');
+      toast.warn('Professor não selecionado.');
       return;
     }
     const schoolId = selectedTeacher.escola_id || activeSchoolId || selectedSchoolId;
     if (!schoolId) {
-      alert('Escola não identificada.');
+      toast.warn('Escola não identificada.');
       return;
     }
     setSavingEntrega(true);
@@ -4097,7 +4113,7 @@ function App() {
 
     setSavingEntrega(false);
     if (err) {
-      alert('Erro ao salvar entrega: ' + err.message);
+      toast.error('Erro ao salvar entrega: ' + err.message);
       return;
     }
     setShowEntregaModal(false);
@@ -4112,12 +4128,13 @@ function App() {
   };
 
   const handleDeleteEntrega = async (row) => {
-    if (!row?.id || !confirm('Excluir esta exigência de entrega?')) return;
+    if (!row?.id) return;
+    if (!(await confirmAction({ message: 'Excluir esta exigência de entrega?', danger: true, confirmLabel: 'Excluir' }))) return;
        
       // eslint-disable-next-line no-unused-vars
       const { data, error } = await supabase.from('entregas_docentes').delete().eq('id', row.id);
     if (error) {
-      alert('Erro ao excluir: ' + error.message);
+      toast.error('Erro ao excluir: ' + error.message);
       return;
     }
     setEntregasDocentes((prev) => prev.filter((x) => x.id !== row.id));
@@ -4147,16 +4164,16 @@ function App() {
   const handleSaveRegistroCoord = async (e) => {
     e.preventDefault();
     if (!selectedTeacherId || !selectedTeacher) {
-      alert('Professor não selecionado.');
+      toast.warn('Professor não selecionado.');
       return;
     }
     if (!registroCoordFormData.assunto?.trim()) {
-      alert('Informe o assunto da conversa.');
+      toast.warn('Informe o assunto da conversa.');
       return;
     }
     const schoolId = selectedTeacher.escola_id || activeSchoolId || selectedSchoolId;
     if (!schoolId) {
-      alert('Escola não identificada.');
+      toast.warn('Escola não identificada.');
       return;
     }
     setSavingRegistroCoord(true);
@@ -4187,7 +4204,7 @@ function App() {
 
     setSavingRegistroCoord(false);
     if (err) {
-      alert('Erro ao salvar registro: ' + err.message);
+      toast.error('Erro ao salvar registro: ' + err.message);
       return;
     }
     setShowRegistroCoordModal(false);
@@ -4203,12 +4220,13 @@ function App() {
   };
 
   const handleDeleteRegistroCoord = async (row) => {
-    if (!row?.id || !confirm('Excluir este registro de acompanhamento?')) return;
+    if (!row?.id) return;
+    if (!(await confirmAction({ message: 'Excluir este registro de acompanhamento?', danger: true, confirmLabel: 'Excluir' }))) return;
        
       // eslint-disable-next-line no-unused-vars
       const { data, error } = await supabase.from('registros_coordenacao').delete().eq('id', row.id);
     if (error) {
-      alert('Erro ao excluir: ' + error.message);
+      toast.error('Erro ao excluir: ' + error.message);
       return;
     }
     setRegistrosCoordenacao((prev) => prev.filter((x) => x.id !== row.id));

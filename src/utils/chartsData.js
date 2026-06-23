@@ -1,23 +1,11 @@
 import { consolidateSondagensMes, formatMonthKey } from './sondagemConsolidado';
+import {
+  ETIQUETA_ORDER,
+  ETIQUETA_LABELS,
+  ETIQUETA_COLORS,
+} from './etiquetas';
 
-/** Ordem e rótulos das etiquetas pedagógicas (alinhado ao dashboard). */
-export const ETIQUETA_ORDER = ['azul', 'verde', 'amarelo', 'vermelho', 'roxo'];
-
-export const ETIQUETA_LABELS = {
-  azul: 'Adequado',
-  verde: 'Avançado',
-  amarelo: 'Atenção',
-  vermelho: 'Risco',
-  roxo: 'AEE',
-};
-
-export const ETIQUETA_COLORS = {
-  azul: '#3498DB',
-  verde: '#2ecc71',
-  amarelo: '#f1c40f',
-  vermelho: '#e74c3c',
-  roxo: '#9b59b6',
-};
+export { ETIQUETA_ORDER, ETIQUETA_LABELS, ETIQUETA_COLORS };
 
 export const OCORRENCIA_TIPOS_PADRAO = [
   'Pedagógico',

@@ -1,4 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { ETIQUETA_LABELS } from '../utils/etiquetas';
+
+const ONBOARDING_KEY = 'sacp_onboarding_dismissed';
 
 const DashboardView = ({
   totalAzul,
@@ -28,8 +31,38 @@ const DashboardView = ({
   setAgendaView,
   onOpenEventDetail,
 }) => {
+  const [showOnboarding, setShowOnboarding] = useState(
+    () => typeof localStorage !== 'undefined' && !localStorage.getItem(ONBOARDING_KEY),
+  );
+
+  const dismissOnboarding = () => {
+    localStorage.setItem(ONBOARDING_KEY, '1');
+    setShowOnboarding(false);
+  };
+
   return (
     <div id="view-dashboard" className="view-section">
+      {showOnboarding && (
+        <div className="onboarding-card">
+          <h3>Bem-vindo ao sistema pedagógico</h3>
+          <p style={{ margin: '0 0 10px', fontSize: '0.9rem', color: '#555' }}>
+            Siga estes passos para começar com tranquilidade:
+          </p>
+          <ul>
+            <li>Confira as turmas e cadastre os alunos</li>
+            <li>Registre sondagens de leitura e escrita</li>
+            <li>Use o painel colorido abaixo para acompanhar as etiquetas ({ETIQUETA_LABELS.azul}, {ETIQUETA_LABELS.amarelo}, {ETIQUETA_LABELS.vermelho}…)</li>
+          </ul>
+          <div className="onboarding-card__actions">
+            <button type="button" className="btn-primary" style={{ width: 'auto', padding: '8px 16px' }} onClick={() => { setCurrentView('classes'); dismissOnboarding(); }}>
+              Ir para Turmas
+            </button>
+            <button type="button" className="btn-secondary" style={{ width: 'auto', padding: '8px 16px' }} onClick={dismissOnboarding}>
+              Entendi, ocultar
+            </button>
+          </div>
+        </div>
+      )}
       {/* Blocos clicáveis (etiquetas) – acima dos dias da semana */}
       <div className="dashboard-etiquetas-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10, marginBottom: 20 }}>
         {[

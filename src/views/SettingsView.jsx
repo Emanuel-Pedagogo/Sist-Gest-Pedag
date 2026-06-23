@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { toast } from '../utils/appFeedback';
 import { evaluateStudentColor } from '../utils/studentColorEvaluator';
 import {
   GRUPOS_NIVEIS_LEITURA,
@@ -154,19 +155,19 @@ const SettingsView = ({ activeSchoolId, supabase }) => {
 
       if (error) {
         if (error.message && error.message.includes('configuracoes')) {
-          alert('Erro: A coluna "configuracoes" não existe no banco de dados. Por favor, execute o script SQL "supabase_escolas_configuracoes.sql" no Supabase.');
+          toast.error('A coluna "configuracoes" não existe no banco. Execute o script SQL "supabase_escolas_configuracoes.sql" no Supabase.');
           return;
         }
         throw error;
       }
-      alert('Configurações salvas com sucesso! As cores dos alunos serão atualizadas em breve.');
+      toast.success('Configurações salvas! As etiquetas dos alunos serão atualizadas em breve.');
       
       // Chamar função para atualizar cores dos alunos
       await updateStudentsColors(config);
       
     } catch (error) {
       console.error('Erro ao salvar configurações:', error);
-      alert('Erro ao salvar configurações.');
+      toast.error('Erro ao salvar configurações.');
     } finally {
       setSaving(false);
     }
@@ -284,7 +285,7 @@ const SettingsView = ({ activeSchoolId, supabase }) => {
   if (!activeSchoolId) {
     return (
       <div className="view-section">
-        <p>Selecione uma escola para configurar as tags.</p>
+        <p>Selecione uma escola para configurar as etiquetas.</p>
       </div>
     );
   }
@@ -294,7 +295,7 @@ const SettingsView = ({ activeSchoolId, supabase }) => {
   return (
     <div className="view-section">
       <div className="settings-header">
-        <h2 style={{ margin: 0 }}>Configurações de Tags</h2>
+        <h2 style={{ margin: 0 }}>Configurações de Etiquetas</h2>
         <button 
           className="btn-primary" 
           onClick={handleSave} 
@@ -308,7 +309,7 @@ const SettingsView = ({ activeSchoolId, supabase }) => {
       <p style={{ marginBottom: 20, color: '#666' }}>
         Defina os critérios para que um aluno receba cada tag automaticamente. 
         A prioridade de atribuição é: Roxo &gt; Vermelho &gt; Amarelo &gt; Verde &gt; Azul.
-        Se um aluno atender a critérios de múltiplas tags, ele receberá a de maior prioridade.
+        Se um aluno atender a critérios de múltiplas etiquetas, ele receberá a de maior prioridade.
       </p>
 
       {loading ? (

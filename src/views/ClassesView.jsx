@@ -6,7 +6,9 @@ import ClassDashboardView from './ClassDashboardView';
 import DiarioFrequenciaEspecialView from './DiarioFrequenciaEspecialView';
 import { isTurmaEspecial } from '../utils/turmas';
 import AlunoListSubtitle from '../components/AlunoListSubtitle';
+import EtiquetaIcon from '../components/EtiquetaIcon';
 import ModalShell from '../components/ModalShell';
+import { ETIQUETA_LABELS, getEtiquetaLabel } from '../utils/etiquetas';
 
 const ClassesView = ({
   selectedClassId,
@@ -460,17 +462,7 @@ const ClassesView = ({
                       style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, cursor: 'pointer' }}
                       onClick={() => selectStudent(aluno)}
                     >
-                      {aluno.etiqueta_cor === 'roxo' ? (
-                        <i className="fas fa-wheelchair" style={{ color: '#9c27b0', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Educação Especial" />
-                      ) : aluno.etiqueta_cor === 'vermelho' ? (
-                        <i className="fas fa-exclamation-triangle" style={{ color: '#dc3545', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Prioridade" />
-                      ) : aluno.etiqueta_cor === 'amarelo' ? (
-                        <i className="fas fa-exclamation-circle" style={{ color: '#ffc107', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Atenção" />
-                      ) : aluno.etiqueta_cor === 'verde' ? (
-                        <i className="fas fa-star" style={{ color: '#28a745', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Avançado" />
-                      ) : (
-                        <i className="fas fa-user" style={{ color: '#007bff', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Regular" />
-                      )}
+                      <EtiquetaIcon cor={aluno.etiqueta_cor} />
                       <div>
                         <strong>{aluno.nome}</strong>
                         <AlunoListSubtitle
@@ -488,7 +480,7 @@ const ClassesView = ({
                     </div>
                     <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                       <span className={`badge ${badgeClass}`}>
-                        {aluno.etiqueta_cor === 'vermelho' ? 'Prioridade' : aluno.etiqueta_cor === 'amarelo' ? 'Atenção' : aluno.etiqueta_cor === 'verde' ? 'Avançado' : aluno.etiqueta_cor === 'roxo' ? 'Educação Especial' : 'Regular'}
+                        {getEtiquetaLabel(aluno.etiqueta_cor)}
                       </span>
                       <button
                         type="button"
@@ -650,7 +642,7 @@ const ClassesView = ({
                       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                         {etiquetas.vermelho > 0 && (
                           <span style={{ color: '#dc3545', fontWeight: 'bold' }}>
-                            🔴 Prioridade: {etiquetas.vermelho}
+                            🔴 {ETIQUETA_LABELS.vermelho}: {etiquetas.vermelho}
                           </span>
                         )}
                         {etiquetas.amarelo > 0 && (
@@ -660,7 +652,7 @@ const ClassesView = ({
                         )}
                         {etiquetas.azul > 0 && (
                           <span style={{ color: '#007bff', fontWeight: 'bold' }}>
-                            🔵 Regular: {etiquetas.azul}
+                            🔵 {ETIQUETA_LABELS.azul}: {etiquetas.azul}
                           </span>
                         )}
                         {etiquetas.verde > 0 && (

@@ -1,4 +1,5 @@
 import React from 'react';
+import { toast, confirmAction } from '../utils/appFeedback';
 
 const LibraryView = ({
   libraryTab,
@@ -61,7 +62,7 @@ const LibraryView = ({
                   (loan) => loan.livroId === loanForm.livroId && !loan.dataDevolucao
                 );
                 if (isAlreadyLoaned) {
-                  alert('Este livro já está emprestado.');
+                  toast.warn('Este livro já está emprestado.');
                   return;
                 }
                 const alunoObj = students.find((s) => String(s.id) === String(loanForm.alunoId));
@@ -499,17 +500,24 @@ const LibraryView = ({
                           type="button"
                           className="btn-icon btn-icon--danger"
                           style={{ fontSize: '0.8em', minWidth: 0, padding: '6px 10px' }}
-                          onClick={() => {
+                          onClick={async () => {
                             const hasActiveLoan = bookLoans.some(
                               (loan) => loan.livroId === livro.id && !loan.dataDevolucao
                             );
                             if (hasActiveLoan) {
-                              alert('Este livro possui empréstimo em aberto. Finalize o empréstimo antes de remover.');
+                              toast.warn('Este livro possui empréstimo em aberto. Finalize o empréstimo antes de remover.');
                               return;
                             }
+                            const ok = await confirmAction({
+                              message: `Remover o livro "${livro.titulo}" da biblioteca?`,
+                              danger: true,
+                              confirmLabel: 'Remover',
+                            });
+                            if (!ok) return;
                             setLibraryBooks((prev) =>
                               prev.filter((b) => b.id !== livro.id)
                             );
+                            toast.success('Livro removido.');
                           }}
                         >
                           <i className="fas fa-trash" />

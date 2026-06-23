@@ -1,14 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../supabaseClient';
 import { generateResumoPedagogico } from '../../services/geminiApi';
+import { ETIQUETA_COLORS, getEtiquetaLabel } from '../../utils/etiquetas';
 
-const ETIQUETA_INFO = {
-  vermelho: { label: 'Prioridade', emoji: '🔴', cor: '#dc3545' },
-  amarelo: { label: 'Atenção', emoji: '🟡', cor: '#ffc107' },
-  verde: { label: 'Avançado', emoji: '🟢', cor: '#28a745' },
-  roxo: { label: 'Educação Especial', emoji: '🟣', cor: '#9c27b0' },
-  azul: { label: 'Regular', emoji: '🔵', cor: '#0d6efd' },
-};
+const ETIQUETA_INFO = Object.fromEntries(
+  ['vermelho', 'amarelo', 'verde', 'roxo', 'azul'].map((cor) => [
+    cor,
+    {
+      label: getEtiquetaLabel(cor),
+      emoji: cor === 'vermelho' ? '🔴' : cor === 'amarelo' ? '🟡' : cor === 'verde' ? '🟢' : cor === 'roxo' ? '🟣' : '🔵',
+      cor: ETIQUETA_COLORS[cor],
+    },
+  ]),
+);
 
 function formatDataBr(iso) {
   if (!iso) return null;

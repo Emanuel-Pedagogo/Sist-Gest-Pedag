@@ -1,5 +1,8 @@
 import React from 'react';
 import AlunoListSubtitle from '../components/AlunoListSubtitle';
+import EmptyState from '../components/EmptyState';
+import EtiquetaIcon from '../components/EtiquetaIcon';
+import { ETIQUETA_ORDER, ETIQUETA_LABELS, getEtiquetaLabel } from '../utils/etiquetas';
 
 const StudentsView = ({
   selectedClassName,
@@ -111,11 +114,9 @@ const StudentsView = ({
             onChange={(e) => setFilterStudentEtiquetaCor(e.target.value || '')}
           >
             <option value="">Todas as etiquetas</option>
-            <option value="azul">Adequado</option>
-            <option value="verde">Avançado</option>
-            <option value="amarelo">Atenção</option>
-            <option value="vermelho">Risco</option>
-            <option value="roxo">AEE</option>
+            {ETIQUETA_ORDER.map((cor) => (
+              <option key={cor} value={cor}>{ETIQUETA_LABELS[cor]}</option>
+            ))}
           </select>
         </div>
       </div>
@@ -132,14 +133,38 @@ const StudentsView = ({
           </div>
         )}
         {!studentsLoading && !studentsError && sortedFilteredStudents.length === 0 && students.length > 0 && (
-          <div className="list-item">
-            <span>Nenhum aluno encontrado com os filtros aplicados.</span>
-          </div>
+          <EmptyState
+            icon="fas fa-search"
+            title="Nenhum aluno encontrado"
+            description="Tente outro nome ou limpe os filtros de turma e etiqueta."
+          />
         )}
         {!studentsLoading && !studentsError && students.length === 0 && (
-          <div className="list-item">
-            <span>Nenhum aluno nesta escola/turma.</span>
-          </div>
+          <EmptyState
+            icon="fas fa-user-graduate"
+            title="Nenhum aluno cadastrado"
+            description={selectedClassName
+              ? `Cadastre o primeiro aluno da turma ${selectedClassName}.`
+              : 'Comece adicionando alunos à escola ou selecione uma turma.'}
+            actionLabel="Cadastrar aluno"
+            onAction={() => {
+              setEditingStudent(null);
+              setStudentFormData({
+                nome: '',
+                data_nascimento: '',
+                turma_id: '',
+                etiqueta_cor: 'azul',
+                matricula: '',
+                nome_responsavel: '',
+                contato: '',
+                aee_deficiencia: '',
+                aee_cid: '',
+                motivo_etiqueta: '',
+              });
+              setAeeFormData({ aee_tem_laudo: false, aee_mediadora: '', aee_plano_individual: '' });
+              setShowStudentModal(true);
+            }}
+          />
         )}
         {!studentsLoading &&
           !studentsError &&
@@ -161,17 +186,7 @@ const StudentsView = ({
                   style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, cursor: 'pointer' }}
                   onClick={() => selectStudent(aluno)}
                 >
-                  {aluno.etiqueta_cor === 'roxo' ? (
-                    <i className="fas fa-wheelchair" style={{ color: '#9c27b0', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Educação Especial" />
-                  ) : aluno.etiqueta_cor === 'vermelho' ? (
-                    <i className="fas fa-exclamation-triangle" style={{ color: '#dc3545', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Prioridade" />
-                  ) : aluno.etiqueta_cor === 'amarelo' ? (
-                    <i className="fas fa-exclamation-circle" style={{ color: '#ffc107', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Atenção" />
-                  ) : aluno.etiqueta_cor === 'verde' ? (
-                    <i className="fas fa-star" style={{ color: '#28a745', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Avançado" />
-                  ) : (
-                    <i className="fas fa-user" style={{ color: '#007bff', fontSize: '1.2em', width: 24, textAlign: 'center' }} title="Regular" />
-                  )}
+                  <EtiquetaIcon cor={aluno.etiqueta_cor} />
                   <div>
                     <strong>{aluno.nome}</strong>
                     <AlunoListSubtitle
@@ -184,7 +199,7 @@ const StudentsView = ({
                 </div>
                 <div className="list-item-actions">
                   <span className={`badge ${badgeClass}`}>
-                    {aluno.etiqueta_cor === 'vermelho' ? 'Prioridade' : aluno.etiqueta_cor === 'amarelo' ? 'Atenção' : aluno.etiqueta_cor === 'verde' ? 'Avançado' : aluno.etiqueta_cor === 'roxo' ? 'Educação Especial' : 'Regular'}
+                    {getEtiquetaLabel(aluno.etiqueta_cor)}
                   </span>
                   <button
                     type="button"

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
+import { toast } from './utils/appFeedback';
 import { computeMF, isAprovado as isAprovadoFromMfs } from './boletimMath';
 import ImportarBoletim from './ImportarBoletim';
 
@@ -125,7 +126,7 @@ function BoletimView({
       setIsEditing(false);
     } catch (err) {
       console.error('Erro ao salvar relatórios:', err);
-      alert('Erro ao salvar relatórios: ' + (err?.message || err));
+      toast.error('Erro ao salvar relatórios: ' + (err?.message || err));
     } finally {
       setSaving(false);
     }
@@ -257,7 +258,7 @@ function BoletimView({
       setIsEditing(false);
     } catch (err) {
       console.error('Erro ao salvar boletim:', err);
-      alert('Erro ao salvar boletim: ' + (err.message || err));
+      toast.error('Erro ao salvar boletim: ' + (err.message || err));
     } finally {
       setSaving(false);
     }

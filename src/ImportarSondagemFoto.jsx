@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { supabase } from './supabaseClient';
+import { confirmAction } from './utils/appFeedback';
 import { extractSondagensFromImage, fileToBase64 } from './services/geminiApi';
 import { pickPhotoAsFile } from './utils/nativeCamera';
 import {
@@ -177,9 +178,10 @@ function ImportarSondagemFoto({
     if (!turmaId || linhas.length === 0) return;
     if (
       sobrescreverExistentes &&
-      !window.confirm(
-        'As sondagens existentes para os mesmos alunos e datas serao atualizadas. Deseja continuar?',
-      )
+      !(await confirmAction({
+        message: 'As sondagens existentes para os mesmos alunos e datas serão atualizadas. Deseja continuar?',
+        confirmLabel: 'Atualizar',
+      }))
     ) {
       return;
     }

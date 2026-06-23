@@ -1,4 +1,7 @@
 import { nivelMatchesLista } from './sondagemNiveis';
+import { ETIQUETA_LABELS, getEtiquetaLabel } from './etiquetas';
+
+export { ETIQUETA_LABELS };
 
 /** Pré I ou Pré II (educação infantil). */
 export function isTurmaPreEscola(turmaNome) {
@@ -38,14 +41,6 @@ export function ignorarNotasNaEtiqueta(turmaNome, anoEscolar) {
 
   return false;
 }
-
-export const ETIQUETA_LABELS = {
-  vermelho: 'Risco',
-  amarelo: 'Atenção',
-  verde: 'Avançado',
-  azul: 'Regular',
-  roxo: 'Educação Especial',
-};
 
 function criterioNotasAtende(criteria, data, considerarNotas) {
   if (
@@ -103,7 +98,7 @@ export function getMotivoOrigemEtiqueta(tagConfig, data, cor, options = {}) {
 
 export function formatEtiquetaMotivoTexto(aluno) {
   const cor = aluno?.etiqueta_cor || 'azul';
-  const label = ETIQUETA_LABELS[cor] || 'Regular';
+  const label = getEtiquetaLabel(cor);
   const motivoManual = aluno?.motivo_etiqueta?.trim();
   const motivoAuto = aluno?.etiqueta_motivo_origem;
 

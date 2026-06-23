@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import BoletimView from '../BoletimView';
 import StudentResumoTab from '../components/student/StudentResumoTab';
+import { getEtiquetaLabel } from '../utils/etiquetas';
 import {
   LineChart,
   Line,
@@ -246,15 +247,7 @@ const StudentDetailView = ({
             className={`badge ${getBadgeColorClass(selectedStudent?.etiqueta_cor)}`}
             style={{ fontSize: '1em', padding: '8px 15px' }}
           >
-            {selectedStudent?.etiqueta_cor === 'vermelho'
-              ? '🔴 Prioridade'
-              : selectedStudent?.etiqueta_cor === 'amarelo'
-              ? '🟡 Atenção'
-              : selectedStudent?.etiqueta_cor === 'verde'
-              ? '🟢 Avançado'
-              : selectedStudent?.etiqueta_cor === 'roxo'
-              ? '🟣 Educação Especial'
-              : '🔵 Regular'}
+            {getEtiquetaLabel(selectedStudent?.etiqueta_cor)}
           </span>
         </div>
       </div>
