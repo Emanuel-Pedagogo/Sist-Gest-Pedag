@@ -1,3 +1,5 @@
+import { sortNiveisPorOrdemPedagogica } from './sondagemNiveis';
+
 /** Retorna chave YYYY-MM para um Date (padrão: hoje). */
 export function formatMonthKey(date = new Date()) {
   const y = date.getFullYear();
@@ -37,9 +39,16 @@ export function countByNivel(records, field, fallback = 'Não informado') {
     const nivel = String(s[field] || '').trim() || fallback;
     counts[nivel] = (counts[nivel] || 0) + 1;
   }
-  return Object.keys(counts)
-    .map((name) => ({ name, value: counts[name] }))
-    .sort((a, b) => b.value - a.value);
+  const rows = Object.keys(counts).map((name) => ({ name, value: counts[name] }));
+
+  if (field === 'nivel_leitura') {
+    return sortNiveisPorOrdemPedagogica(rows, 'leitura');
+  }
+  if (field === 'nivel_escrita') {
+    return sortNiveisPorOrdemPedagogica(rows, 'escrita');
+  }
+
+  return rows.sort((a, b) => b.value - a.value);
 }
 
 /**

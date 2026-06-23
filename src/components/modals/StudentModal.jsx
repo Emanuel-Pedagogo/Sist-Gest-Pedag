@@ -257,25 +257,19 @@ const StudentModal = ({
             </div>
 
             <div className="input-group">
-              <label>Etiqueta (Cor) *</label>
+              <label>Etiqueta *</label>
               <select
                 required
                 value={studentFormData.etiqueta_cor}
                 onChange={(e) =>
                   setStudentFormData({ ...studentFormData, etiqueta_cor: e.target.value })
                 }
-                style={{
-                  width: '100%',
-                  padding: 10,
-                  border: '1px solid #ddd',
-                  borderRadius: 6,
-                }}
               >
-                <option value="vermelho">🔴 Vermelho: Risco</option>
-                <option value="amarelo">🟡 Amarelo: Atenção</option>
-                <option value="azul">🔵 Azul: Adequado</option>
-                <option value="verde">🟢 Verde: Avançado</option>
-                <option value="roxo">🟣 Roxo: AEE</option>
+                <option value="azul">Adequado</option>
+                <option value="verde">Avançado</option>
+                <option value="amarelo">Atenção</option>
+                <option value="vermelho">Risco</option>
+                <option value="roxo">AEE</option>
               </select>
             </div>
 
@@ -308,12 +302,6 @@ const StudentModal = ({
                       });
                     }}
                     placeholder="Ex: Autismo, Síndrome de Down - CID: F84.0"
-                    style={{
-                      width: '100%',
-                      padding: 10,
-                      border: '1px solid #ddd',
-                      borderRadius: 6,
-                    }}
                   />
                 </>
               ) : (
@@ -334,12 +322,6 @@ const StudentModal = ({
                         ? 'Ex: Bom desempenho...'
                         : 'Motivo da etiqueta'
                     }
-                    style={{
-                      width: '100%',
-                      padding: 10,
-                      border: '1px solid #ddd',
-                      borderRadius: 6,
-                    }}
                   />
                 </>
               )}

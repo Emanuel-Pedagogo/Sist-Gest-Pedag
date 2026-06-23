@@ -6,6 +6,7 @@ import ClassDashboardView from './ClassDashboardView';
 import DiarioFrequenciaEspecialView from './DiarioFrequenciaEspecialView';
 import { isTurmaEspecial } from '../utils/turmas';
 import AlunoListSubtitle from '../components/AlunoListSubtitle';
+import ModalShell from '../components/ModalShell';
 
 const ClassesView = ({
   selectedClassId,
@@ -324,66 +325,34 @@ const ClassesView = ({
           )}
 
           {showEditAlunoPicker && (
-            <div
-              role="presentation"
-              style={{
-                position: 'fixed',
-                inset: 0,
-                background: 'rgba(0,0,0,0.45)',
-                zIndex: 1900,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: 16,
-              }}
-              onClick={() => setShowEditAlunoPicker(false)}
+            <ModalShell
+              open={showEditAlunoPicker}
+              onClose={() => setShowEditAlunoPicker(false)}
+              maxWidth={440}
             >
-              <div
-                role="dialog"
-                aria-modal="true"
-                style={{
-                  background: 'white',
-                  borderRadius: 12,
-                  padding: 24,
-                  maxWidth: 440,
-                  width: '100%',
-                  boxShadow: '0 12px 40px rgba(0,0,0,0.2)',
-                }}
-                onClick={(e) => e.stopPropagation()}
-              >
                 <h3 style={{ margin: '0 0 16px 0', color: 'var(--primary)' }}>Editar aluno</h3>
                 <p style={{ margin: '0 0 12px 0', fontSize: 14, color: '#666' }}>
                   Escolha o aluno da turma <strong>{selectedClassName}</strong> para abrir o formulário de edição.
                 </p>
-                <select
-                  value={alunoParaEditarId}
-                  onChange={(e) => setAlunoParaEditarId(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: 12,
-                    borderRadius: 8,
-                    border: '1px solid #ddd',
-                    fontSize: 15,
-                    marginBottom: 16,
-                  }}
-                >
-                  <option value="">Selecione o aluno...</option>
-                  {alunosOrdenados.map((a) => (
-                    <option key={a.id} value={String(a.id)}>
-                      {a.nome}
-                    </option>
-                  ))}
-                </select>
-                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <div className="input-group">
+                  <label htmlFor="edit-student-picker">Aluno</label>
+                  <select
+                    id="edit-student-picker"
+                    value={alunoParaEditarId}
+                    onChange={(e) => setAlunoParaEditarId(e.target.value)}
+                  >
+                    <option value="">Selecione o aluno...</option>
+                    {alunosOrdenados.map((a) => (
+                      <option key={a.id} value={String(a.id)}>
+                        {a.nome}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="modal-actions">
                   <button
                     type="button"
-                    style={{
-                      padding: '10px 16px',
-                      border: '1px solid #ddd',
-                      borderRadius: 8,
-                      background: 'white',
-                      cursor: 'pointer',
-                    }}
+                    className="btn-secondary"
                     onClick={() => setShowEditAlunoPicker(false)}
                   >
                     Cancelar
@@ -391,7 +360,6 @@ const ClassesView = ({
                   <button
                     type="button"
                     className="btn-primary"
-                    style={{ padding: '10px 18px' }}
                     disabled={!alunoParaEditarId}
                     onClick={() => {
                       const aluno = students.find((s) => String(s.id) === alunoParaEditarId);
@@ -405,8 +373,7 @@ const ClassesView = ({
                     Abrir edição
                   </button>
                 </div>
-              </div>
-            </div>
+            </ModalShell>
           )}
 
           {/* Linha 2: Buscar nome (esquerda) | Seletor Cor (mesma linha) */}

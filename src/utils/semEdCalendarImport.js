@@ -39,7 +39,7 @@ export function buildEventRowsFromSemedItens(itens, importBatchId) {
  * Persiste marcos SEMED no Supabase.
  * @returns {{ count: number, importBatchId: string, error?: string }}
  */
-export async function persistSemedImport(supabase, { itens, pdfFile, escolaId }) {
+export async function persistSemedImport(supabase, { itens, pdfFile }) {
   const importBatchId = crypto.randomUUID();
   const rows = buildEventRowsFromSemedItens(itens, importBatchId);
 
@@ -50,7 +50,13 @@ export async function persistSemedImport(supabase, { itens, pdfFile, escolaId })
   let insertResult = await supabase.from('agenda_eventos').insert(rows).select();
 
   if (insertResult.error?.message?.includes('origem')) {
-    const fallback = rows.map(({ origem: _o, tipo_marco: _t, import_batch_id: _b, ...rest }) => rest);
+    const fallback = rows.map((row) => {
+      const rest = { ...row };
+      delete rest.origem;
+      delete rest.tipo_marco;
+      delete rest.import_batch_id;
+      return rest;
+    });
     insertResult = await supabase.from('agenda_eventos').insert(fallback).select();
   }
 

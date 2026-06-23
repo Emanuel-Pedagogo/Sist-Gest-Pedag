@@ -102,18 +102,20 @@ const TeacherDetailView = ({
           </div>
 
           <div className="student-tabs">
-            <div
+            <button
+              type="button"
               className={`tab ${teacherProfileTab === 'entregas' ? 'active' : ''}`}
               onClick={() => setTeacherProfileTab('entregas')}
             >
               Entregas pedagógicas
-            </div>
-            <div
+            </button>
+            <button
+              type="button"
               className={`tab ${teacherProfileTab === 'acompanhamento' ? 'active' : ''}`}
               onClick={() => setTeacherProfileTab('acompanhamento')}
             >
               Acompanhamento pedagógico
-            </div>
+            </button>
           </div>
 
           {teacherProfileTab === 'entregas' && (

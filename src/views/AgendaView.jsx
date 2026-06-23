@@ -40,15 +40,6 @@ const navBtnStyle = {
   lineHeight: 1,
 };
 
-const viewTabStyle = (active) => ({
-  padding: '8px 16px',
-  border: '1px solid #ddd',
-  borderRadius: 6,
-  background: active ? 'var(--primary)' : 'white',
-  color: active ? 'white' : '#333',
-  cursor: 'pointer',
-});
-
 const AgendaView = ({
   agendaView,
   setAgendaView,
@@ -402,27 +393,31 @@ const AgendaView = ({
   return (
     <div id="view-agenda" className="view-section">
       <div className="agenda-view-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button type="button" onClick={() => setAgendaView('month')} style={viewTabStyle(agendaView === 'month')}>
+        <div className="segmented-control" aria-label="Visualização da agenda">
+          <button
+            type="button"
+            className={`segmented-option${agendaView === 'month' ? ' is-active' : ''}`}
+            onClick={() => setAgendaView('month')}
+          >
             Mês
           </button>
           <button
             type="button"
+            className={`segmented-option${agendaView === 'week' ? ' is-active' : ''}`}
             onClick={() => {
               setAgendaView('week');
               setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()));
             }}
-            style={viewTabStyle(agendaView === 'week')}
           >
             Semana
           </button>
           <button
             type="button"
+            className={`segmented-option${agendaView === 'day' ? ' is-active' : ''}`}
             onClick={() => {
               setAgendaView('day');
               setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate()));
             }}
-            style={viewTabStyle(agendaView === 'day')}
           >
             Dia
           </button>
@@ -438,20 +433,11 @@ const AgendaView = ({
           )}
           <button
             type="button"
+            className="btn-secondary"
             onClick={() => setShowExportModal(true)}
             disabled={exportingAgenda}
             title="Exportar planejamento do período visível"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 5,
-              padding: '8px 10px',
-              border: '1px solid #ddd',
-              borderRadius: 6,
-              background: 'white',
-              cursor: exportingAgenda ? 'wait' : 'pointer',
-              fontSize: '0.8rem',
-            }}
+            style={{ cursor: exportingAgenda ? 'wait' : 'pointer' }}
           >
             <i className="fas fa-file-export" style={{ color: '#555' }} />
             {exportingAgenda ? 'Exportando...' : 'Exportar'}

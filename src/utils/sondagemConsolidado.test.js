@@ -45,19 +45,33 @@ describe('pickLatestSondagemPerAlunoInMonth', () => {
 });
 
 describe('countByNivel', () => {
-  it('agrupa e ordena por quantidade', () => {
+  it('agrupa leitura na ordem pedagógica dos níveis', () => {
     const data = countByNivel(
       [
-        { nivel_leitura: 'A' },
-        { nivel_leitura: 'B' },
-        { nivel_leitura: 'A' },
+        { nivel_leitura: 'LEITOR FLUENTE' },
+        { nivel_leitura: 'PRÉ – LEITOR 1' },
+        { nivel_leitura: 'PRÉ – LEITOR 1' },
         { nivel_leitura: '' },
       ],
       'nivel_leitura',
       'Não informado'
     );
-    expect(data[0]).toEqual({ name: 'A', value: 2 });
-    expect(data.find((d) => d.name === 'Não informado')?.value).toBe(1);
+    expect(data[0].name).toBe('LEITOR FLUENTE');
+    expect(data[1].name).toBe('PRÉ – LEITOR 1');
+    expect(data[1].value).toBe(2);
+    expect(data[data.length - 1].name).toBe('Não informado');
+  });
+
+  it('agrupa escrita com nível mais alto no topo', () => {
+    const data = countByNivel(
+      [
+        { nivel_escrita: 'ALFABÉTICO' },
+        { nivel_escrita: 'PRÉ-SILÁBICO' },
+      ],
+      'nivel_escrita'
+    );
+    expect(data[0].name).toBe('ALFABÉTICO');
+    expect(data[1].name).toBe('PRÉ-SILÁBICO');
   });
 });
 

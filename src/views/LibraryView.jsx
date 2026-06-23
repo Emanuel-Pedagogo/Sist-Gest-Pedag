@@ -27,18 +27,20 @@ const LibraryView = ({
       </p>
 
       <div className="student-tabs" style={{ marginBottom: 16 }}>
-        <div
+        <button
+          type="button"
           className={`tab ${libraryTab === 'loans' ? 'active' : ''}`}
           onClick={() => setLibraryTab('loans')}
         >
           Controle de empréstimos
-        </div>
-        <div
+        </button>
+        <button
+          type="button"
           className={`tab ${libraryTab === 'books' ? 'active' : ''}`}
           onClick={() => setLibraryTab('books')}
         >
           Cadastro de livros
-        </div>
+        </button>
       </div>
 
       {/* Aba: Controle de empréstimos (padrão) */}

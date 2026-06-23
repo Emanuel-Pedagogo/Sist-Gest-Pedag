@@ -76,33 +76,23 @@ const StudentsView = ({
       </div>
 
       <div className="filter-bar students-filters">
-        <div style={{ flex: 1, minWidth: 200 }}>
+        <div className="input-group" style={{ flex: 1, minWidth: 200, marginBottom: 0 }}>
+          <label htmlFor="students-search">Buscar aluno</label>
           <input
+            id="students-search"
             type="text"
             placeholder="Buscar aluno por nome..."
             value={studentSearchTerm}
             onChange={(e) => setStudentSearchTerm(e.target.value)}
-            style={{
-              width: '100%',
-              padding: 10,
-              border: '1px solid #ddd',
-              borderRadius: 6,
-            }}
           />
         </div>
         {!selectedClassName && (
-          <div style={{ minWidth: 160 }}>
+          <div className="input-group" style={{ minWidth: 160, marginBottom: 0 }}>
+            <label htmlFor="students-class-filter">Turma</label>
             <select
+              id="students-class-filter"
               value={filterStudentTurmaId}
               onChange={(e) => setFilterStudentTurmaId(e.target.value || '')}
-              style={{
-                width: '100%',
-                padding: 10,
-                border: '1px solid #ddd',
-                borderRadius: 6,
-                background: 'white',
-                fontSize: '0.9em',
-              }}
             >
               <option value="">Todas as turmas</option>
               {classesList.map((turma) => (
@@ -113,25 +103,19 @@ const StudentsView = ({
             </select>
           </div>
         )}
-        <div style={{ minWidth: 160 }}>
+        <div className="input-group" style={{ minWidth: 160, marginBottom: 0 }}>
+          <label htmlFor="students-tag-filter">Etiqueta</label>
           <select
+            id="students-tag-filter"
             value={filterStudentEtiquetaCor}
             onChange={(e) => setFilterStudentEtiquetaCor(e.target.value || '')}
-            style={{
-              width: '100%',
-              padding: 10,
-              border: '1px solid #ddd',
-              borderRadius: 6,
-              background: 'white',
-              fontSize: '0.9em',
-            }}
           >
-            <option value="">Todas as cores</option>
-            <option value="verde">Verde</option>
-            <option value="amarelo">Amarelo</option>
-            <option value="vermelho">Vermelho</option>
-            <option value="roxo">Roxo</option>
-            <option value="azul">Azul</option>
+            <option value="">Todas as etiquetas</option>
+            <option value="azul">Adequado</option>
+            <option value="verde">Avançado</option>
+            <option value="amarelo">Atenção</option>
+            <option value="vermelho">Risco</option>
+            <option value="roxo">AEE</option>
           </select>
         </div>
       </div>
@@ -198,20 +182,23 @@ const StudentsView = ({
                     />
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <div className="list-item-actions">
                   <span className={`badge ${badgeClass}`}>
                     {aluno.etiqueta_cor === 'vermelho' ? 'Prioridade' : aluno.etiqueta_cor === 'amarelo' ? 'Atenção' : aluno.etiqueta_cor === 'verde' ? 'Avançado' : aluno.etiqueta_cor === 'roxo' ? 'Educação Especial' : 'Regular'}
                   </span>
                   <button
+                    type="button"
+                    className="btn-icon btn-icon--accent"
                     onClick={(e) => { e.stopPropagation(); handleEditStudent(aluno); }}
-                    style={{ background: 'var(--accent)', color: 'white', border: 'none', padding: '8px 12px', borderRadius: 6, cursor: 'pointer' }}
+                    aria-label={`Editar ${aluno.nome}`}
                   >
                     <i className="fas fa-edit" />
                   </button>
                   <button
                     type="button"
+                    className="btn-icon btn-icon--danger"
                     onClick={(e) => { e.stopPropagation(); handleDeleteStudent(aluno.id); }}
-                    style={{ background: 'var(--danger)', color: 'white', border: 'none', padding: '8px 12px', borderRadius: 6, cursor: 'pointer' }}
+                    aria-label={`Excluir ${aluno.nome}`}
                   >
                     <i className="fas fa-trash" />
                   </button>

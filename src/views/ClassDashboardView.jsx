@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { supabase } from '../supabaseClient';
 import { formatMonthKey, consolidateSondagensMes } from '../utils/sondagemConsolidado';
+import SondagemNivelBarChart from '../components/charts/SondagemNivelBarChart';
 
 const ClassDashboardView = ({ classId, className, students }) => {
   const [loading, setLoading] = useState(true);
@@ -177,15 +178,7 @@ const ClassDashboardView = ({ classId, className, students }) => {
         <div className="class-dashboard-chart">
           <h4 style={{ textAlign: 'center', marginBottom: 20 }}>Níveis de Leitura (Alfabetiza Pará)</h4>
           {hasSondagens && leituraData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={leituraData} layout="vertical" margin={{ left: 50 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" allowDecimals={false} />
-                <YAxis dataKey="name" type="category" width={120} />
-                <Tooltip />
-                <Bar dataKey="value" fill="#8884d8" name="Alunos" />
-              </BarChart>
-            </ResponsiveContainer>
+            <SondagemNivelBarChart data={leituraData} color="#8884d8" />
           ) : (
             <p style={{ textAlign: 'center', color: '#666' }}>
               {hasSondagens ? 'Sem níveis de leitura informados.' : 'Sem dados para este mês.'}
@@ -197,15 +190,7 @@ const ClassDashboardView = ({ classId, className, students }) => {
         <div className="class-dashboard-chart">
           <h4 style={{ textAlign: 'center', marginBottom: 20 }}>Níveis de Escrita (Alfabetiza Pará)</h4>
           {hasSondagens && escritaData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={escritaData} layout="vertical" margin={{ left: 50 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis type="number" allowDecimals={false} />
-                <YAxis dataKey="name" type="category" width={120} />
-                <Tooltip />
-                <Bar dataKey="value" fill="#82ca9d" name="Alunos" />
-              </BarChart>
-            </ResponsiveContainer>
+            <SondagemNivelBarChart data={escritaData} color="#82ca9d" />
           ) : (
             <p style={{ textAlign: 'center', color: '#666' }}>
               {hasSondagens ? 'Sem níveis de escrita informados.' : 'Sem dados para este mês.'}

@@ -123,6 +123,42 @@ function normalizeKey(s) {
   return normalizeNivelKey(s);
 }
 
+/** Índice do nível na sequência pedagógica oficial (leitura ou escrita). */
+export function getNivelOrdemIndex(nome, tipo = 'leitura') {
+  const lista = tipo === 'escrita' ? TODOS_NIVEIS_ESCRITA : TODOS_NIVEIS_LEITURA;
+  const label = String(nome || '').trim();
+  if (!label) return lista.length + 1000;
+
+  const oficial = matchNivelOficial(label, lista);
+  if (oficial) {
+    return lista.findIndex((o) => normalizeNivelKey(o) === normalizeNivelKey(oficial));
+  }
+
+  const key = normalizeNivelKey(label);
+  const idx = lista.findIndex((o) => normalizeNivelKey(o) === key);
+  return idx >= 0 ? idx : lista.length + 500;
+}
+
+/**
+ * Ordena linhas { name, value } pela progressão pedagógica (mais alto no topo).
+ * Níveis desconhecidos / não informados ficam no final (embaixo no gráfico).
+ */
+export function sortNiveisPorOrdemPedagogica(rows, tipo = 'leitura') {
+  const lista = tipo === 'escrita' ? TODOS_NIVEIS_ESCRITA : TODOS_NIVEIS_LEITURA;
+
+  const isDesconhecido = (name) => getNivelOrdemIndex(name, tipo) >= lista.length;
+
+  return [...(rows || [])].sort((a, b) => {
+    const descA = isDesconhecido(a.name);
+    const descB = isDesconhecido(b.name);
+    if (descA && !descB) return 1;
+    if (!descA && descB) return -1;
+    const diff = getNivelOrdemIndex(b.name, tipo) - getNivelOrdemIndex(a.name, tipo);
+    if (diff !== 0) return diff;
+    return String(a.name).localeCompare(String(b.name), 'pt-BR');
+  });
+}
+
 /** Encontra a opção oficial mais próxima ou retorna null. */
 export function matchNivelOficial(valor, opcoes) {
   if (!valor || !opcoes?.length) return null;

@@ -24,10 +24,14 @@ function ModalShell({
           handleBackdropClick(e, () => {
             if (!disabled) onClose();
           });
+        } else if (e.target === e.currentTarget && onClose && !disabled) {
+          onClose();
         }
       }}
     >
       <div
+        role="dialog"
+        aria-modal="true"
         className={`modal-panel${panelClassName ? ` ${panelClassName}` : ''}`}
         style={{ maxWidth }}
         onClick={(e) => e.stopPropagation()}

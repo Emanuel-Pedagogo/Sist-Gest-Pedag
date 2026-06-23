@@ -260,38 +260,44 @@ const StudentDetailView = ({
       </div>
 
       <div className="student-tabs">
-        <div
+        <button
+          type="button"
           className={`tab ${currentTab === 'resumo' ? 'active' : ''}`}
           onClick={() => switchTab('resumo')}
         >
           Resumo
-        </div>
-        <div
+        </button>
+        <button
+          type="button"
           className={`tab ${currentTab === 'boletim' ? 'active' : ''}`}
           onClick={() => switchTab('boletim')}
         >
           Boletim
-        </div>
-        <div
+        </button>
+        <button
+          type="button"
           className={`tab ${currentTab === 'ocorrencias' ? 'active' : ''}`}
           onClick={() => switchTab('ocorrencias')}
         >
           Ocorrências
-        </div>
-        <div
+        </button>
+        <button
+          type="button"
           className={`tab ${currentTab === 'sondagem' ? 'active' : ''}`}
           onClick={() => switchTab('sondagem')}
         >
           Sondagens
-        </div>
-        <div
+        </button>
+        <button
+          type="button"
           className={`tab ${currentTab === 'evidencias' ? 'active' : ''}`}
           onClick={() => switchTab('evidencias')}
         >
           Evidências (Anexos)
-        </div>
+        </button>
         {selectedStudent?.etiqueta_cor === 'roxo' && (
-          <div
+          <button
+            type="button"
             className={`tab ${currentTab === 'aee' ? 'active' : ''}`}
             onClick={() => switchTab('aee')}
             style={{
@@ -300,7 +306,7 @@ const StudentDetailView = ({
             }}
           >
             AEE 🟣
-          </div>
+          </button>
         )}
       </div>
 
