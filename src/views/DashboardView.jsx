@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { ETIQUETA_LABELS } from '../utils/etiquetas';
-
-const ONBOARDING_KEY = 'sacp_onboarding_dismissed';
+import OnboardingChecklist from '../components/OnboardingChecklist';
+import { isOnboardingVisible } from '../utils/onboarding';
+import EtiquetaGlossarioButton from '../components/EtiquetaGlossario';
+import { ETIQUETA_LABELS, ETIQUETA_COLORS } from '../utils/etiquetas';
 
 const DashboardView = ({
   totalAzul,
@@ -10,6 +11,8 @@ const DashboardView = ({
   totalVerde,
   totalRoxo,
   totalAlunos,
+  classesCount,
+  sondagemDone,
   setFilterStudentEtiquetaCor,
   setFilterStudentTurmaId,
   setSelectedClassId,
@@ -31,52 +34,61 @@ const DashboardView = ({
   setAgendaView,
   onOpenEventDetail,
 }) => {
-  const [showOnboarding, setShowOnboarding] = useState(
-    () => typeof localStorage !== 'undefined' && !localStorage.getItem(ONBOARDING_KEY),
-  );
+  const [showOnboarding, setShowOnboarding] = useState(isOnboardingVisible);
 
-  const dismissOnboarding = () => {
-    localStorage.setItem(ONBOARDING_KEY, '1');
-    setShowOnboarding(false);
+  const goToClasses = () => {
+    setSelectedClassId(null);
+    setSelectedClassName('');
+    clearPersistedTurmaNav();
+    setCurrentView('classes');
   };
+
+  const goToStudents = () => {
+    setSelectedClassId(null);
+    setSelectedClassName('');
+    clearPersistedTurmaNav();
+    setFilterStudentTurmaId('');
+    setFilterStudentEtiquetaCor('');
+    setCurrentView('students');
+  };
+
+  const etiquetaCards = [
+    { label: ETIQUETA_LABELS.azul, count: totalAzul, cor: 'azul', color: ETIQUETA_COLORS.azul },
+    { label: ETIQUETA_LABELS.amarelo, count: totalAtencao, cor: 'amarelo', color: ETIQUETA_COLORS.amarelo },
+    { label: ETIQUETA_LABELS.vermelho, count: totalRisco, cor: 'vermelho', color: ETIQUETA_COLORS.vermelho },
+    { label: ETIQUETA_LABELS.verde, count: totalVerde, cor: 'verde', color: ETIQUETA_COLORS.verde },
+    { label: ETIQUETA_LABELS.roxo, count: totalRoxo, cor: 'roxo', color: ETIQUETA_COLORS.roxo },
+    { label: 'Total de Alunos', count: totalAlunos, cor: '', color: '#374151' },
+  ];
 
   return (
     <div id="view-dashboard" className="view-section">
       {showOnboarding && (
-        <div className="onboarding-card">
-          <h3>Bem-vindo ao sistema pedagógico</h3>
-          <p style={{ margin: '0 0 10px', fontSize: '0.9rem', color: '#555' }}>
-            Siga estes passos para começar com tranquilidade:
-          </p>
-          <ul>
-            <li>Confira as turmas e cadastre os alunos</li>
-            <li>Registre sondagens de leitura e escrita</li>
-            <li>Use o painel colorido abaixo para acompanhar as etiquetas ({ETIQUETA_LABELS.azul}, {ETIQUETA_LABELS.amarelo}, {ETIQUETA_LABELS.vermelho}…)</li>
-          </ul>
-          <div className="onboarding-card__actions">
-            <button type="button" className="btn-primary" style={{ width: 'auto', padding: '8px 16px' }} onClick={() => { setCurrentView('classes'); dismissOnboarding(); }}>
-              Ir para Turmas
-            </button>
-            <button type="button" className="btn-secondary" style={{ width: 'auto', padding: '8px 16px' }} onClick={dismissOnboarding}>
-              Entendi, ocultar
-            </button>
-          </div>
-        </div>
+        <OnboardingChecklist
+          classesCount={classesCount}
+          totalAlunos={totalAlunos}
+          sondagemDone={sondagemDone}
+          onGoToClasses={goToClasses}
+          onGoToStudents={goToStudents}
+          onDismiss={() => setShowOnboarding(false)}
+        />
       )}
-      {/* Blocos clicáveis (etiquetas) – acima dos dias da semana */}
+
+      <div className="dashboard-etiquetas-header">
+        <h3 style={{ margin: 0, fontSize: '1rem' }}>Resumo por etiqueta</h3>
+        <EtiquetaGlossarioButton compact />
+      </div>
+
       <div className="dashboard-etiquetas-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10, marginBottom: 20 }}>
-        {[
-          { label: 'Adequado', count: totalAzul, cor: 'azul', color: '#007bff' },
-          { label: 'Atenção', count: totalAtencao, cor: 'amarelo', color: '#ffc107' },
-          { label: 'Risco', count: totalRisco, cor: 'vermelho', color: '#dc3545' },
-          { label: 'Avançado', count: totalVerde, cor: 'verde', color: '#28a745' },
-          { label: 'AEE', count: totalRoxo, cor: 'roxo', color: '#9c27b0' },
-          { label: 'Total de Alunos', count: totalAlunos, cor: '', color: '#374151' },
-        ].map((item) => (
+        {etiquetaCards.map((item) => (
           <button
             type="button"
             key={item.cor || 'total'}
             onClick={() => {
+              if (!item.cor) {
+                goToStudents();
+                return;
+              }
               setFilterStudentEtiquetaCor(item.cor);
               setFilterStudentTurmaId('');
               setSelectedClassId(null);
@@ -122,14 +134,11 @@ const DashboardView = ({
               borderRadius: 6,
               background: 'white',
               cursor: 'pointer',
-              fontSize: '0.9rem',
             }}
+            aria-label="Semana anterior"
           >
-            ‹
+            <i className="fas fa-chevron-left" />
           </button>
-          <span style={{ fontSize: '0.8rem', color: '#666', minWidth: 120, textAlign: 'center' }}>
-            {getWeekDates(dashboardWeekStart)[0].toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} – {getWeekDates(dashboardWeekStart)[6].toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
-          </span>
           <button
             type="button"
             onClick={() => {
@@ -144,110 +153,108 @@ const DashboardView = ({
               borderRadius: 6,
               background: 'white',
               cursor: 'pointer',
-              fontSize: '0.9rem',
             }}
+            aria-label="Próxima semana"
           >
-            ›
+            <i className="fas fa-chevron-right" />
           </button>
         </div>
       </div>
-      <div className="calendar-strip" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 20 }}>
-        {getWeekDates(dashboardWeekStart).map((day) => {
-          const selected = isSameDay(day, dashboardSelectedDate);
-          const today = isToday(day);
+
+      <div className="calendar-strip">
+        {getWeekDates(dashboardWeekStart).map((date) => {
+          const isSelected = isSameDay(date, dashboardSelectedDate);
+          const today = isToday(date);
           return (
             <button
+              key={date.toISOString()}
               type="button"
-              key={day.getTime()}
-              onClick={() => setDashboardSelectedDate(new Date(day))}
-              className={`day-box ${today ? 'today' : ''}`}
+              onClick={() => setDashboardSelectedDate(new Date(date))}
+              className={`calendar-day${isSelected ? ' selected' : ''}${today ? ' today' : ''}`}
               style={{
-                flex: '1 1 52px',
-                minWidth: 48,
-                padding: '6px 4px',
-                border: selected ? '2px solid var(--primary)' : '1px solid #e0e0e0',
+                flex: '0 0 auto',
+                minWidth: 52,
+                padding: '8px 6px',
+                border: isSelected ? '2px solid var(--primary)' : '1px solid #e0e0e0',
                 borderRadius: 8,
-                background: selected ? 'rgba(13, 110, 253, 0.08)' : 'white',
+                background: isSelected ? 'var(--primary-light, #e8f0fe)' : 'white',
                 cursor: 'pointer',
-                fontWeight: selected ? 600 : 400,
-                boxShadow: selected ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
-                fontSize: '0.7rem',
+                textAlign: 'center',
               }}
             >
-              <span style={{ fontSize: '0.65rem', color: '#666', display: 'block' }}>
-                {dayNames[day.getDay()]}
-              </span>
-              <span style={{ fontSize: '1rem', display: 'block', marginTop: 2 }}>
-                {day.getDate()}
-              </span>
-              <span style={{ fontSize: '0.6rem', color: '#999' }}>
-                {day.toLocaleDateString('pt-BR', { month: 'short' })}
-              </span>
+              <div style={{ fontSize: '0.7rem', color: '#888', textTransform: 'uppercase' }}>
+                {dayNames[date.getDay()]}
+              </div>
+              <div style={{ fontSize: '1.1rem', fontWeight: isSelected || today ? 700 : 500 }}>
+                {date.getDate()}
+              </div>
             </button>
           );
         })}
       </div>
 
-      <h3 style={{ marginBottom: 15 }}>
-        Atividades do dia {dashboardSelectedDate ? new Date(dashboardSelectedDate).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' }) : ''}
-      </h3>
-      <div className="list-container">
+      <div style={{ marginTop: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <h3 style={{ margin: 0, fontSize: '1rem' }}>
+            Eventos do dia{' '}
+            {dashboardSelectedDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
+          </h3>
+          <button
+            type="button"
+            className="btn-secondary"
+            style={{ width: 'auto', padding: '6px 12px', fontSize: '0.85rem' }}
+            onClick={() => {
+              setCurrentDate(dashboardSelectedDate);
+              setAgendaView('day');
+              setCurrentView('agenda');
+            }}
+          >
+            Ver na agenda
+          </button>
+        </div>
+
         {dashboardDayEventsLoading ? (
-          <div className="list-item">
-            <span>Carregando eventos...</span>
-          </div>
+          <p style={{ color: '#888', fontSize: '0.9rem' }}>Carregando eventos...</p>
         ) : dashboardDayEvents.length === 0 ? (
-          <div className="list-item">
-            <div style={{ textAlign: 'center', padding: 20, color: '#666', width: '100%' }}>
-              <i className="fas fa-calendar-day" style={{ fontSize: '2em', marginBottom: 10, opacity: 0.3 }} />
-              <p style={{ margin: 0 }}>Nenhum evento agendado para este dia.</p>
-            </div>
-          </div>
+          <p style={{ color: '#888', fontSize: '0.9rem' }}>Nenhum evento neste dia.</p>
         ) : (
-          dashboardDayEvents.map((event) => {
-            const eventDate = new Date(event?.data_inicio);
-            if (!event?.id || isNaN(eventDate.getTime())) return null;
-            return (
-              <div
-                key={event.id}
+          <div className="list-container">
+            {dashboardDayEvents.map((ev) => (
+              <button
+                key={ev.id}
+                type="button"
                 className="list-item"
-                style={{
-                  borderLeft: `4px solid ${event?.cor_etiqueta || '#3498DB'}`,
-                  cursor: 'pointer',
-                }}
-                onClick={() => {
-                  if (onOpenEventDetail) {
-                    onOpenEventDetail(event);
-                    return;
-                  }
-                  setCurrentView('agenda');
-                  setCurrentDate(eventDate);
-                  setAgendaView('day');
-                }}
+                style={{ width: '100%', textAlign: 'left', cursor: 'pointer' }}
+                onClick={() => onOpenEventDetail(ev)}
               >
-                <div style={{ flex: 1 }}>
-                  <strong>{event?.titulo || 'Sem título'}</strong>
-                  {event?.descricao && (
-                    <div style={{ fontSize: '0.8em', color: 'gray', marginTop: 4 }}>
-                      {event.descricao}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: '50%',
+                      background: ev.cor_etiqueta || '#3498db',
+                      flexShrink: 0,
+                    }}
+                  />
+                  <div>
+                    <strong>{ev.titulo}</strong>
+                    <div style={{ fontSize: '0.8em', color: '#666' }}>
+                      {new Date(ev.data_inicio).toLocaleTimeString('pt-BR', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                      {ev.data_fim &&
+                        ` – ${new Date(ev.data_fim).toLocaleTimeString('pt-BR', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}`}
                     </div>
-                  )}
+                  </div>
                 </div>
-                <span
-                  className="badge"
-                  style={{
-                    background: event?.cor_etiqueta || '#3498DB',
-                    color: 'white',
-                  }}
-                >
-                  {eventDate.toLocaleTimeString('pt-BR', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </span>
-              </div>
-            );
-          })
+              </button>
+            ))}
+          </div>
         )}
       </div>
     </div>

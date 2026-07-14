@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from '../utils/appFeedback';
+import EtiquetaGlossarioButton from '../components/EtiquetaGlossario';
 import { evaluateStudentColor } from '../utils/studentColorEvaluator';
 import {
   GRUPOS_NIVEIS_LEITURA,
@@ -295,7 +296,10 @@ const SettingsView = ({ activeSchoolId, supabase }) => {
   return (
     <div className="view-section">
       <div className="settings-header">
-        <h2 style={{ margin: 0 }}>Configurações de Etiquetas</h2>
+        <div className="settings-header__title">
+          <h2 style={{ margin: 0 }}>Configurações de Etiquetas</h2>
+          <EtiquetaGlossarioButton compact />
+        </div>
         <button 
           className="btn-primary" 
           onClick={handleSave} 

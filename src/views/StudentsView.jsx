@@ -3,6 +3,7 @@ import AlunoListSubtitle from '../components/AlunoListSubtitle';
 import EmptyState from '../components/EmptyState';
 import EtiquetaIcon from '../components/EtiquetaIcon';
 import { ETIQUETA_ORDER, ETIQUETA_LABELS, getEtiquetaLabel } from '../utils/etiquetas';
+import EtiquetaGlossarioButton from '../components/EtiquetaGlossario';
 
 const StudentsView = ({
   selectedClassName,
@@ -107,7 +108,10 @@ const StudentsView = ({
           </div>
         )}
         <div className="input-group" style={{ minWidth: 160, marginBottom: 0 }}>
-          <label htmlFor="students-tag-filter">Etiqueta</label>
+          <label htmlFor="students-tag-filter" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            Etiqueta
+            <EtiquetaGlossarioButton compact className="etiqueta-glossario-btn--inline" />
+          </label>
           <select
             id="students-tag-filter"
             value={filterStudentEtiquetaCor}

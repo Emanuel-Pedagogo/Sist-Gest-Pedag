@@ -26,6 +26,15 @@ export const ETIQUETA_ICONS = {
   roxo: { className: 'fas fa-wheelchair', color: '#9c27b0' },
 };
 
+/** Textos em linguagem simples para o glossário (?) das etiquetas. */
+export const ETIQUETA_GLOSSARIO = {
+  azul: 'Desempenho dentro do esperado para a série. Não exige intervenção imediata.',
+  verde: 'Desempenho acima do esperado ou em avanço consistente na leitura, escrita ou notas.',
+  amarelo: 'Sinais de dificuldade que pedem acompanhamento. Vale observar de perto e registrar ações.',
+  vermelho: 'Situação que precisa de atenção prioritária da coordenação e da equipe da turma.',
+  roxo: 'Aluno com atendimento educacional especializado (AEE). Pode ter laudo e plano individual.',
+};
+
 /** @param {string | null | undefined} cor */
 export function getEtiquetaLabel(cor) {
   return ETIQUETA_LABELS[cor || 'azul'] || ETIQUETA_LABELS.azul;

@@ -56,6 +56,7 @@ import {
   vincularAlunoTurmaEspecial,
 } from './utils/alunosTurmas';
 import SettingsView from './views/SettingsView';
+import MobileBottomNav from './components/MobileBottomNav';
 
 import { evaluateStudentColor, getMotivoOrigemEtiqueta } from './utils/studentColorEvaluator';
 import { enrichAlunosEtiquetaMotivo } from './utils/alunosEtiquetaMotivo';
@@ -202,6 +203,9 @@ function App() {
   const [sondagemMidiaUrl, setSondagemMidiaUrl] = useState('');
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [onboardingSondagemDone, setOnboardingSondagemDone] = useState(
+    () => typeof window !== 'undefined' && localStorage.getItem('sacp_onboarding_sondagem') === '1',
+  );
 
   // Escola ativa (Polo por padrão)
   const [activeSchoolId, setActiveSchoolId] = useState(null);
@@ -848,6 +852,27 @@ function App() {
     if (currentView === 'agenda-event-detail') return 'agenda';
     if (currentView === 'students' && selectedClassId) return 'classes';
     return currentView;
+  };
+
+  const getMobileBottomActive = () => {
+    const nav = getActiveNav();
+    if (['dashboard', 'classes', 'students', 'agenda'].includes(nav)) return nav;
+    return 'menu';
+  };
+
+  const handleMobileNav = (viewId) => {
+    if (viewId === 'students') {
+      setSelectedClassId(null);
+      setSelectedClassName('');
+      clearPersistedTurmaNav();
+    }
+    if (viewId === 'classes') {
+      setSelectedClassId(null);
+      setSelectedClassName('');
+      clearPersistedTurmaNav();
+    }
+    navigate(viewId);
+    setMobileMenuOpen(false);
   };
 
   // Nome descritivo da etiqueta (em vez da cor)
@@ -2351,6 +2376,12 @@ function App() {
     setSondagens(freshData || []);
 
     await reavaliarCorAluno(selectedStudentId);
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sacp_onboarding_sondagem', '1');
+    }
+    setOnboardingSondagemDone(true);
+    toast.success('Sondagem registrada com sucesso.');
 
     savingSondagemRef.current = false;
     setSavingSondagem(false);
@@ -4726,6 +4757,8 @@ function App() {
                 totalVerde={totalVerde}
                 totalRoxo={totalRoxo}
                 totalAlunos={totalAlunos}
+                classesCount={classesList.length}
+                sondagemDone={onboardingSondagemDone}
                 setFilterStudentEtiquetaCor={setFilterStudentEtiquetaCor}
                 setFilterStudentTurmaId={setFilterStudentTurmaId}
                 setSelectedClassId={setSelectedClassId}
@@ -5125,6 +5158,11 @@ function App() {
               <SettingsView activeSchoolId={activeSchoolId} supabase={supabase} />
             )}
           </main>
+          <MobileBottomNav
+            activeId={getMobileBottomActive()}
+            onNavigate={handleMobileNav}
+            onOpenMenu={() => setMobileMenuOpen((open) => !open)}
+          />
         </div>
       )}
 
