@@ -56,6 +56,7 @@ import {
   vincularAlunoTurmaEspecial,
 } from './utils/alunosTurmas';
 import SettingsView from './views/SettingsView';
+import ChatIAView from './views/ChatIAView';
 import MobileBottomNav from './components/MobileBottomNav';
 import ProfessorEntregasView from './components/ProfessorEntregasView';
 import {
@@ -4818,6 +4819,17 @@ function App() {
                 {!isProfessor && (
                   <li
                     onClick={() => {
+                      navigate('chat-ia');
+                      setMobileMenuOpen(false);
+                    }}
+                    className={getActiveNav() === 'chat-ia' ? 'active' : ''}
+                  >
+                    <i className="fas fa-comments" /> Chat IA
+                  </li>
+                )}
+                {!isProfessor && (
+                  <li
+                    onClick={() => {
                       navigate('settings');
                       setMobileMenuOpen(false);
                     }}
@@ -5370,6 +5382,9 @@ function App() {
             {currentView === 'settings' && (
               <SettingsView activeSchoolId={activeSchoolId} supabase={supabase} />
             )}
+
+            {/* Chat IA */}
+            {currentView === 'chat-ia' && !isProfessor && <ChatIAView isProfessor={isProfessor} />}
           </main>
           <MobileBottomNav
             activeId={getMobileBottomActive()}

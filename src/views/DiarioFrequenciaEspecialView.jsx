@@ -3,12 +3,18 @@ import { supabase } from '../supabaseClient';
 import {
   MESES_PT,
   chaveCelula,
+  chaveConteudo,
   dataIsoLocal,
-  diasUteisDoMes,
-  fetchDiarioMes,
+  diasLetivosDoMes,
+  fetchConteudosDiarioMes,
+  fetchDiarioClasseMes,
+  getDatasNaoLetivas,
   percentualFrequenciaAluno,
-  salvarDiarioMes,
+  salvarConteudoDiario,
+  salvarDiarioClasseMes,
+  sincronizarFrequenciaHistorico,
 } from '../utils/diarioFrequencia';
+import { getDisciplinasPorTurma } from '../utils/boletimDisciplinas';
 
 function proximoStatus(atual) {
   if (!atual) return 'P';
@@ -21,16 +27,28 @@ const DiarioFrequenciaEspecialView = ({
   turmaNome,
   students = [],
   classesList = [],
+  professorProfile = null,
+  selectedYear,
 }) => {
-  const hoje = new Date();
+  const hoje = useMemo(() => new Date(), []);
   const [mes, setMes] = useState(hoje.getMonth() + 1);
-  const [ano, setAno] = useState(hoje.getFullYear());
+  const [ano, setAno] = useState(selectedYear || hoje.getFullYear());
   const [grid, setGrid] = useState({});
   const [gridInicial, setGridInicial] = useState({});
+  const [conteudos, setConteudos] = useState({});
+  const [agendaNaoLetiva, setAgendaNaoLetiva] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingConteudo, setSavingConteudo] = useState(false);
   const [error, setError] = useState(null);
+  const [warning, setWarning] = useState(null);
   const [dirty, setDirty] = useState(false);
+  const [conteudoForm, setConteudoForm] = useState({
+    data: '',
+    disciplina: '',
+    conteudo_aplicado: '',
+    observacoes: '',
+  });
 
   const alunosOrdenados = useMemo(
     () =>
@@ -40,39 +58,113 @@ const DiarioFrequenciaEspecialView = ({
     [students],
   );
 
-  const diasUteis = useMemo(() => diasUteisDoMes(ano, mes), [ano, mes]);
+  const diasLetivos = useMemo(
+    () => diasLetivosDoMes(ano, mes, agendaNaoLetiva),
+    [ano, mes, agendaNaoLetiva],
+  );
+  const datasNaoLetivas = useMemo(() => getDatasNaoLetivas(agendaNaoLetiva), [agendaNaoLetiva]);
+  const disciplinas = useMemo(() => getDisciplinasPorTurma(turmaNome), [turmaNome]);
+
+  const conteudosDoDia = useMemo(() => {
+    if (!conteudoForm.data) return [];
+    return Object.values(conteudos)
+      .filter((row) => String(row.data).slice(0, 10) === conteudoForm.data)
+      .sort((a, b) => String(a.disciplina).localeCompare(String(b.disciplina), 'pt-BR'));
+  }, [conteudos, conteudoForm.data]);
 
   const turmaNomePorId = (id) =>
     (classesList || []).find((c) => String(c.id) === String(id))?.nome || '—';
+
+  const carregarAgendaNaoLetiva = useCallback(async () => {
+    setWarning(null);
+    try {
+      let query = supabase
+        .from('agenda_eventos')
+        .select('id, titulo, data_inicio, data_fim, tipo_marco, turma_id')
+        .in('tipo_marco', ['feriado', 'recesso'])
+        .gte('data_inicio', `${ano}-01-01`)
+        .lte('data_inicio', `${ano}-12-31`);
+      if (turmaId) {
+        query = query.or(`turma_id.eq.${turmaId},turma_id.is.null`);
+      }
+      const { data, error: agendaError } = await query;
+      if (agendaError) throw agendaError;
+      setAgendaNaoLetiva(data || []);
+      if (!data?.length) {
+        setWarning('Calendário oficial não importado; feriados não serão descontados automaticamente.');
+      }
+    } catch (err) {
+      setAgendaNaoLetiva([]);
+      setWarning(
+        'Não foi possível ler feriados/recessos da agenda. O diário usará apenas segunda a sexta.',
+      );
+      console.warn('Erro ao carregar calendário do diário:', err);
+    }
+  }, [ano, turmaId]);
 
   const carregar = useCallback(async () => {
     if (!turmaId) return;
     setLoading(true);
     setError(null);
     try {
-      const g = await fetchDiarioMes(supabase, turmaId, ano, mes);
+      await carregarAgendaNaoLetiva();
+      const [g, c] = await Promise.all([
+        fetchDiarioClasseMes(supabase, turmaId, ano, mes),
+        fetchConteudosDiarioMes(supabase, turmaId, ano, mes),
+      ]);
       setGrid(g);
       setGridInicial(g);
+      setConteudos(c);
       setDirty(false);
     } catch (err) {
       const msg = err?.message || String(err);
-      if (msg.includes('diario_frequencia_especial')) {
+      if (msg.includes('diario_classe_')) {
         setError(
-          'Tabela do diário não encontrada. Execute supabase_diario_frequencia_especial.sql no Supabase.',
+          'Tabela do diário não encontrada. Execute supabase_diario_classe_professor.sql no Supabase.',
         );
       } else {
         setError('Erro ao carregar diário: ' + msg);
       }
       setGrid({});
       setGridInicial({});
+      setConteudos({});
     } finally {
       setLoading(false);
     }
-  }, [turmaId, ano, mes]);
+  }, [turmaId, ano, mes, carregarAgendaNaoLetiva]);
 
   useEffect(() => {
     carregar();
   }, [carregar]);
+
+  useEffect(() => {
+    if (selectedYear) setAno(selectedYear);
+  }, [selectedYear]);
+
+  useEffect(() => {
+    if (!diasLetivos.length) {
+      setConteudoForm((prev) => ({ ...prev, data: '' }));
+      return;
+    }
+    setConteudoForm((prev) => {
+      const dataAtualValida = prev.data && diasLetivos.some((dt) => dataIsoLocal(dt) === prev.data);
+      return {
+        ...prev,
+        data: dataAtualValida ? prev.data : dataIsoLocal(diasLetivos[0]),
+        disciplina: prev.disciplina || disciplinas[0] || '',
+      };
+    });
+  }, [diasLetivos, disciplinas]);
+
+  useEffect(() => {
+    if (!conteudoForm.data || !conteudoForm.disciplina) return;
+    const row = conteudos[chaveConteudo(conteudoForm.data, conteudoForm.disciplina)];
+    setConteudoForm((prev) => ({
+      ...prev,
+      conteudo_aplicado: row?.conteudo_aplicado || '',
+      observacoes: row?.observacoes || '',
+    }));
+  }, [conteudoForm.data, conteudoForm.disciplina, conteudos]);
 
   const alterarCelula = (alunoId, dataIso) => {
     const chave = chaveCelula(alunoId, dataIso);
@@ -104,13 +196,44 @@ const DiarioFrequenciaEspecialView = ({
     setSaving(true);
     setError(null);
     try {
-      await salvarDiarioMes(supabase, turmaId, grid, gridInicial);
+      await salvarDiarioClasseMes(supabase, turmaId, professorProfile?.id, grid, gridInicial);
+      await sincronizarFrequenciaHistorico(supabase, alunosOrdenados, grid, diasLetivos, mes, ano);
       setGridInicial({ ...grid });
       setDirty(false);
     } catch (err) {
       setError('Erro ao salvar: ' + (err?.message || String(err)));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSalvarConteudo = async (e) => {
+    e.preventDefault();
+    setSavingConteudo(true);
+    setError(null);
+    try {
+      const saved = await salvarConteudoDiario(
+        supabase,
+        turmaId,
+        professorProfile?.id,
+        conteudoForm.data,
+        conteudoForm.disciplina,
+        {
+          conteudo_aplicado: conteudoForm.conteudo_aplicado,
+          observacoes: conteudoForm.observacoes,
+        },
+      );
+      const key = chaveConteudo(conteudoForm.data, conteudoForm.disciplina);
+      setConteudos((prev) => {
+        const next = { ...prev };
+        if (saved) next[key] = saved;
+        else delete next[key];
+        return next;
+      });
+    } catch (err) {
+      setError('Erro ao salvar conteúdo: ' + (err?.message || String(err)));
+    } finally {
+      setSavingConteudo(false);
     }
   };
 
@@ -144,9 +267,8 @@ const DiarioFrequenciaEspecialView = ({
             Diário de classe — {turmaNome}
           </h3>
           <p style={{ margin: 0, fontSize: '0.85em', color: '#6b7280', lineHeight: 1.45 }}>
-            Acompanhamento <strong>somente desta turma</strong> (participação voluntária). As faltas aqui{' '}
-            <strong>não entram</strong> no histórico de frequência do aluno nem na turma regular. Clique na
-            célula: vazio → presente → falta → vazio.
+            Acompanhamento <strong>somente desta turma</strong>. As presenças/faltas marcadas aqui
+            recalculam a frequência mensal oficial do aluno. Clique na célula: vazio → presente → falta → vazio.
           </p>
         </div>
         <div className="diario-controls">
@@ -216,7 +338,14 @@ const DiarioFrequenciaEspecialView = ({
           F = Falta
         </span>
         <span style={{ color: '#6b7280' }}>Célula vazia = não registrado</span>
+        <span style={{ color: '#6b7280' }}>Feriados/recessos da agenda não entram no grid</span>
       </div>
+
+      {warning && (
+        <div style={{ padding: 12, marginBottom: 12, background: '#fffbeb', color: '#92400e', borderRadius: 6 }}>
+          {warning}
+        </div>
+      )}
 
       {error && (
         <div style={{ padding: 12, marginBottom: 12, background: '#fef2f2', color: '#b91c1c', borderRadius: 6 }}>
@@ -228,6 +357,109 @@ const DiarioFrequenciaEspecialView = ({
         <p style={{ color: '#6b7280' }}>Carregando diário...</p>
       ) : (
         <>
+          <form
+            onSubmit={handleSalvarConteudo}
+            style={{
+              padding: 14,
+              marginBottom: 16,
+              border: '1px solid #e5e7eb',
+              borderRadius: 8,
+              background: '#f9fafb',
+            }}
+          >
+            <h4 style={{ margin: '0 0 12px', color: 'var(--primary)' }}>
+              Conteúdo aplicado por disciplina/dia
+            </h4>
+            <div className="modal-form-grid" style={{ marginBottom: 10 }}>
+              <div className="input-group">
+                <label>Dia letivo</label>
+                <select
+                  value={conteudoForm.data}
+                  onChange={(e) => setConteudoForm((prev) => ({ ...prev, data: e.target.value }))}
+                >
+                  {diasLetivos.map((dt) => {
+                    const iso = dataIsoLocal(dt);
+                    return (
+                      <option key={iso} value={iso}>
+                        {String(dt.getDate()).padStart(2, '0')}/{String(dt.getMonth() + 1).padStart(2, '0')}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+              <div className="input-group">
+                <label>Disciplina</label>
+                <input
+                  list="diario-disciplinas"
+                  value={conteudoForm.disciplina}
+                  onChange={(e) => setConteudoForm((prev) => ({ ...prev, disciplina: e.target.value }))}
+                  placeholder="Ex: Matemática"
+                  required
+                />
+                <datalist id="diario-disciplinas">
+                  {disciplinas.map((d) => (
+                    <option key={d} value={d} />
+                  ))}
+                </datalist>
+              </div>
+            </div>
+            <div className="input-group">
+              <label>Conteúdo aplicado</label>
+              <textarea
+                rows={3}
+                value={conteudoForm.conteudo_aplicado}
+                onChange={(e) =>
+                  setConteudoForm((prev) => ({ ...prev, conteudo_aplicado: e.target.value }))
+                }
+                placeholder="Descreva o conteúdo trabalhado nesta aula"
+                required
+              />
+            </div>
+            <div className="input-group">
+              <label>Observações</label>
+              <textarea
+                rows={2}
+                value={conteudoForm.observacoes}
+                onChange={(e) => setConteudoForm((prev) => ({ ...prev, observacoes: e.target.value }))}
+                placeholder="Opcional"
+              />
+            </div>
+            <button type="submit" className="btn-primary" style={{ width: 'auto' }} disabled={savingConteudo}>
+              {savingConteudo ? 'Salvando conteúdo...' : 'Salvar conteúdo'}
+            </button>
+            {conteudosDoDia.length > 0 && (
+              <div style={{ marginTop: 12, fontSize: '0.9em', color: '#4b5563' }}>
+                <strong>Conteúdos já salvos neste dia:</strong>
+                <ul style={{ margin: '6px 0 0 18px', padding: 0 }}>
+                  {conteudosDoDia.map((row) => (
+                    <li key={row.id || chaveConteudo(row.data, row.disciplina)}>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setConteudoForm({
+                            data: String(row.data).slice(0, 10),
+                            disciplina: row.disciplina,
+                            conteudo_aplicado: row.conteudo_aplicado || '',
+                            observacoes: row.observacoes || '',
+                          })
+                        }
+                        style={{ border: 'none', background: 'transparent', color: 'var(--primary)', cursor: 'pointer' }}
+                      >
+                        {row.disciplina}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </form>
+
+          {datasNaoLetivas.size > 0 && (
+            <p style={{ color: '#6b7280', fontSize: '0.85em' }}>
+              Dias não letivos removidos neste ano: {datasNaoLetivas.size}. Ex.:{' '}
+              {[...datasNaoLetivas.entries()].slice(0, 4).map(([iso, events]) => `${iso} (${events[0]?.titulo || 'não letivo'})`).join(', ')}
+            </p>
+          )}
           <p className="table-scroll-hint">Deslize horizontalmente para marcar presença por dia.</p>
           <div className="diario-grid-wrap">
           <table style={{ minWidth: '100%' }}>
@@ -257,7 +489,7 @@ const DiarioFrequenciaEspecialView = ({
                 >
                   %
                 </th>
-                {diasUteis.map((dt) => {
+                {diasLetivos.map((dt) => {
                   const iso = dataIsoLocal(dt);
                   return (
                     <th
@@ -280,7 +512,7 @@ const DiarioFrequenciaEspecialView = ({
                 <th colSpan={2} style={{ fontSize: '0.7em', padding: 4, borderBottom: '1px solid #eee' }}>
                   Atalho do dia
                 </th>
-                {diasUteis.map((dt) => {
+                {diasLetivos.map((dt) => {
                   const iso = dataIsoLocal(dt);
                   return (
                     <th key={`a-${iso}`} style={{ padding: 2, borderBottom: '1px solid #eee' }}>
@@ -323,7 +555,7 @@ const DiarioFrequenciaEspecialView = ({
             </thead>
             <tbody>
               {alunosOrdenados.map((aluno) => {
-                const pct = percentualFrequenciaAluno(grid, aluno.id, diasUteis);
+                const pct = percentualFrequenciaAluno(grid, aluno.id, diasLetivos);
                 return (
                   <tr key={aluno.id}>
                     <td
@@ -353,7 +585,7 @@ const DiarioFrequenciaEspecialView = ({
                     >
                       {pct != null ? `${pct}%` : '—'}
                     </td>
-                    {diasUteis.map((dt) => {
+                    {diasLetivos.map((dt) => {
                       const iso = dataIsoLocal(dt);
                       const st = grid[chaveCelula(aluno.id, iso)];
                       const bg = st === 'P' ? '#d4edda' : st === 'F' ? '#f8d7da' : '#fff';

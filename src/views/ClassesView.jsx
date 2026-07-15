@@ -54,6 +54,7 @@ const ClassesView = ({
   onBoletinsImportados,
   reavaliarCorAluno,
   canManageCadastro = true,
+  professorProfile = null,
 }) => {
   const [showImportLista, setShowImportLista] = useState(false);
   const [showImportSondagem, setShowImportSondagem] = useState(false);
@@ -266,22 +267,22 @@ const ClassesView = ({
             >
               Dashboard da Turma
             </button>
-            {turmaEspecial && (
-              <button
-                className={`tab ${activeTab === 'diario' ? 'active' : ''}`}
-                onClick={() => setActiveTab('diario')}
-              >
-                Diário de Classe
-              </button>
-            )}
+            <button
+              className={`tab ${activeTab === 'diario' ? 'active' : ''}`}
+              onClick={() => setActiveTab('diario')}
+            >
+              Diário de Classe
+            </button>
           </div>
 
-          {activeTab === 'diario' && turmaEspecial && (
+          {activeTab === 'diario' && (
             <DiarioFrequenciaEspecialView
               turmaId={selectedClassId}
               turmaNome={selectedClassName}
               students={students}
               classesList={classesList}
+              professorProfile={professorProfile}
+              selectedYear={selectedYear}
             />
           )}
 

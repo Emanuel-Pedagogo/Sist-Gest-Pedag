@@ -2846,3 +2846,164 @@ body.native-keyboard .login-box {
   display: none;
 }
 
+/* ==================== Chat IA ==================== */
+
+.chat-ia-view {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 140px);
+  max-height: 820px;
+}
+
+.chat-ia-header {
+  flex: 0 0 auto;
+  margin-bottom: 14px;
+}
+
+.chat-ia-messages {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 6px 4px 16px;
+}
+
+.chat-ia-empty {
+  padding: 16px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+
+.chat-ia-msg {
+  display: flex;
+  flex-direction: column;
+  max-width: 78%;
+}
+
+.chat-ia-msg--user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.chat-ia-msg--assistant,
+.chat-ia-msg--erro {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+.chat-ia-msg__bubble {
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  white-space: pre-wrap;
+  line-height: 1.45;
+  font-size: 0.95em;
+}
+
+.chat-ia-msg--user .chat-ia-msg__bubble {
+  background: linear-gradient(135deg, #1d4ed8, #6d28d9);
+  color: white;
+  border-bottom-right-radius: 2px;
+}
+
+.chat-ia-msg--assistant .chat-ia-msg__bubble {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-bottom-left-radius: 2px;
+}
+
+.chat-ia-msg--erro .chat-ia-msg__bubble {
+  background: #fee;
+  border: 1px solid #fcc;
+  color: #c33;
+}
+
+.chat-ia-msg__bubble--loading {
+  color: var(--text-light);
+  font-style: italic;
+}
+
+.chat-ia-confirm-card {
+  margin-top: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--warning);
+  background: #fffbea;
+  border-radius: var(--radius-md);
+  max-width: 100%;
+}
+
+.chat-ia-confirm-card__titulo {
+  font-weight: 600;
+  color: #8a6d00;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9em;
+}
+
+.chat-ia-confirm-card__sql {
+  background: #1f2937;
+  color: #e5e7eb;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  overflow-x: auto;
+  font-size: 0.82em;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.chat-ia-confirm-card__status {
+  margin-top: 10px;
+  font-weight: 600;
+  font-size: 0.9em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-ia-confirm-card__status--ok {
+  color: #1a7f37;
+}
+
+.chat-ia-confirm-card__status--cancelado {
+  color: var(--text-light);
+}
+
+.chat-ia-input-row {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.chat-ia-input {
+  flex: 1 1 auto;
+  min-height: var(--control-height);
+  max-height: 140px;
+  padding: var(--control-padding-y) var(--control-padding-x);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 0.95em;
+  resize: vertical;
+}
+
+.chat-ia-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+@media (max-width: 768px) {
+  .chat-ia-view {
+    height: calc(100vh - 220px);
+  }
+
+  .chat-ia-msg {
+    max-width: 92%;
+  }
+}
+

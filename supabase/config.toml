@@ -1,4 +1,4 @@
-# Configuração mínima para Edge Functions (Gemini)
+# Configuração mínima para Edge Functions (Gemini / Claude)
 # Documentação: https://supabase.com/docs/guides/functions
 
 [functions.extract-sondagens]
@@ -9,3 +9,7 @@ verify_jwt = false
 
 [functions.extract-boletins-pdf]
 verify_jwt = false
+
+# Chat IA executa SQL em nome do usuário — precisa de JWT válido.
+[functions.chat-ia]
+verify_jwt = true

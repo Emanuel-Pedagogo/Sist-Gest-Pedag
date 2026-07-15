@@ -237,6 +237,16 @@ Shared: `supabase/functions/_shared/gemini.ts`, `cors.ts`. Setup: `docs/GEMINI-S
 
 **Risco conhecido:** checklist marca `verify_jwt = false` em functions (endpoint chamável sem JWT até endurecer) — ver `docs/SUPABASE-CHECKLIST-PILOTO.md`.
 
+### Chat IA (Claude — separado do Gemini)
+
+Edge Function `chat-ia` (`verify_jwt = true`) usa a **Claude API** (secret
+`ANTHROPIC_API_KEY`, ainda não configurado — ver `docs/CHAT-IA-SETUP.md`) para
+um chat de dados só para coordenação: consultas SQL somente leitura executam
+na hora; INSERT/UPDATE/DELETE ficam pendentes até confirmação explícita na
+tela (`ChatIAView.jsx`). Nunca usa service role — respeita a RLS de cada
+tabela via o JWT do usuário. Tabelas de apoio: `chat_ia_confirmacoes`,
+`chat_ia_execucoes` (log de auditoria), criadas por `supabase_chat_ia.sql`.
+
 ---
 
 ## 8. UX / feedback recente (fases 1–2 de usabilidade)
@@ -431,6 +441,7 @@ Evitar / pedir confirmação antes:
 | `docs/SUPABASE-CHECKLIST-PILOTO.md` | Tabelas, RLS, buckets, functions |
 | `docs/ROTEIRO-VALIDACAO-PILOTO.md` | Passo a passo de validação |
 | `docs/GEMINI-SETUP.md` | Edge Functions + secret |
+| `docs/CHAT-IA-SETUP.md` | Chat com IA (Claude) — secret, segurança, testes |
 | `docs/AUDITORIA-FRONT-END-UI.md` | Decisões e padronização UI |
 | `docs/ANDROID-SETUP.md` | Ambiente Android |
 | `docs/PLANO-ANDROID-PLAY-STORE.md` | Roadmap publicação loja |
