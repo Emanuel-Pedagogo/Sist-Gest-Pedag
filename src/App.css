@@ -2997,6 +2997,43 @@ body.native-keyboard .login-box {
   box-shadow: 0 0 0 3px var(--focus-ring);
 }
 
+.chat-ia-export-card {
+  margin-top: 8px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  background: var(--surface-muted);
+  border-radius: var(--radius-md);
+  max-width: 100%;
+}
+
+.chat-ia-export-card__label {
+  font-size: 0.85em;
+  color: var(--text-light);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.chat-ia-export-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.chat-ia-export-card__actions .btn-secondary {
+  padding: 8px 12px;
+  min-height: auto;
+  font-size: 0.85em;
+}
+
+.chat-ia-export-card__loading {
+  font-size: 0.85em;
+  color: var(--text-light);
+  font-style: italic;
+}
+
 @media (max-width: 768px) {
   .chat-ia-view {
     height: calc(100vh - 220px);

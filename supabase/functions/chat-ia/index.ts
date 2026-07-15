@@ -6,7 +6,7 @@
 //        - consultar_dados  -> executa SELECT de leitura na hora (RPC sacp_chat_run_select)
 //        - propor_alteracao -> só CRIA uma proposta pendente (RPC sacp_chat_propor_escrita);
 //                                a escrita real só acontece quando o usuário confirma.
-//      Retorna o texto final do assistente + a lista de propostas pendentes geradas nesta rodada.
+//      Retorna o texto final do assistente + a lista de propostas pendentes geradas nesta rodada + os dados retornados pelas consultas (queryResults).
 //   2) Frontend manda { confirmarEscritaId } ou { cancelarEscritaId } para
 //      efetivar ou descartar uma proposta pendente.
 //
@@ -40,7 +40,7 @@ const TOOLS: AnthropicToolDef[] = [
         },
         motivo: {
           type: 'string',
-          description: 'Explicação curta do que a consulta busca (fica no log de auditoria).',
+          description: 'Explicação curta do que a consulta busca (fica no log de auditoria e vira o título do relatório se o usuário exportar).',
         },
       },
       required: ['sql'],
@@ -110,6 +110,7 @@ Regras obrigatórias:
 6. Se o usuário pedir uma alteração e ele for professor (não coordenação), explique educadamente que só a coordenação pode confirmar alterações de dados pelo chat.
 7. Se uma consulta falhar (tabela/coluna errada, erro de sintaxe), ajuste a query e tente de novo em vez de desistir — mas no máximo algumas tentativas; se continuar falhando, explique o problema ao usuário.
 8. Seja conciso. Traga números e listas curtas quando fizer sentido, sem enrolação.
+9. O usuário pode baixar em PDF/Word/Excel qualquer tabela de dados que você trouxer com "consultar_dados" — não é preciso gerar o arquivo você mesmo, só preencha "motivo" com um título curto e claro, que vira o nome do relatório.
 `.trim();
 }
 
@@ -190,6 +191,7 @@ serve(async (req) => {
 
     const messages: AnthropicMessage[] = [...incomingMessages];
     const pendingConfirmations: Array<Record<string, unknown>> = [];
+    const queryResults: Array<{ motivo: string; sql: string; rows: unknown[] }> = [];
 
     let finalText = '';
     for (let i = 0; i < MAX_TOOL_ITERATIONS; i += 1) {
@@ -223,6 +225,14 @@ serve(async (req) => {
               content: `Erro ao consultar: ${error.message}`,
             });
           } else {
+            const rows = Array.isArray(data) ? data : [];
+            if (rows.length) {
+              queryResults.push({
+                motivo: String(toolUse.input?.motivo || ''),
+                sql,
+                rows,
+              });
+            }
             const serialized = JSON.stringify(data ?? []);
             const truncated = serialized.length > 6000 ? `${serialized.slice(0, 6000)}... (truncado)` : serialized;
             toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: truncated });
@@ -273,7 +283,7 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ reply: finalText, messages, pendingConfirmations }),
+      JSON.stringify({ reply: finalText, messages, pendingConfirmations, queryResults }),
       { headers: jsonHeaders },
     );
   } catch (e) {

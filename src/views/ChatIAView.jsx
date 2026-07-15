@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { sendChatMessage, confirmarEscritaChatIa, cancelarEscritaChatIa, userTextMessage } from '../services/chatIaApi';
+import { exportChatRowsToPdf, exportChatRowsToWord, exportChatRowsToCsv } from '../utils/chatIaExport';
 import { toast } from '../utils/appFeedback';
 
 let nextDisplayId = 1;
@@ -22,6 +23,7 @@ const ChatIAView = ({ isProfessor }) => {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [confirmingId, setConfirmingId] = useState(null);
+  const [exportingKey, setExportingKey] = useState(null);
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -51,6 +53,7 @@ const ChatIAView = ({ isProfessor }) => {
           role: 'assistant',
           text: result.reply || '(sem resposta)',
           pendingConfirmations: result.pendingConfirmations || [],
+          queryResults: result.queryResults || [],
         },
       ]);
     } catch (error) {
@@ -112,6 +115,21 @@ const ChatIAView = ({ isProfessor }) => {
       toast.error(error.message || 'Erro ao cancelar alteração.');
     } finally {
       setConfirmingId(null);
+    }
+  };
+
+  const handleExport = async (formato, resultado, resultKey) => {
+    const titulo = resultado.motivo || 'Dados do Chat IA';
+    setExportingKey(resultKey);
+    try {
+      if (formato === 'pdf') await exportChatRowsToPdf(resultado.rows, titulo);
+      else if (formato === 'word') await exportChatRowsToWord(resultado.rows, titulo);
+      else await exportChatRowsToCsv(resultado.rows, titulo);
+    } catch (error) {
+      console.error('Erro ao exportar dados do chat:', error);
+      toast.error(error.message || 'Erro ao gerar o arquivo.');
+    } finally {
+      setExportingKey(null);
     }
   };
 
@@ -197,6 +215,47 @@ const ChatIAView = ({ isProfessor }) => {
                 )}
               </div>
             ))}
+
+            {m.queryResults
+              ?.filter((r) => r.rows?.length)
+              .map((r, idx) => {
+                const resultKey = `${m.id}-${idx}`;
+                return (
+                  <div key={resultKey} className="chat-ia-export-card">
+                    <div className="chat-ia-export-card__label">
+                      <i className="fas fa-table" /> {r.motivo || 'Resultado da consulta'} ({r.rows.length}{' '}
+                      {r.rows.length === 1 ? 'linha' : 'linhas'})
+                    </div>
+                    <div className="chat-ia-export-card__actions">
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        disabled={exportingKey === resultKey}
+                        onClick={() => handleExport('pdf', r, resultKey)}
+                      >
+                        <i className="fas fa-file-pdf" /> PDF
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        disabled={exportingKey === resultKey}
+                        onClick={() => handleExport('word', r, resultKey)}
+                      >
+                        <i className="fas fa-file-word" /> Word
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        disabled={exportingKey === resultKey}
+                        onClick={() => handleExport('csv', r, resultKey)}
+                      >
+                        <i className="fas fa-file-csv" /> Excel/CSV
+                      </button>
+                      {exportingKey === resultKey && <span className="chat-ia-export-card__loading">Gerando...</span>}
+                    </div>
+                  </div>
+                );
+              })}
           </div>
         ))}
 
