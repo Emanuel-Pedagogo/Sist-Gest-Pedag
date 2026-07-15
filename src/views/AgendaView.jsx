@@ -61,6 +61,7 @@ const AgendaView = ({
   hasSemedImport = false,
   handleBackdropMouseDown,
   handleBackdropClick,
+  readOnly = false,
 }) => {
   const [showExportModal, setShowExportModal] = useState(false);
   const [hoveredEvent, setHoveredEvent] = useState(null);
@@ -76,6 +77,7 @@ const AgendaView = ({
   const hideEventTooltip = () => setHoveredEvent(null);
 
   const openNewEventModal = (dateStr, horaInicio = '08:00', horaFim = '09:00') => {
+    if (readOnly) return;
     setEditingEvent(null);
     setEventFormData({
       ...INITIAL_EVENT_FORM_DATA,
@@ -289,24 +291,26 @@ const AgendaView = ({
               {currentDate.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}
             </h3>
           </div>
-          <button
-            type="button"
-            onClick={() => openNewEventModal(dateStr)}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 14px',
-              border: 'none',
-              borderRadius: 6,
-              background: 'var(--primary)',
-              color: 'white',
-              cursor: 'pointer',
-              fontSize: '0.85rem',
-            }}
-          >
-            <i className="fas fa-plus" /> Novo evento neste dia
-          </button>
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={() => openNewEventModal(dateStr)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 14px',
+                border: 'none',
+                borderRadius: 6,
+                background: 'var(--primary)',
+                color: 'white',
+                cursor: 'pointer',
+                fontSize: '0.85rem',
+              }}
+            >
+              <i className="fas fa-plus" /> Novo evento neste dia
+            </button>
+          )}
         </div>
 
         {dayEvents.length === 0 ? (
@@ -322,7 +326,11 @@ const AgendaView = ({
           >
             <i className="fas fa-calendar-day" style={{ fontSize: '2.5rem', opacity: 0.25, marginBottom: 12 }} />
             <p style={{ margin: 0 }}>Nenhum evento neste dia.</p>
-            <p style={{ margin: '8px 0 0', fontSize: '0.9em' }}>Clique em &quot;Novo evento neste dia&quot; para agendar.</p>
+            {!readOnly && (
+              <p style={{ margin: '8px 0 0', fontSize: '0.9em' }}>
+                Clique em &quot;Novo evento neste dia&quot; para agendar.
+              </p>
+            )}
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -423,7 +431,7 @@ const AgendaView = ({
           </button>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          {onOpenSemedImport && (
+          {!readOnly && onOpenSemedImport && (
             <AgendaSemedToolbar
               onOpenImport={onOpenSemedImport}
               showSemedMarcos={showSemedMarcos}
@@ -442,28 +450,30 @@ const AgendaView = ({
             <i className="fas fa-file-export" style={{ color: '#555' }} />
             {exportingAgenda ? 'Exportando...' : 'Exportar'}
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              const hoje = new Date();
-              openNewEventModal(formatDateStr(hoje));
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 5,
-              padding: '8px 10px',
-              border: '1px solid transparent',
-              borderRadius: 6,
-              background: 'var(--primary)',
-              color: 'white',
-              cursor: 'pointer',
-              fontSize: '0.8rem',
-              lineHeight: 1,
-            }}
-          >
-            <i className="fas fa-plus" style={{ fontSize: '0.75rem' }} /> Novo Evento
-          </button>
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={() => {
+                const hoje = new Date();
+                openNewEventModal(formatDateStr(hoje));
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 5,
+                padding: '8px 10px',
+                border: '1px solid transparent',
+                borderRadius: 6,
+                background: 'var(--primary)',
+                color: 'white',
+                cursor: 'pointer',
+                fontSize: '0.8rem',
+                lineHeight: 1,
+              }}
+            >
+              <i className="fas fa-plus" style={{ fontSize: '0.75rem' }} /> Novo Evento
+            </button>
+          )}
         </div>
       </div>
 

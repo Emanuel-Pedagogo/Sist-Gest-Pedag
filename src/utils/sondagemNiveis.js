@@ -60,6 +60,18 @@ export function inferAnoEscolarSet(turma) {
   const nome = (turma.nome || '').toLowerCase();
   const anoEscolar = turma.ano_escolar ?? turma.ano;
   const anos = Array.isArray(anoEscolar) ? anoEscolar : anoEscolar != null ? [anoEscolar] : [];
+  const textoAnos = anos.map((a) => String(a).toLowerCase()).join(' ');
+  // Ensino médio usa os mesmos descritores do Fundamental II
+  if (
+    /\bensino\s*m[eé]dio\b/.test(nome) ||
+    /\b[1-3][º°o]?\s*ano\s*(?:em|e\.?\s*m\.?)\b/.test(nome) ||
+    /\b[1-3][º°o]?\s*(?:ano\s*)?(?:do\s*)?m[eé]dio\b/.test(nome) ||
+    /\bensino\s*m[eé]dio\b/.test(textoAnos) ||
+    /\b[1-3][º°o]?\s*ano\s*(?:em|e\.?\s*m\.?)\b/.test(textoAnos) ||
+    /\b[1-3][º°o]?\s*(?:ano\s*)?(?:do\s*)?m[eé]dio\b/.test(textoAnos)
+  ) {
+    return '6-9';
+  }
   const temAno69 = nome.match(/\b[6-9]º?\b/) || anos.some((a) => [6, 7, 8, 9].includes(Number(a)));
   if (temAno69) return '6-9';
   const temAno35 = nome.match(/\b[3-5]º?\b/) || anos.some((a) => [3, 4, 5].includes(Number(a)));

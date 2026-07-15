@@ -33,8 +33,11 @@ const DashboardView = ({
   setCurrentDate,
   setAgendaView,
   onOpenEventDetail,
+  userRole = 'coordenador',
+  professorProfile = null,
 }) => {
   const [showOnboarding, setShowOnboarding] = useState(isOnboardingVisible);
+  const isProfessor = userRole === 'professor';
 
   const goToClasses = () => {
     setSelectedClassId(null);
@@ -63,7 +66,32 @@ const DashboardView = ({
 
   return (
     <div id="view-dashboard" className="view-section">
-      {showOnboarding && (
+      {isProfessor && (
+        <div className="card" style={{ marginBottom: 16, padding: '14px 16px', background: '#f0f7ff', border: '1px solid #d0e6f8' }}>
+          <strong style={{ display: 'block', marginBottom: 4 }}>
+            Área do professor{professorProfile?.nome ? ` — ${professorProfile.nome}` : ''}
+          </strong>
+          <p style={{ margin: 0, fontSize: '0.9rem', color: '#555', lineHeight: 1.45 }}>
+            Você vê apenas as suas turmas e pode registrar sondagens, ocorrências, notas e entregas.
+            Regras de etiqueta e configuração da escola continuam com a coordenação.
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
+            <button type="button" className="btn-primary" style={{ width: 'auto', padding: '8px 14px' }} onClick={goToClasses}>
+              Minhas turmas
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              style={{ width: 'auto', padding: '8px 14px' }}
+              onClick={() => setCurrentView('entregas')}
+            >
+              Minhas entregas
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!isProfessor && showOnboarding && (
         <OnboardingChecklist
           classesCount={classesCount}
           totalAlunos={totalAlunos}
@@ -75,7 +103,9 @@ const DashboardView = ({
       )}
 
       <div className="dashboard-etiquetas-header">
-        <h3 style={{ margin: 0, fontSize: '1rem' }}>Resumo por etiqueta</h3>
+        <h3 style={{ margin: 0, fontSize: '1rem' }}>
+          {isProfessor ? 'Resumo das minhas turmas' : 'Resumo por etiqueta'}
+        </h3>
         <EtiquetaGlossarioButton compact />
       </div>
 

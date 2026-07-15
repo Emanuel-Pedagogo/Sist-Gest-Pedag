@@ -1,5 +1,6 @@
 import React from 'react';
 import ModalShell from '../ModalShell';
+import { ANOS_ESCOLARES_OPCOES } from '../../utils/anosEscolares';
 
 const ClassModal = ({
   showClassModal,
@@ -146,7 +147,7 @@ const ClassModal = ({
                   background: '#f9f9f9',
                 }}
               >
-                {['Pré I', 'Pré II', '1º Ano', '2º Ano', '3º Ano', '4º Ano', '5º Ano', '6º Ano', '7º Ano', '8º Ano', '9º Ano'].map((anoOption) => (
+                {ANOS_ESCOLARES_OPCOES.map((anoOption) => (
                   <label
                     key={anoOption}
                     style={{

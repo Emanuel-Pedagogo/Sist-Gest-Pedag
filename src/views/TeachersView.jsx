@@ -26,7 +26,7 @@ const TeachersView = ({
           style={{ width: 'auto', padding: '10px 20px' }}
           onClick={() => {
             setEditingTeacher(null);
-            setTeacherFormData({ nome: '', disciplina: '', turmas_ids: [] });
+            setTeacherFormData({ nome: '', disciplina: '', turmas_ids: [], auth_email: '' });
             setShowTeacherModal(true);
           }}
         >

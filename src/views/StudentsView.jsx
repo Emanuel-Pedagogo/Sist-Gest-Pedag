@@ -32,6 +32,7 @@ const StudentsView = ({
   getBadgeColorClass,
   handleEditStudent,
   handleDeleteStudent,
+  canManageCadastro = true,
 }) => {
   return (
     <div id="view-students" className="view-section">
@@ -53,30 +54,32 @@ const StudentsView = ({
         <h2 style={{ margin: 0 }}>
           Alunos {selectedClassName ? `- ${selectedClassName}` : activeSchool ? `- ${activeSchool.nome}` : ''}
         </h2>
-        <button
-          className="btn-primary"
-          style={{ width: 'auto', padding: '10px 20px' }}
-          onClick={() => {
-            setEditingStudent(null);
-            setStudentFormData({
-              nome: '',
-              data_nascimento: '',
-              turma_id: '',
-              etiqueta_cor: 'azul',
-              matricula: '',
-              nome_responsavel: '',
-              contato: '',
-              aee_deficiencia: '',
-              aee_cid: '',
-              motivo_etiqueta: '',
-            });
-            setAeeFormData({ aee_tem_laudo: false, aee_mediadora: '', aee_plano_individual: '' });
-            setShowStudentModal(true);
-          }}
-        >
-          <i className="fas fa-plus" style={{ marginRight: 5 }} />
-          Novo Aluno
-        </button>
+        {canManageCadastro && (
+          <button
+            className="btn-primary"
+            style={{ width: 'auto', padding: '10px 20px' }}
+            onClick={() => {
+              setEditingStudent(null);
+              setStudentFormData({
+                nome: '',
+                data_nascimento: '',
+                turma_id: '',
+                etiqueta_cor: 'azul',
+                matricula: '',
+                nome_responsavel: '',
+                contato: '',
+                aee_deficiencia: '',
+                aee_cid: '',
+                motivo_etiqueta: '',
+              });
+              setAeeFormData({ aee_tem_laudo: false, aee_mediadora: '', aee_plano_individual: '' });
+              setShowStudentModal(true);
+            }}
+          >
+            <i className="fas fa-plus" style={{ marginRight: 5 }} />
+            Novo Aluno
+          </button>
+        )}
       </div>
 
       <div className="filter-bar students-filters">
@@ -147,27 +150,35 @@ const StudentsView = ({
           <EmptyState
             icon="fas fa-user-graduate"
             title="Nenhum aluno cadastrado"
-            description={selectedClassName
-              ? `Cadastre o primeiro aluno da turma ${selectedClassName}.`
-              : 'Comece adicionando alunos à escola ou selecione uma turma.'}
-            actionLabel="Cadastrar aluno"
-            onAction={() => {
-              setEditingStudent(null);
-              setStudentFormData({
-                nome: '',
-                data_nascimento: '',
-                turma_id: '',
-                etiqueta_cor: 'azul',
-                matricula: '',
-                nome_responsavel: '',
-                contato: '',
-                aee_deficiencia: '',
-                aee_cid: '',
-                motivo_etiqueta: '',
-              });
-              setAeeFormData({ aee_tem_laudo: false, aee_mediadora: '', aee_plano_individual: '' });
-              setShowStudentModal(true);
-            }}
+            description={
+              selectedClassName
+                ? `Ainda não há alunos na turma ${selectedClassName}.`
+                : canManageCadastro
+                  ? 'Comece adicionando alunos à escola ou selecione uma turma.'
+                  : 'Selecione uma das suas turmas para ver os alunos.'
+            }
+            actionLabel={canManageCadastro ? 'Cadastrar aluno' : undefined}
+            onAction={
+              canManageCadastro
+                ? () => {
+                    setEditingStudent(null);
+                    setStudentFormData({
+                      nome: '',
+                      data_nascimento: '',
+                      turma_id: '',
+                      etiqueta_cor: 'azul',
+                      matricula: '',
+                      nome_responsavel: '',
+                      contato: '',
+                      aee_deficiencia: '',
+                      aee_cid: '',
+                      motivo_etiqueta: '',
+                    });
+                    setAeeFormData({ aee_tem_laudo: false, aee_mediadora: '', aee_plano_individual: '' });
+                    setShowStudentModal(true);
+                  }
+                : undefined
+            }
           />
         )}
         {!studentsLoading &&
@@ -205,22 +216,26 @@ const StudentsView = ({
                   <span className={`badge ${badgeClass}`}>
                     {getEtiquetaLabel(aluno.etiqueta_cor)}
                   </span>
-                  <button
-                    type="button"
-                    className="btn-icon btn-icon--accent"
-                    onClick={(e) => { e.stopPropagation(); handleEditStudent(aluno); }}
-                    aria-label={`Editar ${aluno.nome}`}
-                  >
-                    <i className="fas fa-edit" />
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-icon btn-icon--danger"
-                    onClick={(e) => { e.stopPropagation(); handleDeleteStudent(aluno.id); }}
-                    aria-label={`Excluir ${aluno.nome}`}
-                  >
-                    <i className="fas fa-trash" />
-                  </button>
+                  {canManageCadastro && (
+                    <button
+                      type="button"
+                      className="btn-icon btn-icon--accent"
+                      onClick={(e) => { e.stopPropagation(); handleEditStudent(aluno); }}
+                      aria-label={`Editar ${aluno.nome}`}
+                    >
+                      <i className="fas fa-edit" />
+                    </button>
+                  )}
+                  {canManageCadastro && (
+                    <button
+                      type="button"
+                      className="btn-icon btn-icon--danger"
+                      onClick={(e) => { e.stopPropagation(); handleDeleteStudent(aluno.id); }}
+                      aria-label={`Excluir ${aluno.nome}`}
+                    >
+                      <i className="fas fa-trash" />
+                    </button>
+                  )}
                 </div>
               </div>
             );

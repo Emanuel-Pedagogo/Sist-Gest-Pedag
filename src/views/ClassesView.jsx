@@ -53,6 +53,7 @@ const ClassesView = ({
   onSondagensImportadas,
   onBoletinsImportados,
   reavaliarCorAluno,
+  canManageCadastro = true,
 }) => {
   const [showImportLista, setShowImportLista] = useState(false);
   const [showImportSondagem, setShowImportSondagem] = useState(false);
@@ -114,7 +115,7 @@ const ClassesView = ({
               {selectedClassName}
             </h2>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', justifyContent: 'flex-end' }}>
-              {!turmaEspecial && (
+              {canManageCadastro && !turmaEspecial && (
                 <>
               <button
                 type="button"
@@ -196,55 +197,59 @@ const ClassesView = ({
               </button>
                 </>
               )}
-              <button
-                type="button"
-                className="btn-secondary"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '10px 16px',
-                  border: '1px solid #d1d5db',
-                  borderRadius: 8,
-                  background: 'white',
-                  color: '#374151',
-                  fontWeight: 600,
-                  cursor: students.length === 0 ? 'not-allowed' : 'pointer',
-                  opacity: students.length === 0 ? 0.6 : 1,
-                }}
-                disabled={students.length === 0}
-                onClick={() => {
-                  setAlunoParaEditarId('');
-                  setShowEditAlunoPicker(true);
-                }}
-              >
-                <i className="fas fa-user-edit" style={{ color: 'var(--accent)' }} />
-                Editar aluno
-              </button>
-              <button
-                className="btn-primary"
-                style={{ width: 'auto', padding: '10px 20px' }}
-                onClick={() => {
-                  setEditingStudent(null);
-                  setStudentFormData({
-                    nome: '',
-                    data_nascimento: '',
-                    turma_id: selectedClassId,
-                    etiqueta_cor: 'azul',
-                    matricula: '',
-                    nome_responsavel: '',
-                    contato: '',
-                    aee_deficiencia: '',
-                    aee_cid: '',
-                    motivo_etiqueta: '',
-                  });
-                  setAeeFormData({ aee_tem_laudo: false, aee_mediadora: '', aee_plano_individual: '' });
-                  setShowStudentModal(true);
-                }}
-              >
-                <i className="fas fa-plus" style={{ marginRight: 5 }} />
-                {isTurmaEspecial(turmaAtual) ? 'Adicionar Aluno' : 'Novo Aluno'}
-              </button>
+              {canManageCadastro && (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '10px 16px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: 8,
+                    background: 'white',
+                    color: '#374151',
+                    fontWeight: 600,
+                    cursor: students.length === 0 ? 'not-allowed' : 'pointer',
+                    opacity: students.length === 0 ? 0.6 : 1,
+                  }}
+                  disabled={students.length === 0}
+                  onClick={() => {
+                    setAlunoParaEditarId('');
+                    setShowEditAlunoPicker(true);
+                  }}
+                >
+                  <i className="fas fa-user-edit" style={{ color: 'var(--accent)' }} />
+                  Editar aluno
+                </button>
+              )}
+              {canManageCadastro && (
+                <button
+                  className="btn-primary"
+                  style={{ width: 'auto', padding: '10px 20px' }}
+                  onClick={() => {
+                    setEditingStudent(null);
+                    setStudentFormData({
+                      nome: '',
+                      data_nascimento: '',
+                      turma_id: selectedClassId,
+                      etiqueta_cor: 'azul',
+                      matricula: '',
+                      nome_responsavel: '',
+                      contato: '',
+                      aee_deficiencia: '',
+                      aee_cid: '',
+                      motivo_etiqueta: '',
+                    });
+                    setAeeFormData({ aee_tem_laudo: false, aee_mediadora: '', aee_plano_individual: '' });
+                    setShowStudentModal(true);
+                  }}
+                >
+                  <i className="fas fa-plus" style={{ marginRight: 5 }} />
+                  {isTurmaEspecial(turmaAtual) ? 'Adicionar Aluno' : 'Novo Aluno'}
+                </button>
+              )}
             </div>
           </div>
 
@@ -290,7 +295,7 @@ const ClassesView = ({
 
           {activeTab === 'alunos' && (
             <>
-              {showImportLista && !turmaEspecial && (
+              {canManageCadastro && showImportLista && !turmaEspecial && (
             <ImportarListaAlunos
               turmaId={selectedClassId}
               onImportComplete={() => {
@@ -300,7 +305,7 @@ const ClassesView = ({
             />
           )}
 
-          {showImportSondagem && !turmaEspecial && (
+          {canManageCadastro && showImportSondagem && !turmaEspecial && (
             <ImportarSondagemFoto
               turmaId={selectedClassId}
               turma={turmaAtual}
@@ -313,7 +318,7 @@ const ClassesView = ({
             />
           )}
 
-          {showImportBoletim && !turmaEspecial && (
+          {canManageCadastro && showImportBoletim && !turmaEspecial && (
             <ImportarBoletimTurma
               turmaId={selectedClassId}
               turmaNome={selectedClassName}
@@ -482,39 +487,43 @@ const ClassesView = ({
                       <span className={`badge ${badgeClass}`}>
                         {getEtiquetaLabel(aluno.etiqueta_cor)}
                       </span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleEditStudent(aluno);
-                        }}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 6,
-                          background: 'var(--accent)',
-                          color: 'white',
-                          border: 'none',
-                          padding: '8px 12px',
-                          borderRadius: 6,
-                          cursor: 'pointer',
-                          fontWeight: 500,
-                        }}
-                      >
-                        <i className="fas fa-edit" />
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteStudent(aluno.id);
-                        }}
-                        title={turmaEspecial ? 'Remover da turma especial' : 'Excluir aluno'}
-                        style={{ background: 'var(--danger)', color: 'white', border: 'none', padding: '8px 12px', borderRadius: 6, cursor: 'pointer' }}
-                      >
-                        <i className={turmaEspecial ? 'fas fa-user-minus' : 'fas fa-trash'} />
-                      </button>
+                      {canManageCadastro && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditStudent(aluno);
+                            }}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              background: 'var(--accent)',
+                              color: 'white',
+                              border: 'none',
+                              padding: '8px 12px',
+                              borderRadius: 6,
+                              cursor: 'pointer',
+                              fontWeight: 500,
+                            }}
+                          >
+                            <i className="fas fa-edit" />
+                            Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteStudent(aluno.id);
+                            }}
+                            title={turmaEspecial ? 'Remover da turma especial' : 'Excluir aluno'}
+                            style={{ background: 'var(--danger)', color: 'white', border: 'none', padding: '8px 12px', borderRadius: 6, cursor: 'pointer' }}
+                          >
+                            <i className={turmaEspecial ? 'fas fa-user-minus' : 'fas fa-trash'} />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 );
@@ -536,29 +545,32 @@ const ClassesView = ({
             }}
           >
             <h2 style={{ margin: 0 }}>
-              Turmas {(activeSchool && activeSchool.nome) ? `- ${activeSchool.nome}` : ''}
+              {canManageCadastro ? 'Turmas' : 'Minhas turmas'}
+              {(activeSchool && activeSchool.nome) ? ` - ${activeSchool.nome}` : ''}
             </h2>
-            <button
-              className="btn-primary"
-              style={{ width: 'auto', padding: '10px 20px' }}
-              onClick={() => {
-                setEditingClass(null);
-                setClassFormData({
-                  nome: '',
-                  ano: [],
-                  codigo: '',
-                  professor_regente: '',
-                  aluno_representante: '',
-                  escola_id: activeSchoolId || '',
-                  ano_letivo: selectedYear,
-                  turma_especial: false,
-                });
-                setShowClassModal(true);
-              }}
-            >
-              <i className="fas fa-plus" style={{ marginRight: 5 }} />
-              Nova Turma
-            </button>
+            {canManageCadastro && (
+              <button
+                className="btn-primary"
+                style={{ width: 'auto', padding: '10px 20px' }}
+                onClick={() => {
+                  setEditingClass(null);
+                  setClassFormData({
+                    nome: '',
+                    ano: [],
+                    codigo: '',
+                    professor_regente: '',
+                    aluno_representante: '',
+                    escola_id: activeSchoolId || '',
+                    ano_letivo: selectedYear,
+                    turma_especial: false,
+                  });
+                  setShowClassModal(true);
+                }}
+              >
+                <i className="fas fa-plus" style={{ marginRight: 5 }} />
+                Nova Turma
+              </button>
+            )}
           </div>
           <div style={{ marginBottom: 20 }}>
             <input
@@ -667,38 +679,42 @@ const ClassesView = ({
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleEditClass(turma);
-                      }}
-                      style={{
-                        background: 'var(--accent)',
-                        color: 'white',
-                        border: 'none',
-                        padding: '8px 12px',
-                        borderRadius: 6,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <i className="fas fa-edit" />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteClass(turma.id);
-                      }}
-                      style={{
-                        background: 'var(--danger)',
-                        color: 'white',
-                        border: 'none',
-                        padding: '8px 12px',
-                        borderRadius: 6,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <i className="fas fa-trash" />
-                    </button>
+                    {canManageCadastro && (
+                      <>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEditClass(turma);
+                          }}
+                          style={{
+                            background: 'var(--accent)',
+                            color: 'white',
+                            border: 'none',
+                            padding: '8px 12px',
+                            borderRadius: 6,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <i className="fas fa-edit" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteClass(turma.id);
+                          }}
+                          style={{
+                            background: 'var(--danger)',
+                            color: 'white',
+                            border: 'none',
+                            padding: '8px 12px',
+                            borderRadius: 6,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <i className="fas fa-trash" />
+                        </button>
+                      </>
+                    )}
                     <i className="fas fa-chevron-right" style={{ color: '#999' }} />
                   </div>
                 </div>

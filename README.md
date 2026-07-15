@@ -32,6 +32,7 @@ npm run build
 ## Documentação principal
 
 - [`docs/CONTEXTO-PROJETO.md`](./docs/CONTEXTO-PROJETO.md): **contexto completo do projeto** (o que é, arquitetura, domínio, estágio, riscos e convenções) — ler primeiro, inclusive para IAs/contribuidores novos.
+- [`docs/VERSAO-PROFESSOR.md`](./docs/VERSAO-PROFESSOR.md): módulo/perfil Professor (ativação SQL + checklist).
 - [`docs/PILOTO-CONFIAVEL.md`](./docs/PILOTO-CONFIAVEL.md): plano operacional para validar o sistema em piloto controlado.
 - [`docs/SUPABASE-CHECKLIST-PILOTO.md`](./docs/SUPABASE-CHECKLIST-PILOTO.md): checklist Supabase (tabelas, RLS, buckets, Edge Functions).
 - [`docs/ROTEIRO-VALIDACAO-PILOTO.md`](./docs/ROTEIRO-VALIDACAO-PILOTO.md): roteiro passo a passo para validar fluxos antes do piloto.

@@ -57,6 +57,17 @@ import {
 } from './utils/alunosTurmas';
 import SettingsView from './views/SettingsView';
 import MobileBottomNav from './components/MobileBottomNav';
+import ProfessorEntregasView from './components/ProfessorEntregasView';
+import {
+  USER_ROLE,
+  PROFESSOR_BOTTOM_NAV,
+  resolveUserRole,
+  isProfessorRole,
+  isViewAllowedForRole,
+  filterTurmasForProfessor,
+  filterTurmaIdsForProfessor,
+  professorHasTurma,
+} from './utils/userRole';
 
 import { evaluateStudentColor, getMotivoOrigemEtiqueta } from './utils/studentColorEvaluator';
 import { enrichAlunosEtiquetaMotivo } from './utils/alunosEtiquetaMotivo';
@@ -64,6 +75,7 @@ import { Capacitor } from '@capacitor/core';
 import { getAuthRedirectUrl } from './utils/authRedirect';
 import { signInWithGoogleNative } from './utils/nativeAuth';
 import { toast, confirmAction } from './utils/appFeedback';
+import { GRADE_ORDER as GRADE_ORDER_CANONICAL, isEnsinoMedioText, getCanonicalGradesForTurma as getCanonicalGradesForTurmaUtil } from './utils/anosEscolares';
 
 function App() {
   // Data local em YYYY-MM-DD (evita dia anterior por timezone)
@@ -91,6 +103,8 @@ function App() {
   const [recoveryNewPassword, setRecoveryNewPassword] = useState('');
   const [recoveryConfirmPassword, setRecoveryConfirmPassword] = useState('');
   const [authUser, setAuthUser] = useState(null); // usuário logado (Supabase auth)
+  const [userRole, setUserRole] = useState(null); // null | 'coordenador' | 'professor'
+  const [professorProfile, setProfessorProfile] = useState(null);
   const [, setNavHydrated] = useState(false);
   const isLoggedInRef = useRef(false);
   // Inicializar estados - serão carregados do localStorage quando houver sessão
@@ -277,6 +291,7 @@ function App() {
     nome: '',
     disciplina: '',
     turmas_ids: [],
+    auth_email: '',
   });
   const [savingTeacher, setSavingTeacher] = useState(false);
   const [teacherSearchTerm, setTeacherSearchTerm] = useState('');
@@ -367,6 +382,50 @@ function App() {
   const [reportList, setReportList] = useState([]);
   const [reportLoading, setReportLoading] = useState(false);
   const [reportGenerated, setReportGenerated] = useState(false);
+
+  // Resolve papel (coordenador vs professor) após autenticação
+  useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      if (!authUser) {
+        setUserRole(null);
+        setProfessorProfile(null);
+        return;
+      }
+
+      try {
+        const { role, professor } = await resolveUserRole(supabase, authUser);
+        if (cancelled) return;
+        setUserRole(role);
+        setProfessorProfile(professor);
+
+        if (role === USER_ROLE.PROFESSOR && professor) {
+          if (professor.escola_id) {
+            setActiveSchoolId(professor.escola_id);
+            setSelectedSchoolId(professor.escola_id);
+          }
+          if (professor.ano_letivo) {
+            setSelectedYear(Number(professor.ano_letivo));
+          }
+          if (!isViewAllowedForRole(role, currentViewRef.current)) {
+            setCurrentView('dashboard');
+          }
+        }
+      } catch (err) {
+        console.error('Erro ao resolver papel do usuário:', err);
+        if (!cancelled) {
+          setUserRole(USER_ROLE.COORDENADOR);
+          setProfessorProfile(null);
+        }
+      }
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [authUser]);
 
   // Listener de sessão: mantém login ao recarregar e após OAuth
   useEffect(() => {
@@ -764,7 +823,23 @@ function App() {
     window.history.replaceState(null, '', window.location.pathname + window.location.search);
   };
 
+  const isProfessor = isProfessorRole(userRole);
+
+  // Guard contínuo: URL/localStorage podem setar a view direto (bypass de navigate)
+  useEffect(() => {
+    if (!userRole || !isProfessorRole(userRole)) return;
+    if (!isViewAllowedForRole(userRole, currentView)) {
+      toast.warn('Esta área é exclusiva da coordenação.');
+      setCurrentView('dashboard');
+    }
+  }, [userRole, currentView]);
+
   const navigate = (viewId) => {
+    if (userRole && !isViewAllowedForRole(userRole, viewId)) {
+      toast.warn('Esta área é exclusiva da coordenação.');
+      setCurrentView('dashboard');
+      return;
+    }
     setCurrentView(viewId);
   };
 
@@ -776,6 +851,17 @@ function App() {
     }
   };
 
+  // Se turma persistida/URL estiver fora do escopo do professor, limpa
+  useEffect(() => {
+    if (!isProfessor || !professorProfile || !selectedClassId) return;
+    if (!professorHasTurma(professorProfile, selectedClassId)) {
+      setSelectedClassId(null);
+      setSelectedClassName('');
+      clearPersistedTurmaNav();
+      toast.warn('Você não tem acesso a esta turma.');
+    }
+  }, [isProfessor, professorProfile, selectedClassId]);
+
   const selectSchool = (school) => {
     setSelectedSchool(school.nome);
     setSelectedSchoolId(school.id);
@@ -783,12 +869,20 @@ function App() {
   };
 
   const selectClass = (turma) => {
+    if (isProfessor && !professorHasTurma(professorProfile, turma?.id)) {
+      toast.warn('Você não tem acesso a esta turma.');
+      return;
+    }
     setSelectedClassId(turma.id);
     setSelectedClassName(turma.nome);
     // Mantém a aba Turmas selecionada; a lista de alunos da turma será exibida na própria view de turmas
   };
 
   const selectStudent = (aluno, options = {}) => {
+    if (isProfessor && !professorHasTurma(professorProfile, aluno?.turma_id)) {
+      toast.warn('Você não tem acesso a este aluno.');
+      return;
+    }
     const { keepTab = false } = options;
     setSelectedStudentId(aluno.id);
     setSelectedStudent(aluno);
@@ -818,21 +912,22 @@ function App() {
 
   const getPageTitle = () => {
     const titles = {
-      dashboard: 'Visão Geral',
+      dashboard: isProfessor ? 'Minha área' : 'Visão Geral',
       agenda: 'Agenda e Planejamento',
       schools: 'Gestão de Escolas',
-      classes: 'Gestão de Turmas',
-      students: 'Gestão de Alunos',
+      classes: isProfessor ? 'Minhas Turmas' : 'Gestão de Turmas',
+      students: isProfessor ? 'Meus Alunos' : 'Gestão de Alunos',
       teachers: 'Gestão de Professores',
       'teacher-detail': 'Perfil do Professor',
       'student-detail': 'Detalhes do Aluno',
       'agenda-event-detail': 'Anotações do Evento',
+      entregas: 'Minhas entregas',
       reports: 'Relatórios',
       emprestimos: 'Biblioteca e Empréstimos',
       settings: 'Configurações',
       profile: 'Meu perfil',
     };
-    if (currentView === 'classes' && selectedSchool) {
+    if (currentView === 'classes' && selectedSchool && !isProfessor) {
       return `Gestão de Turmas - ${selectedSchool}`;
     }
     if (currentView === 'agenda-event-detail' && selectedAgendaEvent?.titulo) {
@@ -843,7 +938,9 @@ function App() {
 
   // Nome e função do usuário para o header e perfil
   const userName = authUser?.user_metadata?.full_name || authUser?.email?.split('@')[0] || 'Usuário';
-  const userRole = authUser?.user_metadata?.role || 'Coord.';
+  const userRoleLabel = isProfessor
+    ? 'Professor'
+    : authUser?.user_metadata?.role || 'Coordenador';
   const userInitial = (userName && userName[0]) ? userName[0].toUpperCase() : 'U';
 
   const getActiveNav = () => {
@@ -851,12 +948,13 @@ function App() {
     if (currentView === 'teacher-detail') return 'teachers';
     if (currentView === 'agenda-event-detail') return 'agenda';
     if (currentView === 'students' && selectedClassId) return 'classes';
+    if (currentView === 'entregas') return 'entregas';
     return currentView;
   };
 
   const getMobileBottomActive = () => {
     const nav = getActiveNav();
-    if (['dashboard', 'classes', 'students', 'agenda'].includes(nav)) return nav;
+    if (['dashboard', 'classes', 'students', 'agenda', 'entregas'].includes(nav)) return nav;
     return 'menu';
   };
 
@@ -970,8 +1068,13 @@ function App() {
     };
 
     // Carregar turmas na view Turmas/Alunos/Professores (para modais terem lista)
+    // Professor: também no dashboard (resumo das minhas turmas)
     if (
-      (currentView === 'classes' || currentView === 'students' || currentView === 'teachers') &&
+      (currentView === 'classes' ||
+        currentView === 'students' ||
+        currentView === 'teachers' ||
+        currentView === 'dashboard' ||
+        currentView === 'entregas') &&
       (activeSchoolId || selectedSchoolId)
     ) {
       fetchClasses();
@@ -980,7 +1083,14 @@ function App() {
 
   // Recarregar turmas quando escola ativa mudar (Turmas ou Alunos, para o modal ter lista)
   useEffect(() => {
-    if (activeSchoolId && (currentView === 'classes' || currentView === 'students' || currentView === 'teachers')) {
+    if (
+      activeSchoolId &&
+      (currentView === 'classes' ||
+        currentView === 'students' ||
+        currentView === 'teachers' ||
+        currentView === 'dashboard' ||
+        currentView === 'entregas')
+    ) {
       const fetchClasses = async () => {
         setClassesLoading(true);
        
@@ -1115,10 +1225,32 @@ function App() {
 
     return () => {
       cancelled = true;
-      setEntregasLoading(false);
-      setRegistrosCoordLoading(false);
     };
   }, [currentView, selectedTeacherId]);
+
+  // Entregas do próprio professor (área Minhas entregas)
+  useEffect(() => {
+    if (currentView !== 'entregas' || !isProfessorRole(userRole) || !professorProfile?.id) return;
+
+    let cancelled = false;
+    const load = async () => {
+      setEntregasLoading(true);
+      setEntregasError(null);
+      const { data, error } = await supabase
+        .from('entregas_docentes')
+        .select('*')
+        .eq('professor_id', professorProfile.id)
+        .order('created_at', { ascending: false });
+      if (cancelled) return;
+      if (error) setEntregasError('Erro ao carregar suas entregas.');
+      else setEntregasDocentes(data || []);
+      setEntregasLoading(false);
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentView, userRole, professorProfile?.id]);
 
   // Carregar turmas para relatórios e gráficos (da escola selecionada ou de todas as escolas)
   useEffect(() => {
@@ -1156,11 +1288,17 @@ function App() {
           .eq('ano_letivo', selectedYear);
         
         if (turmas && turmas.length > 0) {
-          const turmaIds = turmas.map((t) => t.id);
-       
-       
-       
-      const { data, error } = await supabase
+          let turmaIds = turmas.map((t) => t.id);
+          if (isProfessorRole(userRole) && professorProfile) {
+            turmaIds = filterTurmaIdsForProfessor(turmaIds, professorProfile);
+          }
+          if (turmaIds.length === 0) {
+            setStudents([]);
+            setStudentsLoading(false);
+            return;
+          }
+
+          const { data, error } = await supabase
             .from('alunos')
             .select('*')
             .in('turma_id', turmaIds);
@@ -1173,7 +1311,7 @@ function App() {
       };
       fetchStudents();
     }
-  }, [activeSchoolId, currentView, selectedClassId, selectedYear]);
+  }, [activeSchoolId, currentView, selectedClassId, selectedYear, userRole, professorProfile]);
 
   // Carregar alunos quando a view de alunos for aberta
   useEffect(() => {
@@ -1217,7 +1355,15 @@ function App() {
           .eq('ano_letivo', selectedYear);
         
         if (turmas && turmas.length > 0) {
-          const turmaIds = turmas.map((t) => t.id);
+          let turmaIds = turmas.map((t) => t.id);
+          if (isProfessorRole(userRole) && professorProfile) {
+            turmaIds = filterTurmaIdsForProfessor(turmaIds, professorProfile);
+          }
+          if (turmaIds.length === 0) {
+            setStudents([]);
+            setStudentsLoading(false);
+            return;
+          }
           query = supabase.from('alunos').select('*').in('turma_id', turmaIds);
         } else {
           setStudents([]);
@@ -1251,7 +1397,7 @@ function App() {
     ) {
       fetchStudents();
     }
-  }, [currentView, activeSchoolId, selectedSchoolId, selectedClassId, selectedStudent?.turma_id, selectedYear, classes]);
+  }, [currentView, activeSchoolId, selectedSchoolId, selectedClassId, selectedStudent?.turma_id, selectedYear, classes, userRole, professorProfile]);
 
   // Carregar dados do Dashboard
   useEffect(() => {
@@ -1276,11 +1422,30 @@ function App() {
           setTotalAlunos(0);
           setTotalRisco(0);
           setTotalAtencao(0);
+          setTotalVerde(0);
+          setTotalAzul(0);
+          setTotalRoxo(0);
           setDashboardLoading(false);
           return;
         }
 
-        const turmaIds = turmas.map((t) => t.id);
+        let turmaIds = turmas.map((t) => t.id);
+        // Professor: métricas só das turmas vinculadas (não depende só do RLS)
+        if (isProfessorRole(userRole) && professorProfile) {
+          turmaIds = filterTurmaIdsForProfessor(turmaIds, professorProfile);
+        }
+
+        if (turmaIds.length === 0) {
+          setTotalAlunos(0);
+          setTotalRisco(0);
+          setTotalAtencao(0);
+          setTotalVerde(0);
+          setTotalAzul(0);
+          setTotalRoxo(0);
+          setDashboardLoading(false);
+          return;
+        }
+
         const { data: alunos, error: alunosError } = await supabase
           .from('alunos')
           .select('id, etiqueta_cor')
@@ -1311,7 +1476,7 @@ function App() {
       fetchDashboardData();
       loadTodayEvents();
     }
-  }, [currentView, activeSchoolId, selectedYear]);
+  }, [currentView, activeSchoolId, selectedYear, userRole, professorProfile]);
 
   useEffect(() => {
     if (currentView === 'dashboard' && activeSchoolId && dashboardSelectedDate) {
@@ -1518,7 +1683,24 @@ function App() {
       const novaCor = evaluateStudentColor(tagConfig, data, { turmaNome, anoEscolar });
 
       if (novaCor !== aluno.etiqueta_cor) {
-        await supabase.from('alunos').update({ etiqueta_cor: novaCor }).eq('id', alunoId);
+        // RPC permite professor atualizar só etiqueta_cor (RLS bloqueia UPDATE direto em alunos)
+        const { error: rpcError } = await supabase.rpc('sacp_atualizar_etiqueta_aluno', {
+          p_aluno_id: alunoId,
+          p_etiqueta_cor: novaCor,
+        });
+        if (rpcError) {
+          const { error: updateError } = await supabase
+            .from('alunos')
+            .update({ etiqueta_cor: novaCor })
+            .eq('id', alunoId);
+          if (updateError) {
+            console.warn(
+              'Falha ao persistir etiqueta (RPC e UPDATE):',
+              rpcError.message,
+              updateError.message,
+            );
+          }
+        }
       }
 
       const motivoOrigem = getMotivoOrigemEtiqueta(tagConfig, data, novaCor, {
@@ -1645,77 +1827,11 @@ function App() {
     });
   };
 
-  // Extrai série (Pré I, Pré II, 1º... 9º) do nome da turma.
-  // Aceita variações comuns: "9º Ano" (título de turma), "9° ano", "nono ano", "série 9".
-  const getGradeFromTurmaNome = (nome) => {
-    if (!nome || typeof nome !== 'string') return null;
-    const n = nome.trim().toLowerCase();
-
-    if (/\b(pré|pre)\s*(i|1)\b/.test(n)) return 'Pré I';
-    if (/\b(pré|pre)\s*(ii|2)\b/.test(n)) return 'Pré II';
-
-    const palavrasAno = [
-      ['primeiro', 1],
-      ['segundo', 2],
-      ['terceiro', 3],
-      ['quarto', 4],
-      ['quinto', 5],
-      ['sexto', 6],
-      ['sétimo', 7],
-      ['setimo', 7],
-      ['oitavo', 8],
-      ['nono', 9],
-      ['nona', 9],
-    ];
-    for (const [w, ano] of palavrasAno) {
-      if (new RegExp(`\\b${w}\\b(?:\\s*ano)?`, 'i').test(n)) return `${ano}º`;
-    }
-
-    for (let ano = 1; ano <= 9; ano++) {
-      if (new RegExp(`\\b(?:serie|seria)\\s*${ano}(?![0-9])\\b`, 'i').test(n)) return `${ano}º`;
-      if (new RegExp(`(?<![0-9])${ano}(?![0-9])\\s*ª(?:\\s*ano)?\\b`, 'i').test(n)) return `${ano}º`;
-      if (
-        new RegExp(`(?<![0-9])${ano}(?![0-9])\\s*[\\u00BA\\u00B0°ºo]?\\s*(?:ano)?\\b`, 'iu').test(n)
-      ) {
-        return `${ano}º`;
-      }
-    }
-    return null;
-  };
-
-  /** Valores típicos em turmas.ano_escolar no cadastro: "9º Ano", "Pré I", etc. */
-  const normalizeAnoEscolarToGrade = (value) => {
-    if (value == null) return null;
-    const s = String(value).trim();
-    if (!s) return null;
-    if (/^pré\s*i$|^pre\s*i$/i.test(s)) return 'Pré I';
-    if (/^pré\s*ii$|^pre\s*ii$/i.test(s)) return 'Pré II';
-    // Delegar para o parser completo (aceita º/°/o e outras variações)
-    return getGradeFromTurmaNome(s);
-  };
-
   /** Séries canônicas da turma: usa ano_escolar (principal) + nome. */
-  const getCanonicalGradesForTurma = (turma) => {
-    const set = new Set();
-    if (turma?.nome) {
-      const g = getGradeFromTurmaNome(turma.nome);
-      if (g) set.add(g);
-    }
-    const raw = turma?.ano_escolar ?? turma?.ano;
-    const arr = Array.isArray(raw) ? raw : raw != null && String(raw).trim() !== '' ? [raw] : [];
-    for (const item of arr) {
-      const g1 = normalizeAnoEscolarToGrade(item);
-      if (g1) set.add(g1);
-      const g2 = getGradeFromTurmaNome(String(item));
-      if (g2) set.add(g2);
-    }
-    return [...set];
-  };
+  const getCanonicalGradesForTurma = (turma) => getCanonicalGradesForTurmaUtil(turma);
 
-  // teacherGradeCellLabel removido para limpar lint
-
-  // Turmas/séries disponíveis: sempre mostra Pré I, Pré II, 1º... 9º
-  const GRADE_ORDER = ['Pré I', 'Pré II', '1º', '2º', '3º', '4º', '5º', '6º', '7º', '8º', '9º'];
+  // Turmas/séries disponíveis: Pré I/II, 1º–9º e 1º–3º EM
+  const GRADE_ORDER = GRADE_ORDER_CANONICAL;
   const reportAvailableGrades = GRADE_ORDER;
 
   // Filtra turmas pelas selecionadas (null = todas, [] = nenhuma)
@@ -3997,6 +4113,9 @@ function App() {
       nome: teacherFormData.nome.trim(),
       disciplina: teacherFormData.disciplina.trim(),
       turmas_ids: Array.isArray(teacherFormData.turmas_ids) ? teacherFormData.turmas_ids : [],
+      auth_email: teacherFormData.auth_email?.trim()
+        ? teacherFormData.auth_email.trim().toLowerCase()
+        : null,
     };
 
     let error;
@@ -4023,7 +4142,7 @@ function App() {
 
     setShowTeacherModal(false);
     setEditingTeacher(null);
-    setTeacherFormData({ nome: '', disciplina: '', turmas_ids: [] });
+    setTeacherFormData({ nome: '', disciplina: '', turmas_ids: [], auth_email: '' });
     setSavingTeacher(false);
 
     // Recarregar lista
@@ -4042,6 +4161,7 @@ function App() {
       nome: prof.nome || '',
       disciplina: prof.disciplina || '',
       turmas_ids: Array.isArray(prof.turmas_ids) ? prof.turmas_ids : [],
+      auth_email: prof.auth_email || '',
     });
     setShowTeacherModal(true);
   };
@@ -4106,20 +4226,22 @@ function App() {
 
   const handleSaveEntrega = async (e) => {
     e.preventDefault();
-    if (!selectedTeacherId || !selectedTeacher) {
-      toast.warn('Professor não selecionado.');
+    const targetProfessor = isProfessor ? professorProfile : selectedTeacher;
+    const targetProfessorId = isProfessor ? professorProfile?.id : selectedTeacherId;
+    if (!targetProfessorId || !targetProfessor) {
+      toast.warn('Professor não identificado.');
       return;
     }
-    const schoolId = selectedTeacher.escola_id || activeSchoolId || selectedSchoolId;
+    const schoolId = targetProfessor.escola_id || activeSchoolId || selectedSchoolId;
     if (!schoolId) {
       toast.warn('Escola não identificada.');
       return;
     }
     setSavingEntrega(true);
     const payload = {
-      professor_id: selectedTeacherId,
+      professor_id: targetProfessorId,
       escola_id: schoolId,
-      ano_letivo: selectedTeacher.ano_letivo ?? selectedYear,
+      ano_letivo: targetProfessor.ano_letivo ?? selectedYear,
       tipo_documento: entregaFormData.tipo_documento?.trim() || 'Documento',
       referencia: entregaFormData.referencia?.trim() || '',
       status: entregaFormData.status,
@@ -4152,7 +4274,7 @@ function App() {
     const { data: refreshed } = await supabase
       .from('entregas_docentes')
       .select('*')
-      .eq('professor_id', selectedTeacherId)
+      .eq('professor_id', targetProfessorId)
       .order('created_at', { ascending: false });
     setEntregasDocentes(refreshed || []);
     setEntregasError(null);
@@ -4263,12 +4385,18 @@ function App() {
     setRegistrosCoordenacao((prev) => prev.filter((x) => x.id !== row.id));
   };
 
-  // Ordem crescente: Pré I, Pré II, 1º ao 9º ano (para ordenar turmas e alunos por turma)
+  // Ordem crescente: Pré I, Pré II, 1º–9º, 1º–3º EM
   const getTurmaSortOrder = (nome) => {
     if (!nome) return 999;
     const n = String(nome).trim().toLowerCase();
     if (/\b(pré|pre)\s*(i|1)\b/.test(n)) return 0;
     if (/\b(pré|pre)\s*(ii|2)\b/.test(n)) return 1;
+    if (isEnsinoMedioText(n)) {
+      for (let ano = 1; ano <= 3; ano++) {
+        if (new RegExp(`\\b${ano}\\s*(º|°|o)?\\s*(ano)?\\b`, 'i').test(n)) return 10 + ano;
+      }
+      return 14;
+    }
     for (let ano = 1; ano <= 9; ano++) {
       // aceita: 9º, 9° , 9o, "9 ano", "9º ano", etc.
       if (new RegExp(`\\b${ano}\\s*(º|°|o)?\\s*(ano)?\\b`, 'i').test(n)) return ano + 1;
@@ -4279,8 +4407,17 @@ function App() {
   };
 
   // Filtrar turmas e alunos por busca (classes pode estar vazio; evita erro ao voltar para lista de turmas)
-  const classesList = classes || [];
-  const activeSchoolsList = (schools || []).filter((s) => !s.arquivada);
+  const classesList = isProfessor
+    ? filterTurmasForProfessor(classes || [], professorProfile)
+    : classes || [];
+  const activeSchoolsList = isProfessor
+    ? (schools || []).filter(
+        (s) =>
+          !s.arquivada &&
+          professorProfile?.escola_id &&
+          String(s.id) === String(professorProfile.escola_id),
+      )
+    : (schools || []).filter((s) => !s.arquivada);
   const filteredClasses = classesList.filter((turma) =>
     turma.nome?.toLowerCase().includes(classSearchTerm.toLowerCase()) ||
     turma.codigo?.toLowerCase().includes(classSearchTerm.toLowerCase())
@@ -4564,7 +4701,7 @@ function App() {
           <aside id="main-navigation" className={mobileMenuOpen ? 'mobile-open' : ''}>
             <div className="brand">
               <h3>SACP</h3>
-              <span>Coordenação Pedagógica</span>
+              <span>{isProfessor ? 'Área do Professor' : 'Coordenação Pedagógica'}</span>
             </div>
             <nav>
               <ul>
@@ -4575,7 +4712,7 @@ function App() {
                   }}
                   className={getActiveNav() === 'dashboard' ? 'active' : ''}
                 >
-                  <i className="fas fa-home" /> Dashboard
+                  <i className="fas fa-home" /> {isProfessor ? 'Início' : 'Dashboard'}
                 </li>
                 <li
                   onClick={() => {
@@ -4586,15 +4723,17 @@ function App() {
                 >
                   <i className="fas fa-calendar-alt" /> Agenda
                 </li>
-                <li
-                  onClick={() => {
-                    navigate('schools');
-                    setMobileMenuOpen(false);
-                  }}
-                  className={getActiveNav() === 'schools' ? 'active' : ''}
-                >
-                  <i className="fas fa-school" /> Escolas
-                </li>
+                {!isProfessor && (
+                  <li
+                    onClick={() => {
+                      navigate('schools');
+                      setMobileMenuOpen(false);
+                    }}
+                    className={getActiveNav() === 'schools' ? 'active' : ''}
+                  >
+                    <i className="fas fa-school" /> Escolas
+                  </li>
+                )}
                 <li
                   onClick={() => {
                     navigate('classes');
@@ -4602,68 +4741,91 @@ function App() {
                   }}
                   className={getActiveNav() === 'classes' ? 'active' : ''}
                 >
-                  <i className="fas fa-users" /> Turmas
+                  <i className="fas fa-users" /> {isProfessor ? 'Minhas Turmas' : 'Turmas'}
                 </li>
-                <li
-                  onClick={() => {
-                    setSelectedClassId(null);
-                    setSelectedClassName('');
-                    clearPersistedTurmaNav();
-                    navigate('students');
-                    setMobileMenuOpen(false);
-                  }}
-                  className={getActiveNav() === 'students' ? 'active' : ''}
-                >
-                  <i className="fas fa-user-graduate" /> Alunos
-                </li>
-                <li
-                  onClick={() => {
-                    setSelectedTeacherId(null);
-                    setSelectedTeacher(null);
-                    setTeacherProfileMissing(false);
-                    navigate('teachers');
-                    setMobileMenuOpen(false);
-                  }}
-                  className={getActiveNav() === 'teachers' ? 'active' : ''}
-                >
-                  <i className="fas fa-chalkboard-teacher" /> Professores
-                </li>
-                <li
-                  onClick={() => {
-                    navigate('emprestimos');
-                    setMobileMenuOpen(false);
-                  }}
-                  className={getActiveNav() === 'emprestimos' ? 'active' : ''}
-                >
-                  <i className="fas fa-book" /> Biblioteca
-                </li>
-                <li
-                  onClick={() => {
-                    navigate('reports');
-                    setMobileMenuOpen(false);
-                  }}
-                  className={getActiveNav() === 'reports' ? 'active' : ''}
-                >
-                  <i className="fas fa-chart-bar" /> Relatórios
-                </li>
-                <li
-                  onClick={() => {
-                    navigate('graficos');
-                    setMobileMenuOpen(false);
-                  }}
-                  className={getActiveNav() === 'graficos' ? 'active' : ''}
-                >
-                  <i className="fas fa-chart-pie" /> Gráficos
-                </li>
-                <li
-                  onClick={() => {
-                    navigate('settings');
-                    setMobileMenuOpen(false);
-                  }}
-                  className={getActiveNav() === 'settings' ? 'active' : ''}
-                >
-                  <i className="fas fa-cog" /> Configurações
-                </li>
+                {!isProfessor && (
+                  <li
+                    onClick={() => {
+                      setSelectedClassId(null);
+                      setSelectedClassName('');
+                      clearPersistedTurmaNav();
+                      navigate('students');
+                      setMobileMenuOpen(false);
+                    }}
+                    className={getActiveNav() === 'students' ? 'active' : ''}
+                  >
+                    <i className="fas fa-user-graduate" /> Alunos
+                  </li>
+                )}
+                {isProfessor && (
+                  <li
+                    onClick={() => {
+                      navigate('entregas');
+                      setMobileMenuOpen(false);
+                    }}
+                    className={getActiveNav() === 'entregas' ? 'active' : ''}
+                  >
+                    <i className="fas fa-folder-open" /> Minhas entregas
+                  </li>
+                )}
+                {!isProfessor && (
+                  <li
+                    onClick={() => {
+                      setSelectedTeacherId(null);
+                      setSelectedTeacher(null);
+                      setTeacherProfileMissing(false);
+                      navigate('teachers');
+                      setMobileMenuOpen(false);
+                    }}
+                    className={getActiveNav() === 'teachers' ? 'active' : ''}
+                  >
+                    <i className="fas fa-chalkboard-teacher" /> Professores
+                  </li>
+                )}
+                {!isProfessor && (
+                  <li
+                    onClick={() => {
+                      navigate('emprestimos');
+                      setMobileMenuOpen(false);
+                    }}
+                    className={getActiveNav() === 'emprestimos' ? 'active' : ''}
+                  >
+                    <i className="fas fa-book" /> Biblioteca
+                  </li>
+                )}
+                {!isProfessor && (
+                  <li
+                    onClick={() => {
+                      navigate('reports');
+                      setMobileMenuOpen(false);
+                    }}
+                    className={getActiveNav() === 'reports' ? 'active' : ''}
+                  >
+                    <i className="fas fa-chart-bar" /> Relatórios
+                  </li>
+                )}
+                {!isProfessor && (
+                  <li
+                    onClick={() => {
+                      navigate('graficos');
+                      setMobileMenuOpen(false);
+                    }}
+                    className={getActiveNav() === 'graficos' ? 'active' : ''}
+                  >
+                    <i className="fas fa-chart-pie" /> Gráficos
+                  </li>
+                )}
+                {!isProfessor && (
+                  <li
+                    onClick={() => {
+                      navigate('settings');
+                      setMobileMenuOpen(false);
+                    }}
+                    className={getActiveNav() === 'settings' ? 'active' : ''}
+                  >
+                    <i className="fas fa-cog" /> Configurações
+                  </li>
+                )}
                 <li
                   onClick={async () => {
                     await supabase.auth.signOut();
@@ -4677,6 +4839,8 @@ function App() {
                       localStorage.removeItem('sacp_teacherProfileTab');
                       localStorage.removeItem('sacp_currentTab');
                     }
+                    setUserRole(null);
+                    setProfessorProfile(null);
                     setMobileMenuOpen(false);
                   }}
                   className="nav-logout"
@@ -4704,11 +4868,21 @@ function App() {
                   className="app-header-select app-header-select-school"
                   value={activeSchoolId ?? ''}
                   onChange={(e) => handleChangeActiveSchool(e.target.value || null)}
-                  disabled={schoolsLoading || activeSchoolsList.length === 0}
+                  disabled={isProfessor || schoolsLoading || activeSchoolsList.length === 0}
                   style={{
-                    cursor: schoolsLoading || activeSchoolsList.length === 0 ? 'not-allowed' : 'pointer',
+                    cursor:
+                      isProfessor || schoolsLoading || activeSchoolsList.length === 0
+                        ? 'not-allowed'
+                        : 'pointer',
                   }}
-                  title={schoolsError || (activeSchoolsList.length === 0 && !schoolsLoading ? 'Cadastre ou desarquive uma escola em Gestão de Escolas' : '')}
+                  title={
+                    isProfessor
+                      ? 'Sua escola vinculada ao perfil de professor'
+                      : schoolsError ||
+                        (activeSchoolsList.length === 0 && !schoolsLoading
+                          ? 'Cadastre ou desarquive uma escola em Gestão de Escolas'
+                          : '')
+                  }
                 >
                   <option value="">
                     {schoolsLoading
@@ -4742,7 +4916,7 @@ function App() {
                   onClick={() => navigate('profile')}
                   title="Abrir meu perfil"
                 >
-                  <span>Olá, {userName} ({userRole})</span>
+                  <span>Olá, {userName} ({userRoleLabel})</span>
                   <div className="avatar">{userInitial}</div>
                 </button>
               </div>
@@ -4779,6 +4953,42 @@ function App() {
                 setCurrentDate={setCurrentDate}
                 setAgendaView={setAgendaView}
                 onOpenEventDetail={openAgendaEventDetail}
+                userRole={userRole || USER_ROLE.COORDENADOR}
+                professorProfile={professorProfile}
+              />
+            )}
+
+            {currentView === 'entregas' && isProfessor && (
+              <ProfessorEntregasView
+                professor={professorProfile}
+                entregas={entregasDocentes}
+                loading={entregasLoading}
+                error={entregasError}
+                filter={entregaFilter}
+                setFilter={setEntregaFilter}
+                onNovaEntrega={() => {
+                  setEditingEntrega(null);
+                  setEntregaFormData({
+                    tipo_documento: 'Plano de Aula',
+                    referencia: '',
+                    status: 'entregue',
+                    prazo: '',
+                    observacoes: '',
+                  });
+                  setShowEntregaModal(true);
+                }}
+                onEditEntrega={(item) => {
+                  setEditingEntrega(item);
+                  setEntregaFormData({
+                    tipo_documento: item.tipo_documento || '',
+                    referencia: item.referencia || '',
+                    status: item.status || 'pendente',
+                    prazo: item.prazo ? String(item.prazo).split('T')[0] : '',
+                    observacoes: item.observacoes || '',
+                  });
+                  setShowEntregaModal(true);
+                }}
+                onDeleteEntrega={(id) => handleDeleteEntrega({ id })}
               />
             )}
 
@@ -4876,6 +5086,7 @@ function App() {
                     /* ignore */
                   }
                 }}
+                canManageCadastro={!isProfessor}
               />
             )}
 
@@ -4908,6 +5119,7 @@ function App() {
                 getBadgeColorClass={getBadgeColorClass}
                 handleEditStudent={handleEditStudent}
                 handleDeleteStudent={handleDeleteStudent}
+                canManageCadastro={!isProfessor}
               />
             )}
 
@@ -5088,6 +5300,7 @@ function App() {
                 hasSemedImport={semedAgenda.hasSemedImport}
                 handleBackdropMouseDown={handleBackdropMouseDown}
                 handleBackdropClick={handleBackdropClick}
+                readOnly={isProfessor}
               />
             )}
 
@@ -5115,7 +5328,7 @@ function App() {
                 <div className="profile-card">
                   <div className="profile-avatar">{userInitial}</div>
                   <h2>{userName}</h2>
-                  <p className="profile-role">{userRole}</p>
+                  <p className="profile-role">{userRoleLabel}</p>
                   <p className="profile-email">{authUser?.email || '—'}</p>
                   <p style={{ fontSize: '0.85em', color: '#666', marginTop: 8 }}>
                     Cadastrado com {authUser?.app_metadata?.provider === 'google' ? 'Google' : 'e-mail e senha'}
@@ -5162,6 +5375,7 @@ function App() {
             activeId={getMobileBottomActive()}
             onNavigate={handleMobileNav}
             onOpenMenu={() => setMobileMenuOpen((open) => !open)}
+            items={isProfessor ? PROFESSOR_BOTTOM_NAV : undefined}
           />
         </div>
       )}

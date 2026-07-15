@@ -1,5 +1,6 @@
 import React from 'react';
 import ModalShell from '../ModalShell';
+import { ANOS_ESCOLARES_OPCOES, anoOptionToCanonical } from '../../utils/anosEscolares';
 
 const TeacherModal = ({
   showTeacherModal,
@@ -18,7 +19,7 @@ const TeacherModal = ({
   const closeModal = () => {
     setShowTeacherModal(false);
     setEditingTeacher(null);
-    setTeacherFormData({ nome: '', disciplina: '', turmas_ids: [] });
+    setTeacherFormData({ nome: '', disciplina: '', turmas_ids: [], auth_email: '' });
   };
 
   return (
@@ -67,31 +68,38 @@ const TeacherModal = ({
         </div>
 
         <div className="input-group" style={{ marginTop: 12 }}>
+          <label>E-mail de acesso (login do professor)</label>
+          <input
+            type="email"
+            value={teacherFormData.auth_email || ''}
+            onChange={(e) => setTeacherFormData({ ...teacherFormData, auth_email: e.target.value })}
+            placeholder="mesmo e-mail usado no cadastro/login do professor"
+            autoComplete="off"
+          />
+          <small style={{ display: 'block', marginTop: 6, color: '#666', lineHeight: 1.4 }}>
+            O professor precisa de conta no SACP com este e-mail. No primeiro login, o sistema vincula o
+            acesso às turmas selecionadas. Deixe em branco se o professor ainda não for usuário do app.
+          </small>
+          {editingTeacher?.user_id ? (
+            <small style={{ display: 'block', marginTop: 4, color: '#28a745' }}>
+              Conta vinculada (usuário Auth ativo).
+            </small>
+          ) : null}
+        </div>
+
+        <div className="input-group" style={{ marginTop: 12 }}>
           <label style={{ fontSize: '0.9em' }}>Turmas * (selecione um ou mais)</label>
           <div className="teacher-turmas-picker">
             {[
-              'Pré I',
-              'Pré II',
-              '1º Ano',
-              '2º Ano',
-              '3º Ano',
-              '4º Ano',
-              '5º Ano',
-              '6º Ano',
-              '7º Ano',
-              '8º Ano',
-              '9º Ano',
+              ...ANOS_ESCOLARES_OPCOES,
             ].map((anoOption) => {
-              const gradeCanonical =
-                anoOption === 'Pré I'
-                  ? 'Pré I'
-                  : anoOption === 'Pré II'
-                    ? 'Pré II'
-                    : `${parseInt(anoOption, 10)}º`;
+              const gradeCanonical = anoOptionToCanonical(anoOption);
 
-              const turmasDaGrade = classesList.filter((t) =>
-                getCanonicalGradesForTurma(t).includes(gradeCanonical),
-              );
+              const turmasDaGrade = classesList.filter((t) => {
+                if (!gradeCanonical) return false;
+                // Match exato: "1º" != "1º EM"
+                return getCanonicalGradesForTurma(t).includes(gradeCanonical);
+              });
               const idsGrade = turmasDaGrade.map((t) => t.id);
               const current = Array.isArray(teacherFormData.turmas_ids) ? teacherFormData.turmas_ids : [];
               const idGradeSet = new Set(idsGrade.map(String));

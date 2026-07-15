@@ -1,6 +1,6 @@
 import React from 'react';
 
-const NAV_ITEMS = [
+const DEFAULT_NAV_ITEMS = [
   { id: 'dashboard', label: 'Início', icon: 'fas fa-home' },
   { id: 'classes', label: 'Turmas', icon: 'fas fa-users' },
   { id: 'students', label: 'Alunos', icon: 'fas fa-user-graduate' },
@@ -8,9 +8,9 @@ const NAV_ITEMS = [
   { id: 'menu', label: 'Mais', icon: 'fas fa-ellipsis-h', isMenu: true },
 ];
 
-const MobileBottomNav = ({ activeId, onNavigate, onOpenMenu }) => (
+const MobileBottomNav = ({ activeId, onNavigate, onOpenMenu, items = DEFAULT_NAV_ITEMS }) => (
   <nav className="mobile-bottom-nav" aria-label="Navegação principal">
-    {NAV_ITEMS.map((item) => {
+    {items.map((item) => {
       const isActive = item.isMenu ? activeId === 'menu' : activeId === item.id;
       return (
         <button

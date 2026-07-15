@@ -1,5 +1,6 @@
 import { nivelMatchesLista } from './sondagemNiveis';
 import { ETIQUETA_LABELS, getEtiquetaLabel } from './etiquetas';
+import { isEnsinoMedioText } from './anosEscolares';
 
 export { ETIQUETA_LABELS };
 
@@ -13,9 +14,10 @@ export function isTurmaPreEscola(turmaNome) {
   );
 }
 
-/** 1º ano do fundamental. */
+/** 1º ano do fundamental (não ensino médio). */
 export function isTurmaPrimeiroAno(turmaNome) {
   if (!turmaNome || typeof turmaNome !== 'string') return false;
+  if (isEnsinoMedioText(turmaNome)) return false;
   return /1º|1o|1°|primeiro\s*ano/i.test(turmaNome.trim());
 }
 

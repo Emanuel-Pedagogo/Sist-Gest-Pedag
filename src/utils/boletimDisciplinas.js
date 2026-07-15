@@ -1,3 +1,5 @@
+import { isEnsinoMedioText } from './anosEscolares';
+
 /** Disciplinas do 1º ao 5º ano (Fundamental I). */
 export const DISCIPLINAS_ATE_5_ANO = [
   'LINGUA PORTUGUESA',
@@ -9,7 +11,7 @@ export const DISCIPLINAS_ATE_5_ANO = [
   'ENSINO DA ARTE',
 ];
 
-/** Disciplinas do 6º ao 9º ano (Fundamental II). */
+/** Disciplinas do 6º ao 9º ano (Fundamental II) e Ensino Médio (mesmo conjunto base). */
 export const DISCIPLINAS_6_AO_9_ANO = [
   'LINGUA PORTUGUESA',
   'HISTÓRIA',
@@ -45,12 +47,14 @@ export const DISCIPLINA_EDUCAMAIS_PARA_SISTEMA = {
 
 export function isTurmaAteQuintoAno(turmaNome) {
   if (!turmaNome || typeof turmaNome !== 'string') return false;
+  if (isEnsinoMedioText(turmaNome)) return false;
   const t = turmaNome.trim();
   return /[1-5]º|[1-5]o|[1-5]°|primeiro|segundo|terceiro|quarto|quinto\s*ano/i.test(t);
 }
 
 export function isTurmaPrimeiroAno(turmaNome) {
   if (!turmaNome || typeof turmaNome !== 'string') return false;
+  if (isEnsinoMedioText(turmaNome)) return false;
   return /1º|1o|1°|primeiro\s*ano/i.test(turmaNome.trim());
 }
 
