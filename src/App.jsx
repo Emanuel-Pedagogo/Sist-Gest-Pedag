@@ -5384,7 +5384,13 @@ function App() {
             )}
 
             {/* Chat IA */}
-            {currentView === 'chat-ia' && !isProfessor && <ChatIAView isProfessor={isProfessor} />}
+            {currentView === 'chat-ia' && !isProfessor && (
+              <ChatIAView
+                isProfessor={isProfessor}
+                activeSchoolId={activeSchoolId}
+                activeSchoolName={activeSchool?.nome || ''}
+              />
+            )}
           </main>
           <MobileBottomNav
             activeId={getMobileBottomActive()}

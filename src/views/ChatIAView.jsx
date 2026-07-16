@@ -17,7 +17,7 @@ const SUGESTOES = [
  * Consultas (SELECT) são executadas na hora; alterações de dados
  * (INSERT/UPDATE/DELETE) exigem confirmação explícita nesta tela.
  */
-const ChatIAView = ({ isProfessor }) => {
+const ChatIAView = ({ isProfessor, activeSchoolId, activeSchoolName }) => {
   const [displayMessages, setDisplayMessages] = useState([]);
   const [history, setHistory] = useState([]); // formato Anthropic — enviado/recebido a cada turno
   const [input, setInput] = useState('');
@@ -32,9 +32,16 @@ const ChatIAView = ({ isProfessor }) => {
     }
   }, [displayMessages, sending]);
 
+  // Ao trocar a escola selecionada no topo da tela, reinicia a conversa —
+  // o histórico anterior pode conter dados/contexto da escola anterior.
+  useEffect(() => {
+    setDisplayMessages([]);
+    setHistory([]);
+  }, [activeSchoolId]);
+
   const handleSend = async (textOverride) => {
     const text = (textOverride ?? input).trim();
-    if (!text || sending) return;
+    if (!text || sending || !activeSchoolId) return;
 
     const userDisplay = { id: newId(), role: 'user', text };
     setDisplayMessages((prev) => [...prev, userDisplay]);
@@ -44,7 +51,7 @@ const ChatIAView = ({ isProfessor }) => {
     const newHistory = [...history, userTextMessage(text)];
 
     try {
-      const result = await sendChatMessage(newHistory);
+      const result = await sendChatMessage(newHistory, activeSchoolId);
       setHistory(result.messages || newHistory);
       setDisplayMessages((prev) => [
         ...prev,
@@ -150,10 +157,27 @@ const ChatIAView = ({ isProfessor }) => {
             ? ' alterações de dados pelo chat estão disponíveis apenas para a coordenação.'
             : ' alterações de dados só executam depois da sua confirmação.'}
         </p>
+        {activeSchoolId ? (
+          <p style={{ color: 'var(--text-light)', margin: '4px 0 0', fontSize: '0.85em' }}>
+            <i className="fas fa-school" /> Escola ativa: <strong>{activeSchoolName || '—'}</strong> — o chat só
+            busca e altera dados desta escola. Troque a escola no topo da tela para consultar outra.
+          </p>
+        ) : (
+          <p style={{ color: 'var(--danger, #c0392b)', margin: '4px 0 0', fontSize: '0.85em' }}>
+            <i className="fas fa-triangle-exclamation" /> Selecione uma escola no seletor no topo da tela para usar
+            o Chat IA.
+          </p>
+        )}
       </div>
 
       <div className="chat-ia-messages" ref={scrollRef}>
-        {displayMessages.length === 0 && (
+        {!activeSchoolId && (
+          <div className="chat-ia-empty">
+            <p>Escolha uma escola no topo da tela para começar a conversar.</p>
+          </div>
+        )}
+
+        {activeSchoolId && displayMessages.length === 0 && (
           <div className="chat-ia-empty">
             <p style={{ marginBottom: 10 }}>Experimente perguntar:</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -269,19 +293,23 @@ const ChatIAView = ({ isProfessor }) => {
       <div className="chat-ia-input-row">
         <textarea
           className="chat-ia-input"
-          placeholder="Pergunte algo sobre os dados do SACP..."
+          placeholder={
+            activeSchoolId
+              ? 'Pergunte algo sobre os dados do SACP...'
+              : 'Selecione uma escola no topo da tela para conversar...'
+          }
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           rows={1}
-          disabled={sending}
+          disabled={sending || !activeSchoolId}
         />
         <button
           type="button"
           className="btn-primary"
           style={{ width: 'auto' }}
           onClick={() => handleSend()}
-          disabled={sending || !input.trim()}
+          disabled={sending || !input.trim() || !activeSchoolId}
         >
           Enviar
         </button>

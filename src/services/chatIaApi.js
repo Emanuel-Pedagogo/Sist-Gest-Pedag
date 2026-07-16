@@ -25,9 +25,11 @@ async function invokeChatIaFunction(body) {
 /**
  * Envia o histórico de mensagens (formato Anthropic: [{ role, content }])
  * e recebe { reply, messages, pendingConfirmations }.
+ * `escolaId` é a escola selecionada no topo da tela — o chat só consulta/altera
+ * dados dessa escola (a Edge Function reforça esse filtro no servidor).
  */
-export async function sendChatMessage(messages) {
-  return invokeChatIaFunction({ messages });
+export async function sendChatMessage(messages, escolaId) {
+  return invokeChatIaFunction({ messages, escolaId: escolaId || null });
 }
 
 /** Confirma e executa uma alteração (INSERT/UPDATE/DELETE) proposta pelo chat. */

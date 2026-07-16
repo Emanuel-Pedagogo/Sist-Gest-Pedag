@@ -92,12 +92,61 @@ Tabelas disponíveis (schema public, todas com RLS ativo — coordenador enxerga
 - emprestimos_biblioteca(id bigint, livro_id bigint, aluno_id uuid, aluno_nome, turma_nome, livro_titulo, livro_codigo, data_emprestimo date, data_prevista_devolucao date, data_devolucao date)
 `.trim();
 
-function buildSystemPrompt(isCoordenador: boolean, hoje: string) {
+// Tabelas cuja relação com a escola precisa ser garantida em toda consulta/alteração do chat.
+// "livros_biblioteca" fica de fora de propósito: é catálogo geral, sem relação com escola.
+const ESCOLA_SCOPED_TABLES = [
+  'escolas',
+  'turmas',
+  'alunos',
+  'ocorrencias',
+  'sondagens',
+  'notas_boletim',
+  'notas',
+  'frequencia_historico',
+  'agenda_eventos',
+  'professores',
+  'entregas_docentes',
+  'registros_coordenacao',
+  'alunos_turmas_especiais',
+  'diario_frequencia_especial',
+  'diario_classe_frequencia',
+  'diario_classe_conteudos',
+  'relatorio_avaliacao_pre',
+  'emprestimos_biblioteca',
+];
+
+const ESCOLA_RELATION_DOC = `
+Como cada tabela chega até a escola (todo filtro precisa alcançar essa cadeia usando o id exato da escola ativa):
+- Direto (coluna escola_id): escolas (id), turmas, agenda_eventos, professores, entregas_docentes, registros_coordenacao
+- Via turma_id -> turmas.escola_id: alunos, alunos_turmas_especiais, diario_frequencia_especial, diario_classe_frequencia, diario_classe_conteudos
+- Via aluno_id -> alunos.turma_id -> turmas.escola_id: ocorrencias, sondagens, notas_boletim, notas, frequencia_historico, relatorio_avaliacao_pre, emprestimos_biblioteca
+- Sem relação com escola (catálogo geral, não precisa filtrar): livros_biblioteca
+`.trim();
+
+function sqlTouchesEscolaScopedTable(sql: string): boolean {
+  const lower = sql.toLowerCase();
+  return ESCOLA_SCOPED_TABLES.some((t) => new RegExp(`\\b${t}\\b`).test(lower));
+}
+
+function sqlIncludesEscolaFilter(sql: string, escolaId: string): boolean {
+  return sql.toLowerCase().includes(escolaId.toLowerCase());
+}
+
+function buildSystemPrompt(
+  isCoordenador: boolean,
+  hoje: string,
+  escolaId: string,
+  escolaNome: string,
+) {
   return `
 Você é o assistente de dados do SACP (Sistema de Apoio à Coordenação Pedagógica), uma rede municipal de ensino no Brasil (SEMED/Santarém). Responde SEMPRE em português do Brasil, de forma direta e objetiva.
 
 Papel do usuário atual: ${isCoordenador ? 'coordenação pedagógica (pode consultar tudo e propor alterações)' : 'professor(a) (só consulta os próprios dados; NÃO pode propor alterações)'}.
 Data de hoje: ${hoje}.
+
+ESCOLA ATIVA (obrigatório respeitar): "${escolaNome}" (escola_id = '${escolaId}'). Esta é a escola selecionada no topo da tela pelo usuário agora. TODA consulta ("consultar_dados") e TODA alteração ("propor_alteracao") deve ser filtrada exclusivamente para esta escola — nunca retorne, liste ou altere dados de qualquer outra escola, mesmo que o usuário peça explicitamente por nome de outra escola ou peça "todas as escolas"/"a rede toda". Nesses casos, explique educadamente que ele precisa trocar a escola selecionada no seletor no topo da tela para consultar outra escola. Use sempre o valor literal '${escolaId}' na cláusula de filtro (diretamente em escola_id, ou na cadeia turma_id/aluno_id até chegar em turmas.escola_id, conforme o mapa abaixo). Uma consulta sem esse filtro será rejeitada automaticamente pelo servidor antes de rodar.
+
+${ESCOLA_RELATION_DOC}
 
 ${SCHEMA_DOC}
 
@@ -108,7 +157,7 @@ Regras obrigatórias:
 4. Só é permitido SELECT em "consultar_dados" e apenas nas tabelas listadas acima — nunca tente CREATE/ALTER/DROP/GRANT ou acessar schemas auth/storage.
 5. Para alterar dados (inserir, atualizar ou apagar), use a ferramenta "propor_alteracao" — ela NUNCA executa na hora, só cria uma proposta que o usuário confirma na tela. Explique com clareza, em "descricao", o que vai mudar antes de propor. UPDATE/DELETE sempre precisam de cláusula WHERE específica (nunca proponha alterar/apagar "todos os registros" de uma vez).
 6. Se o usuário pedir uma alteração e ele for professor (não coordenação), explique educadamente que só a coordenação pode confirmar alterações de dados pelo chat.
-7. Se uma consulta falhar (tabela/coluna errada, erro de sintaxe), ajuste a query e tente de novo em vez de desistir — mas no máximo algumas tentativas; se continuar falhando, explique o problema ao usuário.
+7. Se uma consulta falhar (tabela/coluna errada, erro de sintaxe, ou bloqueio por falta do filtro de escola), ajuste a query e tente de novo em vez de desistir — mas no máximo algumas tentativas; se continuar falhando, explique o problema ao usuário.
 8. Seja conciso. Traga números e listas curtas quando fizer sentido, sem enrolação.
 9. O usuário pode baixar em PDF/Word/Excel qualquer tabela de dados que você trouxer com "consultar_dados" — não é preciso gerar o arquivo você mesmo, só preencha "motivo" com um título curto e claro, que vira o nome do relatório.
 `.trim();
@@ -181,13 +230,48 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'messages vazio.' }), { status: 400, headers: jsonHeaders });
     }
 
+    // O chat só opera sobre a escola selecionada no topo da tela — sem isso,
+    // não há como garantir que os dados retornados/alterados são só dela.
+    const escolaId = typeof body?.escolaId === 'string' ? body.escolaId.trim() : '';
+    if (!escolaId) {
+      return new Response(
+        JSON.stringify({
+          reply: 'Selecione uma escola no topo da tela para usar o Chat IA.',
+          messages: incomingMessages,
+          pendingConfirmations: [],
+          queryResults: [],
+        }),
+        { headers: jsonHeaders },
+      );
+    }
+
+    // Confirma que a escola existe e que o usuário logado tem acesso a ela
+    // (respeitando a RLS da tabela escolas — não usa service role em nenhum ponto).
+    const { data: escolaRow, error: escolaError } = await supabase
+      .from('escolas')
+      .select('id, nome')
+      .eq('id', escolaId)
+      .maybeSingle();
+    if (escolaError || !escolaRow) {
+      return new Response(
+        JSON.stringify({
+          reply: 'Não foi possível confirmar a escola selecionada. Tente selecioná-la novamente no topo da tela.',
+          messages: incomingMessages,
+          pendingConfirmations: [],
+          queryResults: [],
+        }),
+        { headers: jsonHeaders },
+      );
+    }
+    const escolaNome = String(escolaRow.nome || '');
+
     const { data: isCoordenador, error: roleError } = await supabase.rpc('sacp_is_coordenador');
     if (roleError) {
       throw new Error(`Não foi possível resolver o papel do usuário: ${roleError.message}`);
     }
 
     const hoje = new Date().toISOString().slice(0, 10);
-    const system = buildSystemPrompt(!!isCoordenador, hoje);
+    const system = buildSystemPrompt(!!isCoordenador, hoje, escolaId, escolaNome);
 
     const messages: AnthropicMessage[] = [...incomingMessages];
     const pendingConfirmations: Array<Record<string, unknown>> = [];
@@ -216,6 +300,17 @@ serve(async (req) => {
       for (const toolUse of toolUses) {
         if (toolUse.name === 'consultar_dados') {
           const sql = String(toolUse.input?.sql || '');
+
+          if (sqlTouchesEscolaScopedTable(sql) && !sqlIncludesEscolaFilter(sql, escolaId)) {
+            toolResults.push({
+              type: 'tool_result',
+              tool_use_id: toolUse.id,
+              is_error: true,
+              content: `Consulta bloqueada pelo servidor: precisa filtrar explicitamente pela escola ativa (escola_id = '${escolaId}', direto ou via turma_id/aluno_id conforme o mapa de relações). Reescreva a query incluindo esse filtro.`,
+            });
+            continue;
+          }
+
           const { data, error } = await supabase.rpc('sacp_chat_run_select', { p_sql: sql });
           if (error) {
             toolResults.push({
@@ -240,6 +335,17 @@ serve(async (req) => {
         } else if (toolUse.name === 'propor_alteracao') {
           const sql = String(toolUse.input?.sql || '');
           const descricao = String(toolUse.input?.descricao || '');
+
+          if (sqlTouchesEscolaScopedTable(sql) && !sqlIncludesEscolaFilter(sql, escolaId)) {
+            toolResults.push({
+              type: 'tool_result',
+              tool_use_id: toolUse.id,
+              is_error: true,
+              content: `Proposta bloqueada pelo servidor: precisa referenciar explicitamente a escola ativa (escola_id = '${escolaId}', direto ou via turma_id/aluno_id conforme o mapa de relações) para garantir que a alteração fica restrita a esta escola. Reescreva incluindo esse filtro/valor.`,
+            });
+            continue;
+          }
+
           const { data, error } = await supabase.rpc('sacp_chat_propor_escrita', {
             p_sql: sql,
             p_descricao: descricao,
