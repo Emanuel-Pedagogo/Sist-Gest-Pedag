@@ -39,6 +39,23 @@ export async function extractBoletinsFromPdf({ pdfBase64, mimeType, modoBoletim,
   });
 }
 
+/** Extrai a lista de alunos de uma foto ou PDF. */
+export async function extractAlunosFromArquivo({ arquivoBase64, mimeType }) {
+  return invokeGeminiFunction('extract-alunos', {
+    modo: 'extrair',
+    arquivoBase64,
+    mimeType: mimeType || 'image/jpeg',
+  });
+}
+
+/**
+ * Descobre qual coluna da planilha é cada campo, a partir do cabeçalho e das
+ * primeiras linhas. O app aplica o mapeamento nas demais linhas por conta própria.
+ */
+export async function mapearColunasPlanilha({ amostra }) {
+  return invokeGeminiFunction('extract-alunos', { modo: 'mapear', amostra });
+}
+
 /** Gera resumo pedagógico em texto a partir dos dados do aluno. */
 export async function generateResumoPedagogico(payload) {
   return invokeGeminiFunction('generate-resumo-aluno', payload);

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import BoletimView from '../BoletimView';
 import StudentResumoTab from '../components/student/StudentResumoTab';
 import { getEtiquetaLabel } from '../utils/etiquetas';
+import { formatNivel, normalizeNivelKey } from '../utils/sondagemNiveis';
 import {
   LineChart,
   Line,
@@ -135,6 +136,10 @@ const StudentDetailView = ({
   handleDownloadDocument,
   handleDeleteDocument,
   reavaliarCorAluno,
+  isProfessor = false,
+  escolaNome = '',
+  anoLetivo = '',
+  professorNome = '',
 }) => {
   const [sondagemViewMode, setSondagemViewMode] = useState('chart');
 
@@ -159,20 +164,23 @@ const StudentDetailView = ({
   const chartData = [...(sondagens || [])]
     .sort((a, b) => new Date(a.data) - new Date(b.data))
     .map((s) => {
-      const leituraIndex = opcoesLeitura.indexOf(s.nivel_leitura);
-      const escritaIndex = opcoesEscrita.indexOf(s.nivel_escrita);
+      // Matching normalizado: sondagens antigas com caixa/travessões diferentes continuam no gráfico
+      const leituraKey = normalizeNivelKey(s.nivel_leitura);
+      const escritaKey = normalizeNivelKey(s.nivel_escrita);
+      const leituraIndex = opcoesLeitura.findIndex((o) => normalizeNivelKey(o) === leituraKey);
+      const escritaIndex = opcoesEscrita.findIndex((o) => normalizeNivelKey(o) === escritaKey);
       return {
         ...s,
         dataFormatada: s.data ? formatDate(s.data) : '-',
         nivelLeituraNum: leituraIndex >= 0 ? leituraIndex : null,
         nivelEscritaNum: escritaIndex >= 0 ? escritaIndex : null,
-        nivelLeituraLabel: leituraIndex >= 0 ? opcoesLeitura[leituraIndex] : s.nivel_leitura,
-        nivelEscritaLabel: escritaIndex >= 0 ? opcoesEscrita[escritaIndex] : s.nivel_escrita,
+        nivelLeituraLabel: formatNivel(leituraIndex >= 0 ? opcoesLeitura[leituraIndex] : s.nivel_leitura),
+        nivelEscritaLabel: formatNivel(escritaIndex >= 0 ? opcoesEscrita[escritaIndex] : s.nivel_escrita),
       };
     });
 
   return (
-    <div id="view-student-detail" className="view-section">
+    <section id="view-student-detail" className="view-section">
       <div
         style={{
           display: 'flex',
@@ -183,9 +191,9 @@ const StudentDetailView = ({
           marginBottom: 15,
         }}
       >
-        <div className="breadcrumb" onClick={() => navigate(selectedClassId ? 'classes' : 'students')}>
+        <button type="button" className="breadcrumb btn-unstyled" onClick={() => navigate(selectedClassId ? 'classes' : 'students')}>
           <i className="fas fa-arrow-left" /> Voltar para Lista
-        </div>
+        </button>
         {studentNavTotal > 1 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <button
@@ -260,13 +268,15 @@ const StudentDetailView = ({
         >
           Resumo
         </button>
-        <button
-          type="button"
-          className={`tab ${currentTab === 'boletim' ? 'active' : ''}`}
-          onClick={() => switchTab('boletim')}
-        >
-          Boletim
-        </button>
+        {!isProfessor && (
+          <button
+            type="button"
+            className={`tab ${currentTab === 'boletim' ? 'active' : ''}`}
+            onClick={() => switchTab('boletim')}
+          >
+            Boletim
+          </button>
+        )}
         <button
           type="button"
           className={`tab ${currentTab === 'ocorrencias' ? 'active' : ''}`}
@@ -303,8 +313,8 @@ const StudentDetailView = ({
         )}
       </div>
 
-      {/* Tab Boletim */}
-      {currentTab === 'boletim' && selectedStudent?.id && (
+      {/* Tab Boletim (coordenação apenas — professor lança notas na aba "Notas" da turma) */}
+      {!isProfessor && currentTab === 'boletim' && selectedStudent?.id && (
         <div id="tab-boletim" className="tab-content active">
           <BoletimView
             alunoId={selectedStudent.id}
@@ -332,6 +342,10 @@ const StudentDetailView = ({
             sondagensLoading={sondagensLoading}
             formatDate={formatDate}
             switchTab={switchTab}
+            isProfessor={isProfessor}
+            escolaNome={escolaNome}
+            anoLetivo={anoLetivo}
+            professorNome={professorNome}
           />
         </div>
       )}
@@ -599,8 +613,8 @@ const StudentDetailView = ({
                       <td style={{ padding: 10 }}>
                         {s.data ? formatDate(s.data) : '-'}
                       </td>
-                      <td style={{ padding: 10 }}>{s.nivel_leitura || '-'}</td>
-                      <td style={{ padding: 10 }}>{s.nivel_escrita || '-'}</td>
+                      <td style={{ padding: 10 }}>{formatNivel(s.nivel_leitura) || '-'}</td>
+                      <td style={{ padding: 10 }}>{formatNivel(s.nivel_escrita) || '-'}</td>
                       <td style={{ padding: 10 }}>
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                           {s.foto_escrita_url ? (
@@ -908,7 +922,7 @@ const StudentDetailView = ({
           </div>
         </div>
       )}
-    </div>
+    </section>
   );
 };
 

@@ -20,7 +20,7 @@ const LibraryView = ({
   setLibraryBooks,
 }) => {
   return (
-    <div id="view-library" className="view-section">
+    <section id="view-library" className="view-section">
       <h2>Biblioteca e Empréstimos de Livros</h2>
       <p style={{ color: 'var(--text-light)', marginBottom: 20 }}>
         Cadastre livros da escola e controle os empréstimos de forma simples. Os dados desta aba são mantidos
@@ -171,8 +171,10 @@ const LibraryView = ({
                             ? `${aluno.nome} - ${turmaNome}`
                             : aluno.nome;
                           return (
-                            <div
+                            <button
+                              type="button"
                               key={aluno.id}
+                              className="btn-unstyled"
                               onClick={() => {
                                 setLoanForm((prev) => ({
                                   ...prev,
@@ -182,6 +184,8 @@ const LibraryView = ({
                                 setLoanStudentQuery(label);
                               }}
                               style={{
+                                display: 'block',
+                                width: '100%',
                                 padding: '6px 10px',
                                 fontSize: '0.85em',
                                 cursor: 'pointer',
@@ -194,7 +198,7 @@ const LibraryView = ({
                               {turmaNome && (
                                 <div style={{ color: '#666' }}>Turma: {turmaNome}</div>
                               )}
-                            </div>
+                            </button>
                           );
                         })}
                     {!studentsLoading &&
@@ -530,7 +534,7 @@ const LibraryView = ({
           </div>
         </div>
       )}
-    </div>
+    </section>
   );
 };
 

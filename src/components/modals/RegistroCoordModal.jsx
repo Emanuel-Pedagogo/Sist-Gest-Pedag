@@ -1,5 +1,6 @@
 import React from 'react';
 import ModalShell from '../ModalShell';
+import FormField from '../FormField';
 
 const RegistroCoordModal = ({
   showRegistroCoordModal,
@@ -29,8 +30,7 @@ const RegistroCoordModal = ({
     >
       <h2>{editingRegistroCoord ? 'Editar registro' : 'Nova conversa / registro'}</h2>
       <form onSubmit={handleSaveRegistroCoord}>
-        <div className="input-group">
-          <label>Data *</label>
+        <FormField label="Data" required>
           <input
             type="date"
             required
@@ -39,9 +39,8 @@ const RegistroCoordModal = ({
               setRegistroCoordFormData({ ...registroCoordFormData, data_conversa: e.target.value })
             }
           />
-        </div>
-        <div className="input-group">
-          <label>Assunto *</label>
+        </FormField>
+        <FormField label="Assunto" required>
           <input
             type="text"
             required
@@ -51,9 +50,8 @@ const RegistroCoordModal = ({
             }
             placeholder="Ex.: Reunião de feedback, Observação de sala..."
           />
-        </div>
-        <div className="input-group">
-          <label>Relato (o que foi discutido)</label>
+        </FormField>
+        <FormField label="Relato (o que foi discutido)">
           <textarea
             value={registroCoordFormData.relato}
             onChange={(e) =>
@@ -63,9 +61,8 @@ const RegistroCoordModal = ({
             placeholder="Resumo da conversa..."
             style={{ resize: 'vertical' }}
           />
-        </div>
-        <div className="input-group">
-          <label>Encaminhamentos (combinados)</label>
+        </FormField>
+        <FormField label="Encaminhamentos (combinados)">
           <textarea
             value={registroCoordFormData.encaminhamentos}
             onChange={(e) =>
@@ -75,7 +72,7 @@ const RegistroCoordModal = ({
             placeholder="Próximos passos acordados..."
             style={{ resize: 'vertical' }}
           />
-        </div>
+        </FormField>
         <div className="modal-actions">
           <button type="button" className="btn-secondary" disabled={savingRegistroCoord} onClick={closeModal}>
             Cancelar

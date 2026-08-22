@@ -89,6 +89,58 @@ $env:NODE_OPTIONS="--use-system-ca"
 
 Considere adicionar permanentemente nas variáveis de ambiente do Windows, se o erro persistir.
 
+## Erro de SSL ao compilar (PKIX / certificado)
+
+**Sintoma:** `npm run release:android` (ou `gradlew bundleRelease`) falha com:
+
+```
+Could not download aapt2-...-windows.jar
+> PKIX path building failed: unable to find valid certification path to requested target
+```
+
+**Causa:** o antivírus (aqui, **Avast**) inspeciona conexões HTTPS e troca o
+certificado dos sites por um próprio. O Windows confia nesse certificado, mas o
+Java usado pelo Gradle tem o próprio cofre de certificados e não o conhece — é a
+mesma raiz do `NODE_OPTIONS=--use-system-ca` da seção acima.
+
+**Correção (por máquina, fora do repositório):** criar um cofre de certificados
+com o certificado do antivírus incluído e apontar o Gradle para ele. Nada é
+enfraquecido — o Java passa a confiar exatamente no mesmo certificado que o
+Windows já confia.
+
+**1. Exportar o certificado do antivírus** (PowerShell):
+
+```powershell
+$c = Get-ChildItem Cert:\LocalMachine\Root, Cert:\CurrentUser\Root | Where-Object { $_.Subject -like "*Avast*" } | Select-Object -First 1
+[System.IO.File]::WriteAllBytes("$env:TEMP\av-root.cer", $c.Export('Cert'))
+```
+
+**2. Criar o cofre com esse certificado dentro:**
+
+```powershell
+$jbr = "C:\Program Files\Android\Android Studio\jbr"
+Copy-Item "$jbr\lib\security\cacerts" "$env:USERPROFILE\.gradle\cacerts-avast.jks" -Force
+& "$jbr\bin\keytool.exe" -importcert -noprompt -trustcacerts -alias av-root -file "$env:TEMP\av-root.cer" -keystore "$env:USERPROFILE\.gradle\cacerts-avast.jks" -storepass changeit
+```
+
+**3. Apontar o Gradle para o cofre** — adicionar ao `~/.gradle/gradle.properties`:
+
+```
+systemProp.javax.net.ssl.trustStore=C:/Users/SEU_USUARIO/.gradle/cacerts-avast.jks
+systemProp.javax.net.ssl.trustStorePassword=changeit
+```
+
+Refaça isso ao trocar de antivírus ou reinstalar o Android Studio.
+
+> **Por que não há um script pronto para isso:** um `.ps1` que lê o repositório
+> de certificados é colocado em quarentena pelo próprio Avast. Pior: o arquivo
+> em quarentena vira uma entrada quebrada na pasta, e o `npm run dev` passa a
+> falhar com `UNKNOWN: lstat ...` quando o Vite tenta observá-lo. Por isso os
+> comandos ficam aqui, para colar no terminal.
+
+> `systemProp.javax.net.ssl.trustStoreType=Windows-ROOT` **não** funciona com o
+> JBR do Android Studio (erro `Windows-ROOT not found`) — por isso o cofre em arquivo.
+
 ## Fase 3 — UI mobile (em andamento)
 
 Melhorias no CSS global e telas P0. Teste **sem Android Studio** com F12 → modo celular no navegador.

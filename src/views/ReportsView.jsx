@@ -1,4 +1,10 @@
 import React from 'react';
+import {
+  formatNivel,
+  NIVEL_LEITURA_OPCOES_1_2,
+  NIVEL_LEITURA_OPCOES_3_5,
+  NIVEL_LEITURA_OPCOES_FUNDAMENTAL2,
+} from '../utils/sondagemNiveis';
 
 const ReportsView = ({
   reportSchoolId,
@@ -27,7 +33,7 @@ const ReportsView = ({
   getEtiquetaLabel,
 }) => {
   return (
-    <div id="view-reports" className="view-section">
+    <section id="view-reports" className="view-section">
       <h2>Relatórios e Listas</h2>
       <p style={{ color: 'var(--text-light)', marginBottom: 20 }}>
         Gere listas de alunos por escola, turma, etiqueta ou nível de leitura e exporte em PDF ou Word.
@@ -36,17 +42,15 @@ const ReportsView = ({
       <div className="analytics-panel">
         {/* Linha 1: Escola, Ano e Turmas na mesma linha */}
         <div className="reports-filters-row">
-          <div className="input-group" style={{ minWidth: 180, marginBottom: 0 }}>
-            <div style={{ minHeight: 24, display: 'flex', alignItems: 'center', marginBottom: 6 }}>
-              <label style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#222' }}>Escola</label>
-            </div>
+          <div className="input-group reports-filter--escola">
+            <label htmlFor="report-escola">Escola</label>
             <select
+              id="report-escola"
               value={reportSchoolId}
               onChange={(e) => {
                 setReportSchoolId(e.target.value);
                 setReportGradeLevels(null);
               }}
-              style={{ width: '100%', padding: '9px 10px', height: 38, borderRadius: 6, border: '1px solid #ddd' }}
             >
               <option value="">Todas as escolas</option>
               {(schools || []).map((s) => (
@@ -54,117 +58,72 @@ const ReportsView = ({
               ))}
             </select>
           </div>
-          <div className="input-group" style={{ width: 85, flexShrink: 0, marginBottom: 0 }}>
-            <div style={{ minHeight: 24, display: 'flex', alignItems: 'center', marginBottom: 6 }}>
-              <label style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#222' }}>Ano letivo</label>
-            </div>
+          <div className="input-group reports-filter--ano">
+            <label htmlFor="report-ano">Ano letivo</label>
             <select
+              id="report-ano"
               value={reportYear}
               onChange={(e) => {
                 setReportYear(Number(e.target.value));
                 setReportGradeLevels(null);
               }}
-              style={{ width: '100%', padding: '9px 10px', height: 38, borderRadius: 6, border: '1px solid #ddd' }}
             >
               {Array.from({ length: 8 }, (_, i) => new Date().getFullYear() - i + 1).map((y) => (
                 <option key={y} value={y}>{y}</option>
               ))}
             </select>
           </div>
-          <div className="input-group" style={{ flex: 1, minWidth: 0, marginBottom: 0 }}>
-            <div style={{ minHeight: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <label style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#222' }}>
+          <div className="input-group reports-filter--turmas">
+            <div className="reports-turmas-header">
+              <label id="report-turmas-label">
                 Turma(s)
-                <span style={{ fontWeight: 400, color: '#666', marginLeft: 6 }}>
+                <span className="reports-turmas-count">
                   ({reportGradeLevels === null ? 'Todas' : reportGradeLevels.length === 0 ? 'Nenhuma' : reportGradeLevels.length + ' sel.'})
                 </span>
               </label>
               {reportClasses.length > 0 && (
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button
-                    type="button"
-                    onClick={() => setReportGradeLevels(null)}
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 600,
-                      padding: '2px 8px',
-                      height: 24,
-                      lineHeight: 1.2,
-                      cursor: 'pointer',
-                      border: '1px solid #0d6efd',
-                      borderRadius: 4,
-                      background: 'white',
-                      color: '#0d6efd',
-                    }}
-                  >
+                <div className="reports-turmas-actions">
+                  <button type="button" className="reports-mini-btn" onClick={() => setReportGradeLevels(null)}>
                     Todas
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setReportGradeLevels([])}
-                    style={{
-                      fontSize: 12,
-                      fontWeight: 600,
-                      padding: '2px 8px',
-                      height: 24,
-                      lineHeight: 1.2,
-                      cursor: 'pointer',
-                      border: '1px solid #6c757d',
-                      borderRadius: 4,
-                      background: 'white',
-                      color: '#6c757d',
-                    }}
-                  >
+                  <button type="button" className="reports-mini-btn reports-mini-btn--muted" onClick={() => setReportGradeLevels([])}>
                     Limpar
                   </button>
                 </div>
               )}
             </div>
-            <div className="reports-grade-picker">
+            <div className="reports-grade-picker" role="group" aria-labelledby="report-turmas-label">
               {reportClasses.length === 0 ? (
-                <span style={{ color: '#999', fontSize: 12 }}>Carregando...</span>
+                <span className="reports-grade-picker__loading">Carregando...</span>
               ) : (
-                reportAvailableGrades.map((grade) => (
-                  <label
-                    key={grade}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 2,
-                      cursor: 'pointer',
-                      padding: '2px 4px',
-                      borderRadius: 4,
-                      background: (reportGradeLevels === null || reportGradeLevels.includes(grade)) ? 'rgba(13, 110, 253, 0.08)' : 'transparent',
-                      fontSize: 12,
-                      fontWeight: 500,
-                      color: '#333',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={reportGradeLevels === null || reportGradeLevels.includes(grade)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          const next =
-                            reportGradeLevels === null
-                              ? reportAvailableGrades.filter((g) => g !== grade)
-                              : [...reportGradeLevels, grade];
-                          const all = next.length === reportAvailableGrades.length;
-                          setReportGradeLevels(all ? null : next);
-                        } else {
-                          const next =
-                            reportGradeLevels === null
-                              ? reportAvailableGrades.filter((g) => g !== grade)
-                              : reportGradeLevels.filter((g) => g !== grade);
-                          setReportGradeLevels(next);
-                        }
-                      }}
-                      style={{ width: 14, height: 14, cursor: 'pointer', flexShrink: 0 }}
-                    />
-                    <span>{grade}</span>
-                  </label>
-                ))
+                reportAvailableGrades.map((grade) => {
+                  const selecionada = reportGradeLevels === null || reportGradeLevels.includes(grade);
+                  return (
+                    <label key={grade} className={`reports-grade-chip${selecionada ? ' is-active' : ''}`}>
+                      <input
+                        type="checkbox"
+                        checked={selecionada}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            const next =
+                              reportGradeLevels === null
+                                ? reportAvailableGrades.filter((g) => g !== grade)
+                                : [...reportGradeLevels, grade];
+                            const all = next.length === reportAvailableGrades.length;
+                            setReportGradeLevels(all ? null : next);
+                          } else {
+                            const next =
+                              reportGradeLevels === null
+                                ? reportAvailableGrades.filter((g) => g !== grade)
+                                : reportGradeLevels.filter((g) => g !== grade);
+                            setReportGradeLevels(next);
+                          }
+                        }}
+                      />
+                      <span>{grade}</span>
+                    </label>
+                  );
+                })
               )}
             </div>
           </div>
@@ -172,12 +131,12 @@ const ReportsView = ({
 
         {/* Linha 2: Etiqueta, Nível de leitura, Notas, Faltas, Gerar lista - tudo na mesma linha */}
         <div className="reports-filters-grid">
-          <div className="input-group" style={{ minWidth: 0 }}>
-            <label style={{ margin: 0, marginBottom: 6, fontSize: 14, fontWeight: 600, color: '#222' }}>Etiqueta</label>
+          <div className="input-group">
+            <label htmlFor="report-etiqueta">Etiqueta</label>
             <select
+              id="report-etiqueta"
               value={reportEtiqueta}
               onChange={(e) => setReportEtiqueta(e.target.value)}
-              style={{ width: '100%', padding: '9px 10px', height: 38, borderRadius: 6, border: '1px solid #ddd' }}
             >
               <option value="">Todas</option>
               <option value="azul">Adequado</option>
@@ -187,73 +146,60 @@ const ReportsView = ({
               <option value="roxo">AEE</option>
             </select>
           </div>
-          <div className="input-group" style={{ minWidth: 0 }}>
-            <label style={{ margin: 0, marginBottom: 6, fontSize: 14, fontWeight: 600, color: '#222' }}>Nível de leitura</label>
+          <div className="input-group">
+            <label htmlFor="report-nivel-leitura">Nível de leitura</label>
             <select
+              id="report-nivel-leitura"
               value={reportNivelLeitura}
               onChange={(e) => setReportNivelLeitura(e.target.value)}
-              style={{ width: '100%', padding: '9px 10px', height: 38, borderRadius: 6, border: '1px solid #ddd' }}
             >
               <option value="">Qualquer</option>
               <optgroup label="1º e 2º ano">
-                <option value="PRÉ – LEITOR 1">PRÉ – LEITOR 1</option>
-                <option value="PRÉ – LEITOR 2">PRÉ – LEITOR 2</option>
-                <option value="PRÉ – LEITOR 3">PRÉ – LEITOR 3</option>
-                <option value="PRÉ – LEITOR 4">PRÉ – LEITOR 4</option>
-                <option value="LEITOR INICIANTE">LEITOR INICIANTE</option>
-                <option value="LEITOR FLUENTE">LEITOR FLUENTE</option>
+                {NIVEL_LEITURA_OPCOES_1_2.map((op) => (
+                  <option key={op} value={op}>{formatNivel(op)}</option>
+                ))}
               </optgroup>
               <optgroup label="3º ao 5º ano">
-                <option value="PRÉ-LEITOR">PRÉ-LEITOR</option>
-                <option value="LEITOR DE PALAVRAS SEM FLUÊNCIA">LEITOR DE PALAVRAS SEM FLUÊNCIA</option>
-                <option value="LEITOR DE PALAVRAS COM FLUÊNCIA">LEITOR DE PALAVRAS COM FLUÊNCIA</option>
-                <option value="LEITOR DE TEXTO SEM FLUÊNCIA">LEITOR DE TEXTO SEM FLUÊNCIA</option>
-                <option value="LEITOR DE TEXTO COM FLUÊNCIA">LEITOR DE TEXTO COM FLUÊNCIA</option>
-                <option value="LEITOR COM FLUÊNCIA, RESPEITA RITMO, INTENSIDADE E ENTONAÇÃO">LEITOR COM FLUÊNCIA, RESPEITA RITMO, INTENSIDADE E ENTONAÇÃO</option>
+                {NIVEL_LEITURA_OPCOES_3_5.map((op) => (
+                  <option key={op} value={op}>{formatNivel(op)}</option>
+                ))}
               </optgroup>
               <optgroup label="6º ao 9º ano">
-                <option value="Pré-Leitor">Pré-Leitor</option>
-                <option value="Leitor de Palavras sem Fluência">Leitor de Palavras sem Fluência</option>
-                <option value="Leitor de Palavras com Fluência">Leitor de Palavras com Fluência</option>
-                <option value="Leitor de Frases sem Fluência">Leitor de Frases sem Fluência</option>
-                <option value="Leitor de Frases com Fluência">Leitor de Frases com Fluência</option>
-                <option value="Leitor de Texto sem Fluência">Leitor de Texto sem Fluência</option>
-                <option value="Leitor de Texto com Fluência">Leitor de Texto com Fluência</option>
-                <option value="Leitor com Fluência, Respeita Ritmo, Intensidade e Entonação">Leitor com Fluência, Respeita Ritmo, Intensidade e Entonação</option>
+                {NIVEL_LEITURA_OPCOES_FUNDAMENTAL2.map((op) => (
+                  <option key={op} value={op}>{formatNivel(op)}</option>
+                ))}
               </optgroup>
             </select>
           </div>
-          <div className="input-group" style={{ minWidth: 0 }}>
-            <label style={{ margin: 0, marginBottom: 6, fontSize: 14, fontWeight: 600, color: '#222' }}>Notas</label>
+          <div className="input-group">
+            <label htmlFor="report-notas">Notas</label>
             <select
+              id="report-notas"
               value={reportNotasFilter}
               onChange={(e) => setReportNotasFilter(e.target.value)}
-              style={{ width: '100%', padding: '9px 10px', height: 38, borderRadius: 6, border: '1px solid #ddd' }}
             >
               <option value="nao">Não mostrar notas</option>
               <option value="acima">Acima da média (≥5)</option>
               <option value="abaixo">Abaixo da média (&lt;5)</option>
             </select>
           </div>
-          <div className="input-group" style={{ minWidth: 0 }}>
-            <label style={{ margin: 0, marginBottom: 6, fontSize: 14, fontWeight: 600, color: '#222' }}>Faltas</label>
+          <div className="input-group">
+            <label htmlFor="report-faltas">Faltas</label>
             <select
+              id="report-faltas"
               value={reportFaltasFilter}
               onChange={(e) => setReportFaltasFilter(e.target.value)}
-              style={{ width: '100%', padding: '9px 10px', height: 38, borderRadius: 6, border: '1px solid #ddd' }}
             >
               <option value="nao">Não mostrar faltas</option>
               <option value="sim">Mostrar faltas</option>
             </select>
           </div>
-          <div className="input-group" style={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-            <label style={{ margin: 0, marginBottom: 6, fontSize: 14, fontWeight: 600, color: '#222', visibility: 'hidden', height: 20 }}>—</label>
+          <div className="reports-generate-cell">
             <button
               type="button"
-              className="btn-primary"
+              className="btn-primary reports-generate-btn"
               onClick={handleGenerateReport}
               disabled={reportLoading}
-              style={{ padding: '9px 24px', height: 38 }}
             >
               {reportLoading ? 'Gerando...' : 'Gerar lista'}
             </button>
@@ -291,41 +237,41 @@ const ReportsView = ({
             <>
               <p className="table-scroll-hint">Deslize horizontalmente para ver todas as colunas.</p>
               <div className="table-wrapper reports-table-wrap">
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+              <table className="reports-table">
                 <thead>
-                  <tr style={{ background: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
-                    <th style={{ padding: 12, textAlign: 'left' }}>Nome</th>
-                    <th style={{ padding: 12, textAlign: 'left' }}>Turma</th>
-                    <th style={{ padding: 12, textAlign: 'left' }}>Etiqueta</th>
-                    <th style={{ padding: 12, textAlign: 'left' }}>Nível Leitura</th>
-                    <th style={{ padding: 12, textAlign: 'left' }}>Nível Escrita</th>
+                  <tr>
+                    <th>Nome</th>
+                    <th>Turma</th>
+                    <th>Etiqueta</th>
+                    <th>Nível de leitura</th>
+                    <th>Nível de escrita</th>
                     {(reportNotasFilter === 'acima' || reportNotasFilter === 'abaixo') && (
-                      <th style={{ padding: 12, textAlign: 'left' }}>{reportNotasFilter === 'acima' ? 'Acima da média' : 'Abaixo da média'}</th>
+                      <th>{reportNotasFilter === 'acima' ? 'Acima da média' : 'Abaixo da média'}</th>
                     )}
                     {reportFaltasFilter === 'sim' && (
-                      <th style={{ padding: 12, textAlign: 'left' }}>Faltas</th>
+                      <th>Faltas</th>
                     )}
                   </tr>
                 </thead>
                 <tbody>
                   {reportList.map((a, i) => (
-                    <tr key={a.id || i} style={{ borderBottom: '1px solid #eee' }}>
-                      <td style={{ padding: 10 }}>{a.nome || '-'}</td>
-                      <td style={{ padding: 10 }}>{a.turma_nome || '-'}</td>
-                      <td style={{ padding: 10 }}>
+                    <tr key={a.id || i}>
+                      <td>{a.nome || '-'}</td>
+                      <td>{a.turma_nome || '-'}</td>
+                      <td>
                         <span
                           className={`badge bg-${a.etiqueta_cor === 'vermelho' ? 'red' : a.etiqueta_cor === 'amarelo' ? 'yellow' : a.etiqueta_cor === 'verde' ? 'green' : a.etiqueta_cor === 'roxo' ? 'purple' : 'blue'}`}
                         >
                           {getEtiquetaLabel(a.etiqueta_cor)}
                         </span>
                       </td>
-                      <td style={{ padding: 10 }}>{a.nivel_leitura || '-'}</td>
-                      <td style={{ padding: 10 }}>{a.nivel_escrita || '-'}</td>
+                      <td>{formatNivel(a.nivel_leitura) || '-'}</td>
+                      <td>{formatNivel(a.nivel_escrita) || '-'}</td>
                       {(reportNotasFilter === 'acima' || reportNotasFilter === 'abaixo') && (
-                        <td style={{ padding: 10 }}>{a.qtd_notas ?? 0}</td>
+                        <td>{a.qtd_notas ?? 0}</td>
                       )}
                       {reportFaltasFilter === 'sim' && (
-                        <td style={{ padding: 10 }}>{a.qtd_faltas ?? 0}</td>
+                        <td>{a.qtd_faltas ?? 0}</td>
                       )}
                     </tr>
                   ))}
@@ -340,7 +286,7 @@ const ReportsView = ({
           )}
         </div>
       )}
-    </div>
+    </section>
   );
 };
 

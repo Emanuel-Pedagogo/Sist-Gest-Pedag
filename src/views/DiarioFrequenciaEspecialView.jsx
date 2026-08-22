@@ -31,12 +31,14 @@ const DiarioFrequenciaEspecialView = ({
   selectedYear,
 }) => {
   const hoje = useMemo(() => new Date(), []);
+  const [subTab, setSubTab] = useState('frequencia');
   const [mes, setMes] = useState(hoje.getMonth() + 1);
   const [ano, setAno] = useState(selectedYear || hoje.getFullYear());
   const [grid, setGrid] = useState({});
   const [gridInicial, setGridInicial] = useState({});
   const [conteudos, setConteudos] = useState({});
   const [agendaNaoLetiva, setAgendaNaoLetiva] = useState([]);
+  const [planejamentoMes, setPlanejamentoMes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingConteudo, setSavingConteudo] = useState(false);
@@ -72,8 +74,61 @@ const DiarioFrequenciaEspecialView = ({
       .sort((a, b) => String(a.disciplina).localeCompare(String(b.disciplina), 'pt-BR'));
   }, [conteudos, conteudoForm.data]);
 
+  /** Planejamento da agenda para o dia selecionado no formulário de conteúdo. */
+  const planejamentoDoDia = useMemo(() => {
+    if (!conteudoForm.data) return [];
+    return planejamentoMes.filter(
+      (ev) => String(ev.data_inicio).slice(0, 10) === conteudoForm.data,
+    );
+  }, [planejamentoMes, conteudoForm.data]);
+
+  /** Todos os conteúdos do mês carregado, agrupados por data (mais recente primeiro). */
+  const conteudosDoMes = useMemo(() => {
+    const porData = {};
+    Object.values(conteudos).forEach((row) => {
+      const iso = String(row.data).slice(0, 10);
+      if (!porData[iso]) porData[iso] = [];
+      porData[iso].push(row);
+    });
+    return Object.entries(porData)
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([data, rows]) => ({
+        data,
+        rows: [...rows].sort((a, b) => String(a.disciplina).localeCompare(String(b.disciplina), 'pt-BR')),
+      }));
+  }, [conteudos]);
+
   const turmaNomePorId = (id) =>
     (classesList || []).find((c) => String(c.id) === String(id))?.nome || '—';
+
+  /**
+   * Eventos da agenda desta turma no mês (planejamento do professor).
+   * Usados na aba Conteúdos para preencher o conteúdo aplicado com um clique.
+   */
+  const carregarPlanejamentoDoMes = useCallback(async () => {
+    if (!turmaId) {
+      setPlanejamentoMes([]);
+      return;
+    }
+    try {
+      const primeiroDia = `${ano}-${String(mes).padStart(2, '0')}-01`;
+      const ultimoDia = `${ano}-${String(mes).padStart(2, '0')}-${String(
+        new Date(ano, mes, 0).getDate(),
+      ).padStart(2, '0')}`;
+      const { data, error: planError } = await supabase
+        .from('agenda_eventos')
+        .select('id, titulo, descricao, data_inicio, turma_id, tipo_marco')
+        .eq('turma_id', turmaId)
+        .is('tipo_marco', null)
+        .gte('data_inicio', `${primeiroDia}T00:00:00`)
+        .lte('data_inicio', `${ultimoDia}T23:59:59`);
+      if (planError) throw planError;
+      setPlanejamentoMes(data || []);
+    } catch (err) {
+      console.warn('Não foi possível carregar o planejamento da agenda:', err);
+      setPlanejamentoMes([]);
+    }
+  }, [turmaId, ano, mes]);
 
   const carregarAgendaNaoLetiva = useCallback(async () => {
     setWarning(null);
@@ -108,6 +163,7 @@ const DiarioFrequenciaEspecialView = ({
     setError(null);
     try {
       await carregarAgendaNaoLetiva();
+      await carregarPlanejamentoDoMes();
       const [g, c] = await Promise.all([
         fetchDiarioClasseMes(supabase, turmaId, ano, mes),
         fetchConteudosDiarioMes(supabase, turmaId, ano, mes),
@@ -131,7 +187,7 @@ const DiarioFrequenciaEspecialView = ({
     } finally {
       setLoading(false);
     }
-  }, [turmaId, ano, mes, carregarAgendaNaoLetiva]);
+  }, [turmaId, ano, mes, carregarAgendaNaoLetiva, carregarPlanejamentoDoMes]);
 
   useEffect(() => {
     carregar();
@@ -242,6 +298,11 @@ const DiarioFrequenciaEspecialView = ({
     return [y - 1, y, y + 1];
   }, [hoje]);
 
+  const formatarDataBr = (iso) => {
+    const [y, m, d] = String(iso).split('-');
+    return `${d}/${m}/${y}`;
+  };
+
   if (alunosOrdenados.length === 0) {
     return (
       <div
@@ -267,8 +328,7 @@ const DiarioFrequenciaEspecialView = ({
             Diário de classe — {turmaNome}
           </h3>
           <p style={{ margin: 0, fontSize: '0.85em', color: '#6b7280', lineHeight: 1.45 }}>
-            Acompanhamento <strong>somente desta turma</strong>. As presenças/faltas marcadas aqui
-            recalculam a frequência mensal oficial do aluno. Clique na célula: vazio → presente → falta → vazio.
+            Acompanhamento <strong>somente desta turma</strong>.
           </p>
         </div>
         <div className="diario-controls">
@@ -294,51 +354,35 @@ const DiarioFrequenciaEspecialView = ({
               </option>
             ))}
           </select>
-          <button
-            type="button"
-            className="btn-primary"
-            style={{ width: 'auto', padding: '8px 16px' }}
-            disabled={!dirty || saving}
-            onClick={handleSalvar}
-          >
-            {saving ? 'Salvando...' : dirty ? 'Salvar diário' : 'Salvo'}
-          </button>
+          {subTab === 'frequencia' && (
+            <button
+              type="button"
+              className="btn-primary"
+              style={{ width: 'auto', padding: '8px 16px' }}
+              disabled={!dirty || saving}
+              onClick={handleSalvar}
+            >
+              {saving ? 'Salvando...' : dirty ? 'Salvar diário' : 'Salvo'}
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="diario-legend">
-        <span>
-          <span
-            style={{
-              display: 'inline-block',
-              width: 14,
-              height: 14,
-              background: '#d4edda',
-              border: '1px solid #28a745',
-              borderRadius: 2,
-              marginRight: 4,
-              verticalAlign: 'middle',
-            }}
-          />
-          P = Presente
-        </span>
-        <span>
-          <span
-            style={{
-              display: 'inline-block',
-              width: 14,
-              height: 14,
-              background: '#f8d7da',
-              border: '1px solid #dc3545',
-              borderRadius: 2,
-              marginRight: 4,
-              verticalAlign: 'middle',
-            }}
-          />
-          F = Falta
-        </span>
-        <span style={{ color: '#6b7280' }}>Célula vazia = não registrado</span>
-        <span style={{ color: '#6b7280' }}>Feriados/recessos da agenda não entram no grid</span>
+      <div className="student-tabs" style={{ marginBottom: 16 }}>
+        <button
+          type="button"
+          className={`tab ${subTab === 'frequencia' ? 'active' : ''}`}
+          onClick={() => setSubTab('frequencia')}
+        >
+          Frequência
+        </button>
+        <button
+          type="button"
+          className={`tab ${subTab === 'conteudos' ? 'active' : ''}`}
+          onClick={() => setSubTab('conteudos')}
+        >
+          Conteúdos
+        </button>
       </div>
 
       {warning && (
@@ -355,104 +399,42 @@ const DiarioFrequenciaEspecialView = ({
 
       {loading ? (
         <p style={{ color: '#6b7280' }}>Carregando diário...</p>
-      ) : (
+      ) : subTab === 'frequencia' ? (
         <>
-          <form
-            onSubmit={handleSalvarConteudo}
-            style={{
-              padding: 14,
-              marginBottom: 16,
-              border: '1px solid #e5e7eb',
-              borderRadius: 8,
-              background: '#f9fafb',
-            }}
-          >
-            <h4 style={{ margin: '0 0 12px', color: 'var(--primary)' }}>
-              Conteúdo aplicado por disciplina/dia
-            </h4>
-            <div className="modal-form-grid" style={{ marginBottom: 10 }}>
-              <div className="input-group">
-                <label>Dia letivo</label>
-                <select
-                  value={conteudoForm.data}
-                  onChange={(e) => setConteudoForm((prev) => ({ ...prev, data: e.target.value }))}
-                >
-                  {diasLetivos.map((dt) => {
-                    const iso = dataIsoLocal(dt);
-                    return (
-                      <option key={iso} value={iso}>
-                        {String(dt.getDate()).padStart(2, '0')}/{String(dt.getMonth() + 1).padStart(2, '0')}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-              <div className="input-group">
-                <label>Disciplina</label>
-                <input
-                  list="diario-disciplinas"
-                  value={conteudoForm.disciplina}
-                  onChange={(e) => setConteudoForm((prev) => ({ ...prev, disciplina: e.target.value }))}
-                  placeholder="Ex: Matemática"
-                  required
-                />
-                <datalist id="diario-disciplinas">
-                  {disciplinas.map((d) => (
-                    <option key={d} value={d} />
-                  ))}
-                </datalist>
-              </div>
-            </div>
-            <div className="input-group">
-              <label>Conteúdo aplicado</label>
-              <textarea
-                rows={3}
-                value={conteudoForm.conteudo_aplicado}
-                onChange={(e) =>
-                  setConteudoForm((prev) => ({ ...prev, conteudo_aplicado: e.target.value }))
-                }
-                placeholder="Descreva o conteúdo trabalhado nesta aula"
-                required
+          <div className="diario-legend">
+            <span>
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: 14,
+                  height: 14,
+                  background: '#d4edda',
+                  border: '1px solid #28a745',
+                  borderRadius: 2,
+                  marginRight: 4,
+                  verticalAlign: 'middle',
+                }}
               />
-            </div>
-            <div className="input-group">
-              <label>Observações</label>
-              <textarea
-                rows={2}
-                value={conteudoForm.observacoes}
-                onChange={(e) => setConteudoForm((prev) => ({ ...prev, observacoes: e.target.value }))}
-                placeholder="Opcional"
+              P = Presente
+            </span>
+            <span>
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: 14,
+                  height: 14,
+                  background: '#f8d7da',
+                  border: '1px solid #dc3545',
+                  borderRadius: 2,
+                  marginRight: 4,
+                  verticalAlign: 'middle',
+                }}
               />
-            </div>
-            <button type="submit" className="btn-primary" style={{ width: 'auto' }} disabled={savingConteudo}>
-              {savingConteudo ? 'Salvando conteúdo...' : 'Salvar conteúdo'}
-            </button>
-            {conteudosDoDia.length > 0 && (
-              <div style={{ marginTop: 12, fontSize: '0.9em', color: '#4b5563' }}>
-                <strong>Conteúdos já salvos neste dia:</strong>
-                <ul style={{ margin: '6px 0 0 18px', padding: 0 }}>
-                  {conteudosDoDia.map((row) => (
-                    <li key={row.id || chaveConteudo(row.data, row.disciplina)}>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setConteudoForm({
-                            data: String(row.data).slice(0, 10),
-                            disciplina: row.disciplina,
-                            conteudo_aplicado: row.conteudo_aplicado || '',
-                            observacoes: row.observacoes || '',
-                          })
-                        }
-                        style={{ border: 'none', background: 'transparent', color: 'var(--primary)', cursor: 'pointer' }}
-                      >
-                        {row.disciplina}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </form>
+              F = Falta
+            </span>
+            <span style={{ color: '#6b7280' }}>Célula vazia = não registrado</span>
+            <span style={{ color: '#6b7280' }}>Feriados/recessos da agenda não entram no grid</span>
+          </div>
 
           {datasNaoLetivas.size > 0 && (
             <p style={{ color: '#6b7280', fontSize: '0.85em' }}>
@@ -619,6 +601,190 @@ const DiarioFrequenciaEspecialView = ({
             </tbody>
           </table>
           </div>
+        </>
+      ) : (
+        <>
+          <form
+            onSubmit={handleSalvarConteudo}
+            style={{
+              padding: 14,
+              marginBottom: 16,
+              border: '1px solid #e5e7eb',
+              borderRadius: 8,
+              background: '#f9fafb',
+            }}
+          >
+            <h4 style={{ margin: '0 0 12px', color: 'var(--primary)' }}>
+              Conteúdo aplicado por disciplina/dia
+            </h4>
+            <div className="modal-form-grid" style={{ marginBottom: 10 }}>
+              <div className="input-group">
+                <label>Dia letivo</label>
+                <select
+                  value={conteudoForm.data}
+                  onChange={(e) => setConteudoForm((prev) => ({ ...prev, data: e.target.value }))}
+                >
+                  {diasLetivos.map((dt) => {
+                    const iso = dataIsoLocal(dt);
+                    return (
+                      <option key={iso} value={iso}>
+                        {String(dt.getDate()).padStart(2, '0')}/{String(dt.getMonth() + 1).padStart(2, '0')}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+              <div className="input-group">
+                <label>Disciplina</label>
+                <input
+                  list="diario-disciplinas"
+                  value={conteudoForm.disciplina}
+                  onChange={(e) => setConteudoForm((prev) => ({ ...prev, disciplina: e.target.value }))}
+                  placeholder="Ex: Matemática"
+                  required
+                />
+                <datalist id="diario-disciplinas">
+                  {disciplinas.map((d) => (
+                    <option key={d} value={d} />
+                  ))}
+                </datalist>
+              </div>
+            </div>
+            {planejamentoDoDia.length > 0 && (
+              <div
+                style={{
+                  padding: '10px 12px',
+                  marginBottom: 12,
+                  background: '#eff6ff',
+                  border: '1px solid #bfdbfe',
+                  borderRadius: 8,
+                }}
+              >
+                <div style={{ fontSize: '0.85em', fontWeight: 600, color: '#1d4ed8', marginBottom: 6 }}>
+                  <i className="fas fa-calendar-check" style={{ marginRight: 6 }} />
+                  Você planejou este dia na agenda
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {planejamentoDoDia.map((ev) => (
+                    <button
+                      key={ev.id}
+                      type="button"
+                      onClick={() =>
+                        setConteudoForm((prev) => ({
+                          ...prev,
+                          conteudo_aplicado: [ev.titulo, ev.descricao].filter(Boolean).join('\n'),
+                        }))
+                      }
+                      style={{
+                        border: '1px solid #bfdbfe',
+                        background: 'white',
+                        borderRadius: 999,
+                        padding: '5px 12px',
+                        fontSize: '0.82em',
+                        cursor: 'pointer',
+                        color: '#1d4ed8',
+                      }}
+                    >
+                      Usar &quot;{ev.titulo}&quot;
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="input-group">
+              <label>Conteúdo aplicado</label>
+              <textarea
+                rows={3}
+                value={conteudoForm.conteudo_aplicado}
+                onChange={(e) =>
+                  setConteudoForm((prev) => ({ ...prev, conteudo_aplicado: e.target.value }))
+                }
+                placeholder="Descreva o conteúdo trabalhado nesta aula"
+                required
+              />
+            </div>
+            <div className="input-group">
+              <label>Observações</label>
+              <textarea
+                rows={2}
+                value={conteudoForm.observacoes}
+                onChange={(e) => setConteudoForm((prev) => ({ ...prev, observacoes: e.target.value }))}
+                placeholder="Opcional"
+              />
+            </div>
+            <button type="submit" className="btn-primary" style={{ width: 'auto' }} disabled={savingConteudo}>
+              {savingConteudo ? 'Salvando conteúdo...' : 'Salvar conteúdo'}
+            </button>
+            {conteudosDoDia.length > 0 && (
+              <div style={{ marginTop: 12, fontSize: '0.9em', color: '#4b5563' }}>
+                <strong>Conteúdos já salvos neste dia:</strong>
+                <ul style={{ margin: '6px 0 0 18px', padding: 0 }}>
+                  {conteudosDoDia.map((row) => (
+                    <li key={row.id || chaveConteudo(row.data, row.disciplina)}>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setConteudoForm({
+                            data: String(row.data).slice(0, 10),
+                            disciplina: row.disciplina,
+                            conteudo_aplicado: row.conteudo_aplicado || '',
+                            observacoes: row.observacoes || '',
+                          })
+                        }
+                        style={{ border: 'none', background: 'transparent', color: 'var(--primary)', cursor: 'pointer' }}
+                      >
+                        {row.disciplina}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </form>
+
+          <h4 style={{ margin: '0 0 12px', color: 'var(--primary)' }}>
+            Conteúdos lançados em {MESES_PT[mes - 1]}/{ano}
+          </h4>
+          {conteudosDoMes.length === 0 ? (
+            <p style={{ color: '#6b7280' }}>Nenhum conteúdo lançado neste mês ainda.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {conteudosDoMes.map(({ data, rows }) => (
+                <div
+                  key={data}
+                  style={{
+                    padding: 12,
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 8,
+                    background: '#fff',
+                  }}
+                >
+                  <div style={{ fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                    {formatarDataBr(data)}
+                  </div>
+                  {rows.map((row) => (
+                    <div
+                      key={row.id || chaveConteudo(row.data, row.disciplina)}
+                      style={{ marginBottom: 8, paddingLeft: 8, borderLeft: '3px solid #e5e7eb' }}
+                    >
+                      <div style={{ fontSize: '0.85em', fontWeight: 600, color: 'var(--primary)' }}>
+                        {row.disciplina}
+                      </div>
+                      <div style={{ fontSize: '0.9em', color: '#374151', whiteSpace: 'pre-wrap' }}>
+                        {row.conteudo_aplicado}
+                      </div>
+                      {row.observacoes && (
+                        <div style={{ fontSize: '0.82em', color: '#6b7280', marginTop: 2 }}>
+                          {row.observacoes}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
         </>
       )}
     </div>

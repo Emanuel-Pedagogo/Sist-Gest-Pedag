@@ -1,5 +1,6 @@
 import React from 'react';
 import ModalShell from '../ModalShell';
+import FormField from '../FormField';
 
 const FrequencyModal = ({
   showFrequencyModal,
@@ -21,8 +22,7 @@ const FrequencyModal = ({
     >
       <h2>Adicionar Histórico de Frequência</h2>
       <form onSubmit={handleSaveFrequency}>
-        <div className="input-group" style={{ marginBottom: 15 }}>
-          <label>Mês de Referência *</label>
+        <FormField label="Mês de Referência" required style={{ marginBottom: 15 }}>
           <input
             type="text"
             required
@@ -32,10 +32,9 @@ const FrequencyModal = ({
             }
             placeholder="Ex: Janeiro, Fevereiro, Março"
           />
-        </div>
+        </FormField>
 
-        <div className="input-group" style={{ marginBottom: 15 }}>
-          <label>Ano *</label>
+        <FormField label="Ano" required style={{ marginBottom: 15 }}>
           <input
             type="number"
             required
@@ -45,23 +44,22 @@ const FrequencyModal = ({
             min="2000"
             max="2100"
           />
-        </div>
+        </FormField>
 
-        <div className="input-group" style={{ marginBottom: 20 }}>
-          <label>Porcentagem *</label>
+        <FormField label="Porcentagem" required style={{ marginBottom: 20 }}>
           <input
             type="number"
             required
             step="0.1"
             min="0"
             max="100"
-            value={frequencyFormData.porcentagem}
+            value={frequencyFormData.percentual}
             onChange={(e) =>
-              setFrequencyFormData({ ...frequencyFormData, porcentagem: e.target.value })
+              setFrequencyFormData({ ...frequencyFormData, percentual: e.target.value })
             }
             placeholder="Ex: 85.5"
           />
-        </div>
+        </FormField>
 
         <div className="modal-actions">
           <button type="button" className="btn-secondary" onClick={handleCancelFrequencyModal} disabled={savingFrequency}>

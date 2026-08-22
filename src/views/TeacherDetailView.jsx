@@ -27,9 +27,10 @@ const TeacherDetailView = ({
   handleDeleteRegistroCoord,
 }) => {
   return (
-    <div id="view-teacher-detail" className="view-section">
-      <div
-        className="breadcrumb"
+    <section id="view-teacher-detail" className="view-section">
+      <button
+        type="button"
+        className="breadcrumb btn-unstyled"
         onClick={() => {
           setSelectedTeacherId(null);
           setSelectedTeacher(null);
@@ -38,7 +39,7 @@ const TeacherDetailView = ({
         }}
       >
         <i className="fas fa-arrow-left" /> Voltar para Professores
-      </div>
+      </button>
 
       {teacherProfileMissing && (
         <div
@@ -385,7 +386,7 @@ const TeacherDetailView = ({
           )}
         </>
       )}
-    </div>
+    </section>
   );
 };
 

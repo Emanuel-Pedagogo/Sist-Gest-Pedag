@@ -1,5 +1,6 @@
 import React from 'react';
 import ModalShell from '../ModalShell';
+import FormField from '../FormField';
 
 const NoteModal = ({
   showNoteModal,
@@ -21,8 +22,7 @@ const NoteModal = ({
     >
       <h2>Adicionar Nota</h2>
       <form onSubmit={handleSaveNote}>
-        <div className="input-group" style={{ marginBottom: 15 }}>
-          <label>Disciplina *</label>
+        <FormField label="Disciplina" required style={{ marginBottom: 15 }}>
           <input
             type="text"
             required
@@ -30,10 +30,9 @@ const NoteModal = ({
             onChange={(e) => setNoteFormData({ ...noteFormData, disciplina: e.target.value })}
             placeholder="Ex: Matemática, Português"
           />
-        </div>
+        </FormField>
 
-        <div className="input-group" style={{ marginBottom: 15 }}>
-          <label>Período *</label>
+        <FormField label="Período" required style={{ marginBottom: 15 }}>
           <input
             type="text"
             required
@@ -41,10 +40,9 @@ const NoteModal = ({
             onChange={(e) => setNoteFormData({ ...noteFormData, periodo: e.target.value })}
             placeholder="Ex: 1º Bimestre, 2º Bimestre"
           />
-        </div>
+        </FormField>
 
-        <div className="input-group" style={{ marginBottom: 15 }}>
-          <label>Ano *</label>
+        <FormField label="Ano" required style={{ marginBottom: 15 }}>
           <input
             type="number"
             required
@@ -54,10 +52,9 @@ const NoteModal = ({
             min="2000"
             max="2100"
           />
-        </div>
+        </FormField>
 
-        <div className="input-group" style={{ marginBottom: 20 }}>
-          <label>Valor da Nota *</label>
+        <FormField label="Valor da Nota" required style={{ marginBottom: 20 }}>
           <input
             type="number"
             required
@@ -68,7 +65,7 @@ const NoteModal = ({
             onChange={(e) => setNoteFormData({ ...noteFormData, valor: e.target.value })}
             placeholder="Ex: 8.5"
           />
-        </div>
+        </FormField>
 
         <div className="modal-actions">
           <button type="button" className="btn-secondary" onClick={handleCancelNoteModal} disabled={savingNote}>

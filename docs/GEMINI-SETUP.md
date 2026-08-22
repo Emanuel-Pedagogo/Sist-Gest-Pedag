@@ -45,6 +45,7 @@ supabase secrets set GEMINI_API_KEY=sua_chave_aqui
 
 supabase functions deploy extract-sondagens
 supabase functions deploy extract-boletins-pdf
+supabase functions deploy extract-alunos
 supabase functions deploy generate-resumo-aluno
 ```
 
@@ -176,6 +177,29 @@ Preços: [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing).
 - A chave **nunca** vai para o código React publicado.
 - Só as Edge Functions no Supabase chamam o Gemini.
 - Revise sempre os dados antes de salvar (especialmente sondagens).
+
+---
+
+## Importar alunos (foto, CSV, Excel ou PDF)
+
+Botão **Importar lista**, dentro da turma. Edge Function: `extract-alunos`.
+
+A função tem dois modos, e a tela escolhe sozinha qual usar:
+
+| Arquivo enviado | Como é lido | Usa IA? |
+|---|---|---|
+| **PDF** no layout "Lista de Alunos" do EducaMais | Leitor local (`src/listaAlunosPdf.js`) | Não — instantâneo e sem custo |
+| **PDF** em qualquer outro layout | IA lê o documento inteiro | Sim (1 chamada) |
+| **Foto** da lista | Reduzida para 2000px e enviada à IA | Sim (1 chamada) |
+| **CSV / Excel** | A IA só identifica **quais colunas** são nome, nascimento etc.; o app lê todas as linhas por conta própria | Sim (1 chamada, só com o cabeçalho) |
+
+O modo das planilhas manda apenas o cabeçalho e 5 linhas de exemplo para a IA. Isso mantém a
+leitura exata mesmo em planilha longa (sem risco de a IA pular ou inventar aluno) e deixa a
+chamada barata independentemente do tamanho do arquivo.
+
+A tela de conferência é **editável** — a IA erra nome e data com alguma frequência em foto de
+lista manuscrita, e linhas que ela marcou como duvidosas aparecem destacadas em amarelo.
+Alunos que já existem na turma (mesmo nome ou mesma matrícula) são ignorados, nunca sobrescritos.
 
 ---
 

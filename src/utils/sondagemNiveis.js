@@ -94,9 +94,23 @@ export function normalizeNivelKey(s) {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toUpperCase()
-    .replace(/\s+/g, ' ')
     .replace(/[–—-]/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
+}
+
+/**
+ * Formata um nível para exibição com tipografia única (sentence case),
+ * independentemente de como foi digitado/armazenado ("PRÉ – LEITOR 1" → "Pré-leitor 1").
+ * Só afeta a exibição: valores gravados no banco continuam como estão, e o
+ * matching por normalizeNivelKey ignora caixa/acentos/travessões.
+ */
+export function formatNivel(valor) {
+  const raw = String(valor || '').trim();
+  if (!raw) return '';
+  const semTravessao = raw.replace(/\s*[–—]\s*/g, '-').replace(/\s+/g, ' ');
+  const lower = semTravessao.toLowerCase();
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
 }
 
 /** Grupos para configuração de tags (descritores por etapa). */

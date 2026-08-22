@@ -1,5 +1,6 @@
 import React from 'react';
 import ModalShell from '../ModalShell';
+import FormField from '../FormField';
 import { ANOS_ESCOLARES_OPCOES } from '../../utils/anosEscolares';
 
 const ClassModal = ({
@@ -52,8 +53,7 @@ const ClassModal = ({
         <form onSubmit={handleSaveClass}>
           <div className="modal-form-grid">
             {/* Linha 1: Escola | Ano Letivo */}
-            <div className="input-group">
-              <label>Escola *</label>
+            <FormField label="Escola" required>
               <select
                 required
                 value={classFormData.escola_id || activeSchoolId || ''}
@@ -75,10 +75,9 @@ const ClassModal = ({
                   </option>
                 ))}
               </select>
-            </div>
+            </FormField>
 
-            <div className="input-group">
-              <label>Ano Letivo *</label>
+            <FormField label="Ano Letivo" required>
               <select
                 required
                 value={classFormData.ano_letivo || selectedYear}
@@ -97,7 +96,7 @@ const ClassModal = ({
                 <option value={2026}>2026</option>
                 <option value={2027}>2027</option>
               </select>
-            </div>
+            </FormField>
 
             <div className="input-group" style={{ gridColumn: '1 / -1' }}>
               <label
@@ -188,7 +187,7 @@ const ClassModal = ({
                 ))}
               </div>
               {classFormData.ano.length === 0 && !classFormData.turma_especial && (
-                <div style={{ color: 'var(--danger)', fontSize: '0.8em', marginTop: 3 }}>
+                <div role="alert" style={{ color: 'var(--danger)', fontSize: '0.8em', marginTop: 3 }}>
                   Selecione pelo menos um ano escolar
                 </div>
               )}
@@ -196,9 +195,10 @@ const ClassModal = ({
 
             {/* Linha 3: Nome | Código */}
             <div className="input-group">
-              <label>Nome da Turma *</label>
+              <label htmlFor="turma-nome">Nome da Turma *</label>
               <div style={{ display: 'flex', gap: 8 }}>
                 <input
+                  id="turma-nome"
                   type="text"
                   required
                   value={classFormData.nome}
@@ -231,19 +231,17 @@ const ClassModal = ({
               </div>
             </div>
 
-            <div className="input-group">
-              <label>Código da Turma</label>
+            <FormField label="Código da Turma">
               <input
                 type="text"
                 value={classFormData.codigo}
                 onChange={(e) => setClassFormData({ ...classFormData, codigo: e.target.value })}
                 placeholder="Ex: 301, 302 (opcional)"
               />
-            </div>
+            </FormField>
 
             {/* Linha 4: Professor Regente | Aluno Representante */}
-            <div className="input-group">
-              <label>Professor Regente *</label>
+            <FormField label="Professor Regente" required>
               <input
                 type="text"
                 required
@@ -253,10 +251,9 @@ const ClassModal = ({
                 }
                 placeholder="Nome do professor"
               />
-            </div>
+            </FormField>
 
-            <div className="input-group">
-              <label>Aluno Representante</label>
+            <FormField label="Aluno Representante">
               <input
                 type="text"
                 value={classFormData.aluno_representante}
@@ -265,7 +262,7 @@ const ClassModal = ({
                 }
                 placeholder="Nome do aluno representante (opcional)"
               />
-            </div>
+            </FormField>
           </div>
 
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>

@@ -9,6 +9,7 @@ import {
   TODOS_NIVEIS_ESCRITA,
   matchNivelOficial,
   normalizeNivelKey,
+  formatNivel,
 } from '../utils/sondagemNiveis';
 
 const migrateNiveisSalvos = (lista, todasOpcoes) =>
@@ -53,7 +54,7 @@ const NivelCheckboxGrupos = ({ grupos, field, selecionados, onToggle }) => (
                 )}
                 onChange={() => onToggle(field, nivel)}
               />
-              {nivel}
+              {formatNivel(nivel)}
             </label>
           ))}
         </div>
@@ -285,16 +286,16 @@ const SettingsView = ({ activeSchoolId, supabase }) => {
 
   if (!activeSchoolId) {
     return (
-      <div className="view-section">
+      <section id="view-settings" className="view-section">
         <p>Selecione uma escola para configurar as etiquetas.</p>
-      </div>
+      </section>
     );
   }
 
   const currentConfig = config[activeTab] || { notaMin: '', notaMax: '', niveisLeitura: [], niveisEscrita: [], tiposOcorrencia: [] };
 
   return (
-    <div className="view-section">
+    <section id="view-settings" className="view-section">
       <div className="settings-header">
         <div className="settings-header__title">
           <h2 style={{ margin: 0 }}>Configurações de Etiquetas</h2>
@@ -350,26 +351,26 @@ const SettingsView = ({ activeSchoolId, supabase }) => {
                 apenas com base em nível de leitura, escrita e ocorrências.
               </p>
               <div className="settings-notas-row">
-                <div>
-                  <label style={{ display: 'block', marginBottom: 5, fontSize: '0.9em' }}>Nota Mínima</label>
-                  <input 
-                    type="number" 
+                <div className="input-group" style={{ marginBottom: 0 }}>
+                  <label htmlFor="settings-nota-min">Nota mínima</label>
+                  <input
+                    id="settings-nota-min"
+                    type="number"
                     min="0" max="10" step="0.1"
                     value={currentConfig.notaMin}
                     onChange={(e) => handleConfigChange('notaMin', e.target.value)}
-                    style={{ width: 100, padding: 8, borderRadius: 4, border: '1px solid #ccc' }}
                     placeholder="Ex: 0"
                   />
                 </div>
-                <span>até</span>
-                <div>
-                  <label style={{ display: 'block', marginBottom: 5, fontSize: '0.9em' }}>Nota Máxima</label>
-                  <input 
-                    type="number" 
+                <span className="settings-notas-sep">até</span>
+                <div className="input-group" style={{ marginBottom: 0 }}>
+                  <label htmlFor="settings-nota-max">Nota máxima</label>
+                  <input
+                    id="settings-nota-max"
+                    type="number"
                     min="0" max="10" step="0.1"
                     value={currentConfig.notaMax}
                     onChange={(e) => handleConfigChange('notaMax', e.target.value)}
-                    style={{ width: 100, padding: 8, borderRadius: 4, border: '1px solid #ccc' }}
                     placeholder="Ex: 4.9"
                   />
                 </div>
@@ -419,10 +420,22 @@ const SettingsView = ({ activeSchoolId, supabase }) => {
               </div>
             </div>
 
+            <div className="settings-panel-footer">
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={handleSave}
+                disabled={saving || loading}
+                style={{ width: 'auto' }}
+              >
+                {saving ? 'Salvando...' : 'Salvar Configurações'}
+              </button>
+            </div>
+
           </div>
         </div>
       )}
-    </div>
+    </section>
   );
 };
 

@@ -13,7 +13,7 @@ const SchoolsView = ({
   selectSchool,
 }) => {
   return (
-    <div id="view-schools" className="view-section">
+    <section id="view-schools" className="view-section">
       <div className="page-toolbar">
         <h2>Escolas</h2>
         <button
@@ -132,7 +132,7 @@ const SchoolsView = ({
               </div>
             ))}
       </div>
-    </div>
+    </section>
   );
 };
 

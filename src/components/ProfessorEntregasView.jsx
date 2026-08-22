@@ -22,7 +22,7 @@ const ProfessorEntregasView = ({
       : entregas.filter((e) => String(e.status || '').toLowerCase() === filter);
 
   return (
-    <div id="view-professor-entregas" className="view-section">
+    <section id="view-professor-entregas" className="view-section">
       <div className="page-toolbar">
         <div>
           <h2 style={{ margin: 0 }}>Minhas entregas</h2>
@@ -112,7 +112,7 @@ const ProfessorEntregasView = ({
           ))}
         </div>
       )}
-    </div>
+    </section>
   );
 };
 

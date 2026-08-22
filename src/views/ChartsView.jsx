@@ -28,13 +28,6 @@ import {
   DEFAULT_MEDIA_MINIMA,
 } from '../utils/chartsData';
 
-const FILTER_SELECT_STYLE = {
-  width: '100%',
-  padding: '9px 10px',
-  height: 38,
-  borderRadius: 6,
-  border: '1px solid #ddd',
-};
 
 const INITIAL_LOCAL_PREFS = {
   etiquetaChart: 'pie',
@@ -245,7 +238,7 @@ const ChartsView = ({
           .in('aluno_id', alunoIds),
         supabase
           .from('frequencia_historico')
-          .select('aluno_id, mes_referencia, ano, porcentagem')
+          .select('aluno_id, mes_referencia, ano, percentual')
           .in('aluno_id', alunoIds),
       ]);
 
@@ -440,7 +433,7 @@ const ChartsView = ({
   };
 
   return (
-    <div id="view-graficos" className="view-section charts-view">
+    <section id="view-graficos" className="view-section charts-view">
       <h2>Painel de Gráficos</h2>
       <p className="charts-intro">
         Visualize indicadores pedagógicos com filtros por escola, turma e período. Os dados são atualizados automaticamente conforme os filtros selecionados.
@@ -464,14 +457,15 @@ const ChartsView = ({
           <>
             <div className="analytics-filters charts-filters-grid">
               <div className="input-group">
-                <label>Escola</label>
+                <label htmlFor="charts-escola">Escola</label>
                 <select
+                  id="charts-escola"
                   value={reportSchoolId}
                   onChange={(e) => {
                     setReportSchoolId(e.target.value);
                     setTurmaId('');
                   }}
-                  style={FILTER_SELECT_STYLE}
+                 
                 >
                   <option value="">Todas as escolas</option>
                   {(schools || []).map((s) => (
@@ -481,14 +475,15 @@ const ChartsView = ({
               </div>
 
               <div className="input-group">
-                <label>Ano letivo</label>
+                <label htmlFor="charts-ano">Ano letivo</label>
                 <select
+                  id="charts-ano"
                   value={reportYear}
                   onChange={(e) => {
                     setReportYear(Number(e.target.value));
                     setTurmaId('');
                   }}
-                  style={FILTER_SELECT_STYLE}
+                 
                 >
                   {Array.from({ length: 8 }, (_, i) => new Date().getFullYear() - i + 1).map((y) => (
                     <option key={y} value={y}>{y}</option>
@@ -497,11 +492,12 @@ const ChartsView = ({
               </div>
 
               <div className="input-group">
-                <label>Turma</label>
+                <label htmlFor="charts-turma">Turma</label>
                 <select
+                  id="charts-turma"
                   value={turmaId}
                   onChange={(e) => setTurmaId(e.target.value)}
-                  style={FILTER_SELECT_STYLE}
+                 
                 >
                   <option value="">Todas as turmas</option>
                   {(reportClasses || []).map((t) => (
@@ -511,22 +507,24 @@ const ChartsView = ({
               </div>
 
               <div className="input-group">
-                <label>Período (mês)</label>
+                <label htmlFor="charts-mes">Período (mês)</label>
                 <input
+                  id="charts-mes"
                   type="month"
                   value={monthKey}
                   onChange={(e) => setMonthKey(e.target.value)}
-                  style={FILTER_SELECT_STYLE}
+                 
                   aria-label="Mês de referência"
                 />
               </div>
 
               <div className="input-group">
-                <label>Etiqueta</label>
+                <label htmlFor="charts-etiqueta">Etiqueta</label>
                 <select
+                  id="charts-etiqueta"
                   value={etiquetaCor}
                   onChange={(e) => setEtiquetaCor(e.target.value)}
-                  style={FILTER_SELECT_STYLE}
+                 
                 >
                   <option value="">Todas</option>
                   {ETIQUETA_ORDER.map((cor) => (
@@ -536,11 +534,12 @@ const ChartsView = ({
               </div>
 
               <div className="input-group">
-                <label>Tipo de ocorrência</label>
+                <label htmlFor="charts-ocorrencia">Tipo de ocorrência</label>
                 <select
+                  id="charts-ocorrencia"
                   value={ocorrenciaTipo}
                   onChange={(e) => setOcorrenciaTipo(e.target.value)}
-                  style={FILTER_SELECT_STYLE}
+                 
                 >
                   <option value="">Todos</option>
                   {OCORRENCIA_TIPOS_PADRAO.map((t) => (
@@ -550,11 +549,12 @@ const ChartsView = ({
               </div>
 
               <div className="input-group">
-                <label>AEE</label>
+                <label htmlFor="charts-aee">AEE</label>
                 <select
+                  id="charts-aee"
                   value={aeeFilter}
                   onChange={(e) => setAeeFilter(e.target.value)}
-                  style={FILTER_SELECT_STYLE}
+                 
                 >
                   <option value="all">Todos os alunos</option>
                   <option value="com_aee">Com AEE</option>
@@ -563,11 +563,12 @@ const ChartsView = ({
               </div>
 
               <div className="input-group">
-                <label>Bimestre (boletim)</label>
+                <label htmlFor="charts-bimestre">Bimestre (boletim)</label>
                 <select
+                  id="charts-bimestre"
                   value={bimestre}
                   onChange={(e) => setBimestre(e.target.value)}
-                  style={FILTER_SELECT_STYLE}
+                 
                 >
                   <option value="">Todos</option>
                   {bimestresDisponiveis.map((b) => (
@@ -577,11 +578,12 @@ const ChartsView = ({
               </div>
 
               <div className="input-group">
-                <label>Disciplina</label>
+                <label htmlFor="charts-disciplina">Disciplina</label>
                 <select
+                  id="charts-disciplina"
                   value={disciplina}
                   onChange={(e) => setDisciplina(e.target.value)}
-                  style={FILTER_SELECT_STYLE}
+                 
                 >
                   <option value="">Todas</option>
                   {disciplinasDisponiveis.map((d) => (
@@ -593,11 +595,12 @@ const ChartsView = ({
 
             <div className="charts-prefs-row">
               <div className="input-group charts-pref-item">
-                <label>Gráfico de etiquetas</label>
+                <label htmlFor="charts-pref-tipo">Gráfico de etiquetas</label>
                 <select
+                  id="charts-pref-tipo"
                   value={localPrefs.etiquetaChart}
                   onChange={(e) => setLocalPrefs((p) => ({ ...p, etiquetaChart: e.target.value }))}
-                  style={FILTER_SELECT_STYLE}
+                 
                 >
                   <option value="pie">Pizza</option>
                   <option value="donut">Rosca</option>
@@ -605,11 +608,12 @@ const ChartsView = ({
                 </select>
               </div>
               <div className="input-group charts-pref-item">
-                <label>Exibir valores</label>
+                <label htmlFor="charts-pref-valores">Exibir valores</label>
                 <select
+                  id="charts-pref-valores"
                   value={localPrefs.valueMode}
                   onChange={(e) => setLocalPrefs((p) => ({ ...p, valueMode: e.target.value }))}
-                  style={FILTER_SELECT_STYLE}
+                 
                 >
                   <option value="both">Quantidade e %</option>
                   <option value="count">Quantidade</option>
@@ -980,7 +984,7 @@ const ChartsView = ({
       <div className="charts-export-meta" aria-hidden="true" hidden>
         {JSON.stringify(chartExportMeta('painel', 'Painel de Gráficos SACP', { periodSummary }))}
       </div>
-    </div>
+    </section>
   );
 };
 

@@ -1,6 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 
-/** Status bar e teclado nativo (Android). */
+/** Status bar, teclado e navegação nativa (Android). */
 export function initNativeUi() {
   if (!Capacitor.isNativePlatform()) return undefined;
 
@@ -28,6 +28,17 @@ export function initNativeUi() {
       cleanups.push(() => {
         showSub.then((h) => h.remove());
         hideSub.then((h) => h.remove());
+      });
+    })
+    .catch(() => {});
+
+  import('@capacitor/app')
+    .then(({ App }) => {
+      const backSub = App.addListener('backButton', ({ canGoBack }) => {
+        if (!canGoBack) window.history.back();
+      });
+      cleanups.push(() => {
+        backSub.then((h) => h.remove());
       });
     })
     .catch(() => {});

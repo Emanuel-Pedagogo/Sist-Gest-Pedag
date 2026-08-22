@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import OnboardingChecklist from '../components/OnboardingChecklist';
+import AlertasTurmaPanel from '../components/AlertasTurmaPanel';
 import { isOnboardingVisible } from '../utils/onboarding';
 import EtiquetaGlossarioButton from '../components/EtiquetaGlossario';
 import { ETIQUETA_LABELS, ETIQUETA_COLORS } from '../utils/etiquetas';
@@ -35,9 +36,14 @@ const DashboardView = ({
   onOpenEventDetail,
   userRole = 'coordenador',
   professorProfile = null,
+  isAutonomo = false,
+  alertasTurma,
+  onAbrirAluno,
 }) => {
   const [showOnboarding, setShowOnboarding] = useState(isOnboardingVisible);
   const isProfessor = userRole === 'professor';
+  // Professor vinculado OU professor autônomo: mesma cara de "área do professor"
+  const visaoProfessor = isProfessor || isAutonomo;
 
   const goToClasses = () => {
     setSelectedClassId(null);
@@ -65,7 +71,7 @@ const DashboardView = ({
   ];
 
   return (
-    <div id="view-dashboard" className="view-section">
+    <section id="view-dashboard" className="view-section">
       {isProfessor && (
         <div className="card" style={{ marginBottom: 16, padding: '14px 16px', background: '#f0f7ff', border: '1px solid #d0e6f8' }}>
           <strong style={{ display: 'block', marginBottom: 4 }}>
@@ -91,7 +97,17 @@ const DashboardView = ({
         </div>
       )}
 
-      {!isProfessor && showOnboarding && (
+      {visaoProfessor && (
+        <div style={{ marginBottom: 16 }}>
+          <AlertasTurmaPanel
+            alertas={alertasTurma}
+            loading={dashboardLoading}
+            onAbrirAluno={onAbrirAluno}
+          />
+        </div>
+      )}
+
+      {!visaoProfessor && showOnboarding && (
         <OnboardingChecklist
           classesCount={classesCount}
           totalAlunos={totalAlunos}
@@ -104,7 +120,7 @@ const DashboardView = ({
 
       <div className="dashboard-etiquetas-header">
         <h3 style={{ margin: 0, fontSize: '1rem' }}>
-          {isProfessor ? 'Resumo das minhas turmas' : 'Resumo por etiqueta'}
+          {visaoProfessor ? 'Resumo das minhas turmas' : 'Resumo por etiqueta'}
         </h3>
         <EtiquetaGlossarioButton compact />
       </div>
@@ -287,7 +303,7 @@ const DashboardView = ({
           </div>
         )}
       </div>
-    </div>
+    </section>
   );
 };
 

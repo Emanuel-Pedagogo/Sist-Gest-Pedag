@@ -82,12 +82,24 @@ if (-not (Test-Path $KeystoreProps)) {
     ) | ForEach-Object { $_ } | Set-Content -Path $KeystoreProps -Encoding ascii
 }
 
+$aab = Join-Path $AndroidDir 'app\build\outputs\bundle\release\app-release.aab'
+
+# Remove qualquer AAB antigo antes de compilar, para nunca reaproveitar um
+# arquivo de uma build anterior caso o gradlew falhe silenciosamente.
+if (Test-Path $aab) {
+    Remove-Item $aab -Force
+}
+
 Write-Host '>> Gerando app-release.aab...'
 Push-Location $AndroidDir
 .\gradlew.bat bundleRelease
+$gradleExitCode = $LASTEXITCODE
 Pop-Location
 
-$aab = Join-Path $AndroidDir 'app\build\outputs\bundle\release\app-release.aab'
+if ($gradleExitCode -ne 0) {
+    throw "gradlew bundleRelease falhou (codigo $gradleExitCode). Veja o log acima para a causa."
+}
+
 if (-not (Test-Path $aab)) {
     throw "AAB nao encontrado em $aab"
 }

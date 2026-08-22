@@ -1,5 +1,7 @@
 import React from 'react';
 import ModalShell from '../ModalShell';
+import FormField from '../FormField';
+import { formatNivel } from '../../utils/sondagemNiveis';
 
 const SondagemModal = ({
   showSondagemModal,
@@ -37,8 +39,7 @@ const SondagemModal = ({
         <h2 style={{ fontSize: 18 }}>{editingSondagem ? 'Editar sondagem' : 'Nova sondagem'}</h2>
         <form onSubmit={handleSaveSondagem} className="modal-form-flex">
           <div className="modal-form-scroll">
-            <div className="input-group" style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 13 }}>Data *</label>
+            <FormField label="Data" required style={{ marginBottom: 12 }} labelStyle={{ fontSize: 13 }}>
               <input
                 type="date"
                 required
@@ -48,9 +49,8 @@ const SondagemModal = ({
                 }
                 style={{ padding: 8, fontSize: 13 }}
               />
-            </div>
-            <div className="input-group" style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 13 }}>Nível de leitura *</label>
+            </FormField>
+            <FormField label="Nível de leitura" required style={{ marginBottom: 12 }} labelStyle={{ fontSize: 13 }}>
               <select
                 required
                 value={sondagemFormData.nivel_leitura}
@@ -65,14 +65,13 @@ const SondagemModal = ({
                   const opcoes = nivelSet === '3-5' ? NIVEL_LEITURA_OPCOES_3_5 : nivelSet === '6-9' ? NIVEL_LEITURA_OPCOES_FUNDAMENTAL2 : NIVEL_LEITURA_OPCOES_1_2;
                   return opcoes.map((op) => (
                     <option key={op} value={op}>
-                      {op}
+                      {formatNivel(op)}
                     </option>
                   ));
                 })()}
               </select>
-            </div>
-            <div className="input-group" style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 13 }}>Nível de escrita *</label>
+            </FormField>
+            <FormField label="Nível de escrita" required style={{ marginBottom: 12 }} labelStyle={{ fontSize: 13 }}>
               <select
                 required
                 value={sondagemFormData.nivel_escrita}
@@ -87,14 +86,13 @@ const SondagemModal = ({
                   const opcoes = nivelSet === '3-5' ? NIVEL_ESCRITA_OPCOES_3_5 : nivelSet === '6-9' ? NIVEL_ESCRITA_OPCOES_FUNDAMENTAL2 : NIVEL_ESCRITA_OPCOES_1_2;
                   return opcoes.map((op) => (
                     <option key={op} value={op}>
-                      {op}
+                      {formatNivel(op)}
                     </option>
                   ));
                 })()}
               </select>
-            </div>
-            <div className="input-group" style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 13 }}>Observações (opcional)</label>
+            </FormField>
+            <FormField label="Observações (opcional)" style={{ marginBottom: 12 }} labelStyle={{ fontSize: 13 }}>
               <textarea
                 value={sondagemFormData.observacoes || ''}
                 onChange={(e) =>
@@ -104,9 +102,9 @@ const SondagemModal = ({
                 rows={3}
                 style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #ddd', fontSize: 13, resize: 'vertical' }}
               />
-            </div>
+            </FormField>
             <div className="input-group" style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 13 }}>Foto da escrita (opcional)</label>
+              <label htmlFor="sondagem-foto" style={{ fontSize: 13 }}>Foto da escrita (opcional)</label>
               {(sondagemFormData.foto_escrita_url || sondagemFormData.foto_file) ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 12, color: '#666' }}>
@@ -137,6 +135,7 @@ const SondagemModal = ({
                 </div>
               ) : (
                 <input
+                  id="sondagem-foto"
                   type="file"
                   accept="image/*"
                   capture="environment"
@@ -151,7 +150,7 @@ const SondagemModal = ({
               )}
             </div>
             <div className="input-group" style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 13 }}>Áudio da leitura (opcional)</label>
+              <label htmlFor="sondagem-audio" style={{ fontSize: 13 }}>Áudio da leitura (opcional)</label>
               {(sondagemFormData.audio_leitura_url || sondagemFormData.audio_file) ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 12, color: '#666' }}>
@@ -182,6 +181,7 @@ const SondagemModal = ({
                 </div>
               ) : (
                 <input
+                  id="sondagem-audio"
                   type="file"
                   accept="audio/*"
                   capture
@@ -196,7 +196,7 @@ const SondagemModal = ({
               )}
             </div>
             <div className="input-group" style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 13 }}>Arquivo (PDF/Word) (opcional)</label>
+              <label htmlFor="sondagem-arquivo" style={{ fontSize: 13 }}>Arquivo (PDF/Word) (opcional)</label>
               {(sondagemFormData.arquivo_url || sondagemFormData.arquivo_file) ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 12, color: '#666' }}>
@@ -227,6 +227,7 @@ const SondagemModal = ({
                 </div>
               ) : (
                 <input
+                  id="sondagem-arquivo"
                   type="file"
                   accept=".pdf,.doc,.docx"
                   onChange={(e) =>

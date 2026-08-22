@@ -5,7 +5,7 @@
   --bg: #F5F7FA;
   --white: #FFFFFF;
   --text: #333333;
-  --text-light: #7F8C8D;
+  --text-light: #5E6E70;
   --border: #DDE3EA;
   --surface-muted: #F8FAFC;
   --focus-ring: rgba(52, 152, 219, 0.22);
@@ -51,11 +51,26 @@ button {
 button:focus-visible,
 input:focus-visible,
 select:focus-visible,
-textarea:focus-visible,
-[role="button"]:focus-visible {
+textarea:focus-visible {
   outline: none;
   border-color: var(--accent) !important;
   box-shadow: 0 0 0 4px var(--focus-ring);
+}
+
+/* Botão sem aparência própria — para linhas de lista, breadcrumbs e chips
+   clicáveis (a11y por teclado) sem mudar o visual do elemento original. */
+.btn-unstyled {
+  appearance: none;
+  -webkit-appearance: none;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  min-height: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 @media (max-width: 768px) {
@@ -160,6 +175,18 @@ textarea:focus-visible,
 .input-group textarea {
   min-height: 96px;
   resize: vertical;
+}
+
+.input-group .input-error {
+  color: var(--danger);
+  font-size: 0.85em;
+  margin-top: 4px;
+}
+
+.input-group input[aria-invalid='true'],
+.input-group select[aria-invalid='true'],
+.input-group textarea[aria-invalid='true'] {
+  border-color: var(--danger);
 }
 
 .input-group input:not([type='checkbox']):not([type='radio']):focus,
@@ -1051,8 +1078,25 @@ h1 {
 .settings-notas-row {
   display: flex;
   gap: 15px;
-  align-items: center;
+  align-items: flex-end;
   flex-wrap: wrap;
+}
+
+.settings-notas-row .input-group input {
+  max-width: 140px;
+}
+
+.settings-notas-sep {
+  color: var(--text-light);
+  padding-bottom: 12px;
+}
+
+.settings-panel-footer {
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: flex-end;
 }
 
 .library-panel {
@@ -1181,7 +1225,7 @@ h1 {
 
 .list-item__meta {
   font-size: 0.8em;
-  color: gray;
+  color: #5E6E70;
 }
 
 .list-item__main {
@@ -1443,39 +1487,179 @@ h1 {
   align-items: flex-start;
 }
 
+.reports-filters-row .input-group {
+  margin-bottom: 0;
+}
+
+.reports-filter--escola {
+  min-width: 200px;
+  flex: 1;
+}
+
+.reports-filter--ano {
+  width: 110px;
+  flex-shrink: 0;
+}
+
+.reports-filter--turmas {
+  flex: 2;
+  min-width: 260px;
+}
+
+.reports-turmas-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.reports-turmas-header label {
+  margin-bottom: 0;
+}
+
+.reports-turmas-count {
+  font-weight: 400;
+  color: var(--text-light);
+  margin-left: 6px;
+}
+
+.reports-turmas-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.reports-mini-btn {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  cursor: pointer;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: white;
+  color: var(--accent);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.reports-mini-btn:hover {
+  background: var(--accent);
+  color: white;
+}
+
+.reports-mini-btn--muted {
+  border-color: var(--text-light);
+  color: var(--text-light);
+}
+
+.reports-mini-btn--muted:hover {
+  background: var(--text-light);
+  color: white;
+}
+
 .reports-grade-picker {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 4px;
+  padding: 6px;
   min-height: var(--control-height);
   background: var(--surface-muted);
   display: flex;
   flex-wrap: nowrap;
-  gap: 2px;
+  gap: 6px;
   align-items: center;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
 
-.reports-grade-picker label {
+.reports-grade-picker__loading {
+  color: var(--text-light);
+  font-size: 13px;
+  padding: 0 6px;
+}
+
+.reports-grade-chip {
   display: flex;
   align-items: center;
   gap: 6px;
   cursor: pointer;
-  padding: 6px 8px;
-  border-radius: var(--radius-sm);
-  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: white;
+  font-size: 13px;
   font-weight: 500;
-  color: #333;
+  color: var(--text);
   white-space: nowrap;
   flex-shrink: 0;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.reports-grade-chip input[type='checkbox'] {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  accent-color: var(--accent);
+  margin: 0;
+}
+
+.reports-grade-chip.is-active {
+  background: rgba(52, 152, 219, 0.1);
+  border-color: var(--accent);
+  color: var(--primary);
 }
 
 .reports-filters-grid {
   display: grid;
-  grid-template-columns: minmax(100px, 1fr) minmax(140px, 1.5fr) minmax(100px, 1fr) minmax(90px, 1fr) auto;
+  grid-template-columns: minmax(100px, 1fr) minmax(160px, 1.5fr) minmax(100px, 1fr) minmax(90px, 1fr) auto;
   gap: 12px;
+  align-items: end;
+}
+
+.reports-filters-grid .input-group {
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+.reports-generate-cell {
+  display: flex;
   align-items: flex-end;
+}
+
+.reports-generate-btn {
+  width: auto;
+  padding: 0 24px;
+  min-height: var(--control-height);
+  white-space: nowrap;
+}
+
+.reports-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.reports-table thead tr {
+  background: var(--surface-muted);
+  border-bottom: 2px solid var(--border);
+}
+
+.reports-table th {
+  padding: 12px;
+  text-align: left;
+  color: var(--secondary);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.reports-table td {
+  padding: 10px 12px;
+}
+
+.reports-table tbody tr {
+  border-bottom: 1px solid var(--border);
+}
+
+.reports-table tbody tr:hover {
+  background: var(--surface-muted);
 }
 
 .reports-results-header {
@@ -1507,13 +1691,23 @@ h1 {
 }
 
 .reports-export-btn--pdf {
-  border: 1px solid #dc3545;
-  color: #dc3545;
+  border: 1px solid var(--danger);
+  color: var(--danger);
+}
+
+.reports-export-btn--pdf:hover {
+  background: var(--danger);
+  color: white;
 }
 
 .reports-export-btn--word {
-  border: 1px solid #0d6efd;
-  color: #0d6efd;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+
+.reports-export-btn--word:hover {
+  background: var(--accent);
+  color: white;
 }
 
 .boletim-view {
@@ -2254,6 +2448,11 @@ h1 {
 
   .settings-notas-row input {
     width: 100% !important;
+    max-width: none;
+  }
+
+  .settings-notas-sep {
+    padding-bottom: 0;
   }
 
   .library-loan-form {
@@ -2372,8 +2571,13 @@ h1 {
     grid-template-columns: 1fr;
   }
 
-  .reports-filters-grid .btn-primary {
+  .reports-filters-grid .btn-primary,
+  .reports-generate-btn {
     width: 100%;
+  }
+
+  .reports-generate-cell {
+    display: block;
   }
 
   .reports-results-header {

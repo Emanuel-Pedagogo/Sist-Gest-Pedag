@@ -45,7 +45,7 @@ describe('pickLatestSondagemPerAlunoInMonth', () => {
 });
 
 describe('countByNivel', () => {
-  it('agrupa leitura na ordem pedagógica dos níveis', () => {
+  it('agrupa leitura na ordem pedagógica com rótulo formatado', () => {
     const data = countByNivel(
       [
         { nivel_leitura: 'LEITOR FLUENTE' },
@@ -56,10 +56,23 @@ describe('countByNivel', () => {
       'nivel_leitura',
       'Não informado'
     );
-    expect(data[0].name).toBe('LEITOR FLUENTE');
-    expect(data[1].name).toBe('PRÉ – LEITOR 1');
+    expect(data[0].name).toBe('Leitor fluente');
+    expect(data[1].name).toBe('Pré-leitor 1');
     expect(data[1].value).toBe(2);
     expect(data[data.length - 1].name).toBe('Não informado');
+  });
+
+  it('funde variações de caixa do mesmo nível em uma única linha', () => {
+    const data = countByNivel(
+      [
+        { nivel_leitura: 'PRÉ-LEITOR' },
+        { nivel_leitura: 'Pré-Leitor' },
+      ],
+      'nivel_leitura'
+    );
+    expect(data).toHaveLength(1);
+    expect(data[0].name).toBe('Pré-leitor');
+    expect(data[0].value).toBe(2);
   });
 
   it('agrupa escrita com nível mais alto no topo', () => {
@@ -70,8 +83,8 @@ describe('countByNivel', () => {
       ],
       'nivel_escrita'
     );
-    expect(data[0].name).toBe('ALFABÉTICO');
-    expect(data[1].name).toBe('PRÉ-SILÁBICO');
+    expect(data[0].name).toBe('Alfabético');
+    expect(data[1].name).toBe('Pré-silábico');
   });
 });
 

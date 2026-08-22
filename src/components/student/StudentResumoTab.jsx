@@ -2,6 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../supabaseClient';
 import { generateResumoPedagogico } from '../../services/geminiApi';
 import { ETIQUETA_COLORS, getEtiquetaLabel } from '../../utils/etiquetas';
+import { formatNivel } from '../../utils/sondagemNiveis';
+import ModalShell from '../ModalShell';
+import { exportBoletimAlunoPdf } from '../../utils/boletimAlunoPdf';
 
 const ETIQUETA_INFO = Object.fromEntries(
   ['vermelho', 'amarelo', 'verde', 'roxo', 'azul'].map((cor) => [
@@ -50,9 +53,17 @@ const StudentResumoTab = ({
   sondagensLoading,
   formatDate,
   switchTab,
+  isProfessor = false,
+  escolaNome = '',
+  anoLetivo = '',
+  professorNome = '',
 }) => {
   const [boletimStats, setBoletimStats] = useState(null);
   const [boletimStatsLoading, setBoletimStatsLoading] = useState(false);
+  const [showBoletimModal, setShowBoletimModal] = useState(false);
+  const [observacaoBoletim, setObservacaoBoletim] = useState('');
+  const [gerandoBoletim, setGerandoBoletim] = useState(false);
+  const [erroBoletim, setErroBoletim] = useState('');
   const [resumoIa, setResumoIa] = useState('');
   const [resumoIaLoading, setResumoIaLoading] = useState(false);
   const [resumoIaError, setResumoIaError] = useState('');
@@ -72,8 +83,8 @@ const StudentResumoTab = ({
   }, [occurrences]);
 
   const nivelLeituraExibicao =
-    ultimaSondagem?.nivel_leitura || selectedStudent?.nivel_leitura || 'Não informado';
-  const nivelEscritaExibicao = ultimaSondagem?.nivel_escrita || 'Não informado';
+    formatNivel(ultimaSondagem?.nivel_leitura || selectedStudent?.nivel_leitura) || 'Não informado';
+  const nivelEscritaExibicao = formatNivel(ultimaSondagem?.nivel_escrita) || 'Não informado';
 
   useEffect(() => {
     if (!selectedStudent?.id) return undefined;
@@ -138,7 +149,7 @@ const StudentResumoTab = ({
       .slice(0, 5)
       .map((s) => {
         const d = s.data ? formatDate(s.data) : '?';
-        return `${d}: leitura ${s.nivel_leitura || '—'}, escrita ${s.nivel_escrita || '—'}`;
+        return `${d}: leitura ${formatNivel(s.nivel_leitura) || '—'}, escrita ${formatNivel(s.nivel_escrita) || '—'}`;
       });
   }, [sondagens, formatDate]);
 
@@ -174,8 +185,50 @@ const StudentResumoTab = ({
     }
   };
 
+  const handleGerarBoletim = async () => {
+    if (!selectedStudent?.id) return;
+    setGerandoBoletim(true);
+    setErroBoletim('');
+    try {
+      const [{ data: notas, error: notasError }, { data: ocorrenciasPdf }] = await Promise.all([
+        supabase
+          .from('notas_boletim')
+          .select('disciplina, bimestre, nota, falta')
+          .eq('aluno_id', selectedStudent.id),
+        supabase
+          .from('ocorrencias')
+          .select('titulo, tipo, descricao, data_ocorrencia')
+          .eq('aluno_id', selectedStudent.id)
+          .order('data_ocorrencia', { ascending: false }),
+      ]);
+      if (notasError) throw notasError;
+
+      await exportBoletimAlunoPdf(
+        selectedStudent,
+        {
+          notas: notas || [],
+          ocorrencias: ocorrenciasPdf || [],
+          sondagem: ultimaSondagem || null,
+        },
+        {
+          escolaNome,
+          turmaNome,
+          anoLetivo,
+          professorNome,
+          observacao: observacaoBoletim,
+        },
+      );
+      setShowBoletimModal(false);
+    } catch (err) {
+      setErroBoletim('Não foi possível gerar o boletim: ' + (err?.message || String(err)));
+    } finally {
+      setGerandoBoletim(false);
+    }
+  };
+
   const atalhos = [
-    { id: 'boletim', label: 'Boletim', icon: 'fa-graduation-cap' },
+    // Professor não tem a aba Boletim (lança notas na aba "Notas" da turma)
+    ...(isProfessor ? [] : [{ id: 'boletim', label: 'Boletim', icon: 'fa-graduation-cap' }]),
     { id: 'ocorrencias', label: 'Ocorrências', icon: 'fa-exclamation-circle' },
     { id: 'sondagem', label: 'Sondagens', icon: 'fa-chart-line' },
     { id: 'evidencias', label: 'Evidências', icon: 'fa-paperclip' },
@@ -512,7 +565,82 @@ const StudentResumoTab = ({
             {item.label}
           </button>
         ))}
+
+        <button
+          type="button"
+          onClick={() => {
+            setObservacaoBoletim('');
+            setErroBoletim('');
+            setShowBoletimModal(true);
+          }}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '10px 16px',
+            border: '1px solid var(--primary)',
+            borderRadius: 8,
+            background: 'white',
+            cursor: 'pointer',
+            fontSize: '0.9em',
+            color: 'var(--primary)',
+            fontWeight: 600,
+          }}
+        >
+          <i className="fas fa-file-pdf" />
+          Boletim para os pais (PDF)
+        </button>
       </div>
+
+      <ModalShell
+        open={showBoletimModal}
+        disabled={gerandoBoletim}
+        onClose={() => setShowBoletimModal(false)}
+        maxWidth={460}
+      >
+        <h2 style={{ fontSize: 18 }}>Boletim para os pais</h2>
+        <p style={{ margin: '0 0 14px', fontSize: '0.9em', color: '#555', lineHeight: 1.45 }}>
+          Gera um PDF de <strong>{selectedStudent?.nome}</strong> com notas, faltas, níveis de leitura e
+          escrita e os registros de acompanhamento — pronto para enviar ao responsável.
+        </p>
+
+        {erroBoletim && (
+          <div className="auth-message auth-error" style={{ marginBottom: 12 }}>{erroBoletim}</div>
+        )}
+
+        <div className="input-group">
+          <label htmlFor="boletim-observacao">Observação para o responsável (opcional)</label>
+          <textarea
+            id="boletim-observacao"
+            rows={4}
+            value={observacaoBoletim}
+            onChange={(e) => setObservacaoBoletim(e.target.value)}
+            placeholder="Ex: Parabéns pelo empenho no bimestre. Sugiro reforçar a leitura em casa."
+            disabled={gerandoBoletim}
+          />
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+          <button
+            type="button"
+            className="btn-secondary"
+            style={{ width: 'auto' }}
+            onClick={() => setShowBoletimModal(false)}
+            disabled={gerandoBoletim}
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            style={{ width: 'auto' }}
+            onClick={handleGerarBoletim}
+            disabled={gerandoBoletim}
+          >
+            {gerandoBoletim ? 'Gerando...' : 'Gerar PDF'}
+          </button>
+        </div>
+      </ModalShell>
     </>
   );
 };

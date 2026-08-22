@@ -288,7 +288,7 @@ export function countFrequenciaPorFaixa(students, frequenciaHistorico, { monthKe
   for (const a of students || []) {
     let pct = null;
     if (histByAluno[a.id]) {
-      pct = parseFloat(histByAluno[a.id].porcentagem);
+      pct = parseFloat(histByAluno[a.id].percentual);
     } else if (!mesCurto && a.frequencia != null && a.frequencia !== '') {
       pct = parseFloat(a.frequencia);
     }

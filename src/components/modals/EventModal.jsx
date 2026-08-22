@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import ModalShell from '../ModalShell';
+import FormField from '../FormField';
 import { RECORRENCIA_OPCOES, INITIAL_EVENT_FORM_DATA, ETIQUETA_CORES } from '../../utils/agendaConstants';
 import { countRecurringOccurrences, getDefaultRecorrenciaAte } from '../../utils/agendaRecorrencia';
 
@@ -15,6 +16,7 @@ const EventModal = ({  showEventModal,
   handleDeleteAgendaEvent,
   handleBackdropMouseDown,
   handleBackdropClick,
+  classesList = [],
 }) => {
   const ocorrenciasPrevistas = useMemo(
     () => countRecurringOccurrences(eventFormData),
@@ -37,8 +39,7 @@ const EventModal = ({  showEventModal,
         <h2>
           {editingEvent ? 'Editar Evento' : 'Novo Evento'}
         </h2>        <form onSubmit={handleSaveEvent}>
-          <div className="input-group" style={{ marginBottom: 20 }}>
-            <label>Título *</label>
+          <FormField label="Título" required style={{ marginBottom: 20 }}>
             <input
               type="text"
               value={eventFormData.titulo}
@@ -46,10 +47,27 @@ const EventModal = ({  showEventModal,
               required
               placeholder="Ex: Reunião de Pais"
             />
-          </div>
+          </FormField>
 
-          <div className="input-group" style={{ marginBottom: 20 }}>
-            <label>Observação</label>
+          <FormField
+            label="Turma"
+            hint="Marcando a turma, o planejamento deste dia fica disponível para preencher o Diário de Classe dela."
+            style={{ marginBottom: 20 }}
+          >
+            <select
+              value={eventFormData.turma_id || ''}
+              onChange={(e) => setEventFormData({ ...eventFormData, turma_id: e.target.value })}
+            >
+              <option value="">Todas as turmas</option>
+              {(classesList || []).map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.nome}
+                </option>
+              ))}
+            </select>
+          </FormField>
+
+          <FormField label="Observação" style={{ marginBottom: 20 }}>
             <textarea
               value={eventFormData.descricao}
               onChange={(e) => setEventFormData({ ...eventFormData, descricao: e.target.value })}
@@ -64,18 +82,17 @@ const EventModal = ({  showEventModal,
                 resize: 'vertical',
               }}
             />
-          </div>
+          </FormField>
 
           <div className="modal-form-grid" style={{ marginBottom: 20 }}>
-            <div className="input-group">
-              <label>Data de Início *</label>
+            <FormField label="Data de Início" required>
               <input
                 type="date"
                 value={eventFormData.data_inicio}
                 onChange={(e) => {
                   const newDate = e.target.value;
-                  setEventFormData({ 
-                    ...eventFormData, 
+                  setEventFormData({
+                    ...eventFormData,
                     data_inicio: newDate,
                     // Se não houver data de fim, usar a mesma data
                     data_fim: eventFormData.data_fim || newDate
@@ -83,9 +100,8 @@ const EventModal = ({  showEventModal,
                 }}
                 required
               />
-            </div>
-            <div className="input-group">
-              <label>Hora de Início *</label>
+            </FormField>
+            <FormField label="Hora de Início" required>
               <select
                 value={eventFormData.hora_inicio}
                 onChange={(e) => setEventFormData({ ...eventFormData, hora_inicio: e.target.value })}
@@ -104,20 +120,18 @@ const EventModal = ({  showEventModal,
                   </option>
                 ))}
               </select>
-            </div>
+            </FormField>
           </div>
 
           <div className="modal-form-grid" style={{ marginBottom: 20 }}>
-            <div className="input-group">
-              <label>Data de Fim</label>
+            <FormField label="Data de Fim">
               <input
                 type="date"
                 value={eventFormData.data_fim}
                 onChange={(e) => setEventFormData({ ...eventFormData, data_fim: e.target.value })}
               />
-            </div>
-            <div className="input-group">
-              <label>Hora de Fim</label>
+            </FormField>
+            <FormField label="Hora de Fim">
               <select
                 value={eventFormData.hora_fim}
                 onChange={(e) => setEventFormData({ ...eventFormData, hora_fim: e.target.value })}
@@ -135,12 +149,13 @@ const EventModal = ({  showEventModal,
                   </option>
                 ))}
               </select>
-            </div>
+            </FormField>
           </div>
 
           <div className="input-group" style={{ marginBottom: 20 }}>
-            <label>Repetir</label>
+            <label htmlFor="evento-repetir">Repetir</label>
             <select
+              id="evento-repetir"
               value={eventFormData.recorrencia_tipo || 'nenhuma'}
               onChange={(e) => {
                 const tipo = e.target.value;
@@ -171,10 +186,11 @@ const EventModal = ({  showEventModal,
             </select>
             {eventFormData.recorrencia_tipo && eventFormData.recorrencia_tipo !== 'nenhuma' && (
               <div style={{ marginTop: 12 }}>
-                <label style={{ display: 'block', marginBottom: 6, fontSize: '0.9em' }}>
+                <label htmlFor="evento-repetir-ate" style={{ display: 'block', marginBottom: 6, fontSize: '0.9em' }}>
                   Repetir até *
                 </label>
                 <input
+                  id="evento-repetir-ate"
                   type="date"
                   value={eventFormData.recorrencia_ate || ''}
                   min={eventFormData.data_inicio || undefined}
@@ -346,8 +362,9 @@ const EventModal = ({  showEventModal,
           </div>
 
           <div className="input-group" style={{ marginBottom: 20 }}>
-            <label>Anexo (PDF, imagem ou Word)</label>
+            <label htmlFor="evento-anexo">Anexo (PDF, imagem ou Word)</label>
             <input
+              id="evento-anexo"
               type="file"
               accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.doc,.docx"
               onChange={(e) => {

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 
 const DEFAULT_NAV_ITEMS = [
   { id: 'dashboard', label: 'Início', icon: 'fas fa-home' },
@@ -8,7 +8,7 @@ const DEFAULT_NAV_ITEMS = [
   { id: 'menu', label: 'Mais', icon: 'fas fa-ellipsis-h', isMenu: true },
 ];
 
-const MobileBottomNav = ({ activeId, onNavigate, onOpenMenu, items = DEFAULT_NAV_ITEMS }) => (
+const MobileBottomNav = memo(({ activeId, onNavigate, onOpenMenu, items = DEFAULT_NAV_ITEMS }) => (
   <nav className="mobile-bottom-nav" aria-label="Navegação principal">
     {items.map((item) => {
       const isActive = item.isMenu ? activeId === 'menu' : activeId === item.id;
@@ -27,6 +27,8 @@ const MobileBottomNav = ({ activeId, onNavigate, onOpenMenu, items = DEFAULT_NAV
       );
     })}
   </nav>
-);
+));
+
+MobileBottomNav.displayName = 'MobileBottomNav';
 
 export default MobileBottomNav;

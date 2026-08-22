@@ -1,5 +1,6 @@
 import React from 'react';
 import ModalShell from '../ModalShell';
+import FormField from '../FormField';
 import { ANOS_ESCOLARES_OPCOES, anoOptionToCanonical } from '../../utils/anosEscolares';
 
 const TeacherModal = ({
@@ -34,8 +35,7 @@ const TeacherModal = ({
       <h2>{editingTeacher ? 'Editar Professor' : 'Novo Professor'}</h2>
       <form onSubmit={handleSaveTeacher}>
         <div className="modal-form-grid" style={{ marginBottom: 12 }}>
-          <div className="input-group">
-            <label>Nome *</label>
+          <FormField label="Nome" required>
             <input
               type="text"
               required
@@ -48,10 +48,9 @@ const TeacherModal = ({
               spellCheck={false}
               data-form-type="other"
             />
-          </div>
+          </FormField>
 
-          <div className="input-group">
-            <label>Disciplina *</label>
+          <FormField label="Disciplina" required>
             <input
               type="text"
               required
@@ -64,11 +63,24 @@ const TeacherModal = ({
               spellCheck={false}
               data-form-type="other"
             />
-          </div>
+          </FormField>
         </div>
 
-        <div className="input-group" style={{ marginTop: 12 }}>
-          <label>E-mail de acesso (login do professor)</label>
+        <FormField
+          label="E-mail de acesso (login do professor)"
+          style={{ marginTop: 12 }}
+          hint={
+            <>
+              O professor precisa de conta no SACP com este e-mail. No primeiro login, o sistema vincula o
+              acesso às turmas selecionadas. Deixe em branco se o professor ainda não for usuário do app.
+              {editingTeacher?.user_id ? (
+                <span style={{ display: 'block', marginTop: 4, color: '#28a745' }}>
+                  Conta vinculada (usuário Auth ativo).
+                </span>
+              ) : null}
+            </>
+          }
+        >
           <input
             type="email"
             value={teacherFormData.auth_email || ''}
@@ -76,16 +88,7 @@ const TeacherModal = ({
             placeholder="mesmo e-mail usado no cadastro/login do professor"
             autoComplete="off"
           />
-          <small style={{ display: 'block', marginTop: 6, color: '#666', lineHeight: 1.4 }}>
-            O professor precisa de conta no SACP com este e-mail. No primeiro login, o sistema vincula o
-            acesso às turmas selecionadas. Deixe em branco se o professor ainda não for usuário do app.
-          </small>
-          {editingTeacher?.user_id ? (
-            <small style={{ display: 'block', marginTop: 4, color: '#28a745' }}>
-              Conta vinculada (usuário Auth ativo).
-            </small>
-          ) : null}
-        </div>
+        </FormField>
 
         <div className="input-group" style={{ marginTop: 12 }}>
           <label style={{ fontSize: '0.9em' }}>Turmas * (selecione um ou mais)</label>

@@ -15,6 +15,7 @@ export const PROFESSOR_ALLOWED_VIEWS = new Set([
   'agenda-event-detail',
   'entregas',
   'profile',
+  'chat-ia',
 ]);
 
 /** Itens da barra inferior no mobile (professor). */
@@ -82,13 +83,30 @@ export async function resolveUserRole(supabase, user) {
   return { role: USER_ROLE.PROFESSOR, professor: claimed };
 }
 
+/**
+ * Views escondidas do professor autônomo (usa a ferramenta sozinho).
+ * Ele é coordenador da própria conta — continua podendo cadastrar escola,
+ * turma e aluno pelos botões dentro das telas —, mas estas telas só fazem
+ * sentido quando existe uma equipe/coordenação por trás.
+ */
+export const AUTONOMO_HIDDEN_VIEWS = new Set([
+  'schools',
+  'teachers',
+  'teacher-detail',
+  'emprestimos',
+  'reports',
+  'graficos',
+  'settings',
+]);
+
 export function isProfessorRole(role) {
   return role === USER_ROLE.PROFESSOR;
 }
 
-export function isViewAllowedForRole(role, viewId) {
-  if (!isProfessorRole(role)) return true;
-  return PROFESSOR_ALLOWED_VIEWS.has(viewId);
+export function isViewAllowedForRole(role, viewId, { isAutonomo = false } = {}) {
+  if (isProfessorRole(role)) return PROFESSOR_ALLOWED_VIEWS.has(viewId);
+  if (isAutonomo) return !AUTONOMO_HIDDEN_VIEWS.has(viewId);
+  return true;
 }
 
 /** Filtra turmas às vinculadas ao perfil do professor. */

@@ -69,7 +69,7 @@ const AgendaEventDetailView = ({
   };
 
   return (
-    <div id="view-agenda-event-detail" className="view-section agenda-event-detail">
+    <section id="view-agenda-event-detail" className="view-section agenda-event-detail">
       <div className="agenda-detail-toolbar">
         <button
           type="button"
@@ -375,7 +375,7 @@ const AgendaEventDetailView = ({
           </div>
         )}
       </section>
-    </div>
+    </section>
   );
 };
 

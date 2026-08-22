@@ -50,7 +50,7 @@ O **SACP (Sistema de Apoio à Coordenação Pedagógica)** é uma aplicação we
 | Camada | Tecnologia |
 |--------|------------|
 | Frontend | React 19 + Vite 7 (SPA) |
-| Estilo | CSS global (`src/App.css`, `src/index.css`); Tailwind está no `package.json` mas o design real do app é CSS class-based legado |
+| Estilo | CSS global (`src/App.css`, `src/index.css`), class-based; Tailwind foi removido do `package.json` (nunca esteve ligado ao build) |
 | Backend | Supabase (Auth, PostgreSQL, Storage, Edge Functions) |
 | IA | Google Gemini via Edge Functions (secret `GEMINI_API_KEY` no Supabase) |
 | Mobile | Capacitor 7 (`android/`) |

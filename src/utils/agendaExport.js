@@ -533,6 +533,51 @@ export async function exportAgendaPDF(events, meta) {
   await savePdfDocument(doc, `planejamento-${safeLabel}-${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
+/**
+ * Exporta vários meses num único PDF — um mês por página, no mesmo formato
+ * de calendário da exportação de período único.
+ *
+ * @param {Array<{ currentDate: Date, periodLabel: string, events: Array }>} paginas
+ *        Uma entrada por mês, já com os eventos daquele mês filtrados.
+ * @param {object} metaBase  Mesmo meta da exportação normal, sem periodLabel
+ *        nem currentDate (cada página traz os seus).
+ */
+export async function exportAgendaPDFMeses(paginas, metaBase) {
+  if (!paginas?.length) return;
+
+  const { jsPDF } = await import('jspdf');
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+  paginas.forEach((pagina, indice) => {
+    if (indice > 0) doc.addPage();
+
+    const meta = {
+      ...metaBase,
+      agendaView: 'month',
+      currentDate: pagina.currentDate,
+      periodLabel: pagina.periodLabel,
+    };
+
+    let y = drawPdfExportHeader(doc, meta);
+    y = drawPdfPeriodTitle(doc, meta.periodLabel, 'month', y);
+    drawPdfCalendarGrid(doc, meta, groupEventsByDate(pagina.events), y);
+  });
+
+  const primeiro = paginas[0];
+  const ultimo = paginas[paginas.length - 1];
+  const trecho = (d) =>
+    `${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+  const intervalo =
+    paginas.length === 1
+      ? trecho(primeiro.currentDate)
+      : `${trecho(primeiro.currentDate)}_a_${trecho(ultimo.currentDate)}`;
+
+  await savePdfDocument(
+    doc,
+    `planejamento-${intervalo}-${new Date().toISOString().slice(0, 10)}.pdf`,
+  );
+}
+
 function buildWordEventParagraphs(ev, docx) {
   const { Paragraph, TextRun, LineRuleType } = docx;
   const color = getEventColor(ev);

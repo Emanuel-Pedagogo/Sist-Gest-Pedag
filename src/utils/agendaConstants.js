@@ -19,6 +19,9 @@ const LEGACY_COLOR_MAP = {
 export const INITIAL_EVENT_FORM_DATA = {
   titulo: '',
   descricao: '',
+  // Turma à qual o evento se refere. Vazio = vale para todas as turmas.
+  // Usado para levar o planejamento do dia até o Diário de Classe da turma.
+  turma_id: '',
   data_inicio: '',
   hora_inicio: '08:00',
   data_fim: '',

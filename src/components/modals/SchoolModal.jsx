@@ -1,5 +1,6 @@
 import React from 'react';
 import ModalShell from '../ModalShell';
+import FormField from '../FormField';
 
 const SchoolModal = ({
   showSchoolModal,
@@ -33,8 +34,7 @@ const SchoolModal = ({
     >
       <h2>{editingSchool ? 'Editar Escola' : 'Nova Escola'}</h2>
       <form key={editingSchool?.id ?? 'new'} onSubmit={handleSaveSchool}>
-        <div className="input-group" style={{ marginBottom: 15 }}>
-          <label>Nome *</label>
+        <FormField label="Nome" required style={{ marginBottom: 15 }}>
           <input
             type="text"
             required
@@ -42,10 +42,9 @@ const SchoolModal = ({
             onChange={(e) => setSchoolFormData({ ...schoolFormData, nome: e.target.value })}
             placeholder="Nome da escola"
           />
-        </div>
+        </FormField>
 
-        <div className="input-group" style={{ marginBottom: 15 }}>
-          <label>INEP *</label>
+        <FormField label="INEP" required style={{ marginBottom: 15 }}>
           <input
             type="text"
             required
@@ -53,10 +52,9 @@ const SchoolModal = ({
             onChange={(e) => setSchoolFormData({ ...schoolFormData, inep: e.target.value })}
             placeholder="Código INEP"
           />
-        </div>
+        </FormField>
 
-        <div className="input-group" style={{ marginBottom: 15 }}>
-          <label>Endereço *</label>
+        <FormField label="Endereço" required style={{ marginBottom: 15 }}>
           <input
             type="text"
             required
@@ -64,10 +62,9 @@ const SchoolModal = ({
             onChange={(e) => setSchoolFormData({ ...schoolFormData, endereco: e.target.value })}
             placeholder="Endereço completo"
           />
-        </div>
+        </FormField>
 
-        <div className="input-group" style={{ marginBottom: 20 }}>
-          <label>Tipo *</label>
+        <FormField label="Tipo" required style={{ marginBottom: 20 }}>
           <select
             required
             value={schoolFormData.tipo}
@@ -76,7 +73,7 @@ const SchoolModal = ({
             <option value="Polo">Polo</option>
             <option value="Anexa">Anexa</option>
           </select>
-        </div>
+        </FormField>
 
         <div className="modal-actions">
           <button type="button" className="btn-secondary" onClick={closeModal} disabled={savingSchool}>

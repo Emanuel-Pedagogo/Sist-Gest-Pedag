@@ -112,10 +112,15 @@ const AgendaView = ({
     const isAniversario = ev.tipo === 'aniversario';
     const timeLabel = showTime && inicio.time ? `${inicio.time} ` : '';
 
+    // Aniversários não são clicáveis — ficam como <div>; eventos reais viram
+    // <button> para serem acessíveis por teclado.
+    const ChipTag = isAniversario ? 'div' : 'button';
+
     return (
-      <div
+      <ChipTag
         key={ev.id}
-        className={`agenda-event-chip ${isAniversario ? 'agenda-event-chip--static' : 'agenda-event-chip--interactive'}`}
+        type={isAniversario ? undefined : 'button'}
+        className={`agenda-event-chip btn-unstyled ${isAniversario ? 'agenda-event-chip--static' : 'agenda-event-chip--interactive'}`}
         onClick={(e) => {
           e.stopPropagation();
           if (isAniversario) return;
@@ -127,7 +132,7 @@ const AgendaView = ({
       >
         {timeLabel}
         {ev.titulo}
-      </div>
+      </ChipTag>
     );
   };
 
@@ -137,11 +142,23 @@ const AgendaView = ({
     const dateStr = formatDateStr(date);
     const today = isToday(date);
 
+    // A célula contém chips que já são <button>; button dentro de button é
+    // inválido, então a célula usa role="button" + teclado manual.
     return (
       <div
         key={dateStr}
+        role="button"
+        tabIndex={0}
+        aria-label={`Dia ${day} — criar evento`}
         className={`agenda-day-cell ${compact ? 'agenda-day-cell--compact' : 'agenda-day-cell--week'}${today ? ' agenda-day-cell--today' : ''}`}
         onClick={() => openNewEventModal(dateStr)}
+        onKeyDown={(e) => {
+          if (e.target !== e.currentTarget) return;
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            openNewEventModal(dateStr);
+          }
+        }}
       >
         <span
           style={{
@@ -344,9 +361,13 @@ const AgendaView = ({
                   ? `${inicio.time} – ${fim.time}`
                   : inicio.time || '—';
 
+              const RowTag = isAniversario ? 'div' : 'button';
+
               return (
-                <div
+                <RowTag
                   key={ev.id}
+                  type={isAniversario ? undefined : 'button'}
+                  className={isAniversario ? undefined : 'btn-unstyled'}
                   onClick={() => {
                     if (!isAniversario) onOpenEventDetail(ev);
                   }}
@@ -387,7 +408,7 @@ const AgendaView = ({
                   {!isAniversario && (
                     <i className="fas fa-chevron-right" style={{ color: '#ccc', alignSelf: 'center' }} />
                   )}
-                </div>
+                </RowTag>
               );
             })}
           </div>
@@ -399,7 +420,7 @@ const AgendaView = ({
   const showWeekdayHeader = agendaView === 'month' || agendaView === 'week';
 
   return (
-    <div id="view-agenda" className="view-section">
+    <section id="view-agenda" className="view-section">
       <div className="agenda-view-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
         <div className="segmented-control" aria-label="Visualização da agenda">
           <button
@@ -558,9 +579,9 @@ const AgendaView = ({
       <ExportAgendaModal
         open={showExportModal}
         onClose={() => setShowExportModal(false)}
-        onExportPDF={(ids) => {
+        onExportPDF={(ids, meses) => {
           setShowExportModal(false);
-          onExportPDF(ids);
+          onExportPDF(ids, meses);
         }}
         onExportWord={(ids) => {
           setShowExportModal(false);
@@ -568,6 +589,7 @@ const AgendaView = ({
         }}
         exporting={exportingAgenda}
         periodLabel={exportPeriodLabel}
+        anoLetivo={currentDate.getFullYear()}
         showSemedMarcos={showSemedMarcos}
         setShowSemedMarcos={setShowSemedMarcos}
         hasSemedImport={hasSemedImport}
@@ -633,7 +655,7 @@ const AgendaView = ({
           )}
         </div>
       )}
-    </div>
+    </section>
   );
 };
 

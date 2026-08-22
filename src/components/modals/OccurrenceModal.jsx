@@ -1,5 +1,6 @@
 import React from 'react';
 import ModalShell from '../ModalShell';
+import FormField from '../FormField';
 
 const OccurrenceModal = ({
   showModal,
@@ -22,8 +23,7 @@ const OccurrenceModal = ({
     >
       <h2>{editingOccurrence ? 'Editar Ocorrência' : 'Nova Ocorrência'}</h2>
       <form onSubmit={handleSaveOccurrence}>
-        <div className="input-group" style={{ marginBottom: 15 }}>
-          <label>Título *</label>
+        <FormField label="Título" required style={{ marginBottom: 15 }}>
           <input
             type="text"
             required
@@ -31,10 +31,9 @@ const OccurrenceModal = ({
             onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
             placeholder="Ex: Dificuldade de Leitura"
           />
-        </div>
+        </FormField>
 
-        <div className="input-group" style={{ marginBottom: 15 }}>
-          <label>Tipo *</label>
+        <FormField label="Tipo" required style={{ marginBottom: 15 }}>
           <select
             required
             value={formData.tipo}
@@ -44,20 +43,18 @@ const OccurrenceModal = ({
             <option value="Comportamental">Comportamental</option>
             <option value="Família">Família</option>
           </select>
-        </div>
+        </FormField>
 
-        <div className="input-group" style={{ marginBottom: 15 }}>
-          <label>Data *</label>
+        <FormField label="Data" required style={{ marginBottom: 15 }}>
           <input
             type="date"
             required
             value={formData.data_ocorrencia}
             onChange={(e) => setFormData({ ...formData, data_ocorrencia: e.target.value })}
           />
-        </div>
+        </FormField>
 
-        <div className="input-group" style={{ marginBottom: 20 }}>
-          <label>Descrição *</label>
+        <FormField label="Descrição" required style={{ marginBottom: 20 }}>
           <textarea
             required
             value={formData.descricao}
@@ -66,7 +63,7 @@ const OccurrenceModal = ({
             rows={5}
             style={{ resize: 'vertical' }}
           />
-        </div>
+        </FormField>
 
         <div className="modal-actions">
           <button type="button" className="btn-secondary" onClick={handleCancelModal} disabled={savingOccurrence}>

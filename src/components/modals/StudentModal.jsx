@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import ModalShell from '../ModalShell';
+import FormField from '../FormField';
 
 const StudentModal = ({
   showStudentModal,
@@ -93,8 +94,9 @@ const StudentModal = ({
             você verá sempre os dados da turma de escolarização.
           </p>
           <div className="input-group" style={{ position: 'relative', marginBottom: 20 }}>
-            <label>Nome ou matrícula *</label>
+            <label htmlFor="aluno-vincular-busca">Nome ou matrícula *</label>
             <input
+              id="aluno-vincular-busca"
               type="text"
               value={nameSearchQuery}
               onChange={(e) => setNameSearchQuery(e.target.value)}
@@ -169,8 +171,7 @@ const StudentModal = ({
         <h2>{editingStudent ? 'Editar Aluno' : 'Novo Aluno'}</h2>
         <form onSubmit={handleSaveStudent}>
           <div className="modal-form-grid">
-            <div className="input-group">
-              <label>Nome *</label>
+            <FormField label="Nome" required>
               <input
                 type="text"
                 required
@@ -183,10 +184,9 @@ const StudentModal = ({
                 spellCheck={false}
                 data-form-type="other"
               />
-            </div>
+            </FormField>
 
-            <div className="input-group">
-              <label>Data de Nascimento *</label>
+            <FormField label="Data de Nascimento" required>
               <input
                 type="date"
                 required
@@ -195,10 +195,9 @@ const StudentModal = ({
                   setStudentFormData({ ...studentFormData, data_nascimento: e.target.value })
                 }
               />
-            </div>
+            </FormField>
 
-            <div className="input-group">
-              <label>Turma *</label>
+            <FormField label="Turma" required>
               <select
                 required
                 value={studentFormData.turma_id}
@@ -219,20 +218,18 @@ const StudentModal = ({
                     </option>
                   ))}
               </select>
-            </div>
+            </FormField>
 
-            <div className="input-group">
-              <label>Matrícula</label>
+            <FormField label="Matrícula">
               <input
                 type="text"
                 value={studentFormData.matricula}
                 onChange={(e) => setStudentFormData({ ...studentFormData, matricula: e.target.value })}
                 placeholder="Número da matrícula (opcional)"
               />
-            </div>
+            </FormField>
 
-            <div className="input-group">
-              <label>Nome do Responsável</label>
+            <FormField label="Nome do Responsável">
               <input
                 type="text"
                 value={studentFormData.nome_responsavel}
@@ -244,20 +241,18 @@ const StudentModal = ({
                 spellCheck={false}
                 data-form-type="other"
               />
-            </div>
+            </FormField>
 
-            <div className="input-group">
-              <label>Contato</label>
+            <FormField label="Contato">
               <input
                 type="text"
                 value={studentFormData.contato}
                 onChange={(e) => setStudentFormData({ ...studentFormData, contato: e.target.value })}
                 placeholder="Telefone ou email (opcional)"
               />
-            </div>
+            </FormField>
 
-            <div className="input-group">
-              <label>Etiqueta *</label>
+            <FormField label="Etiqueta" required>
               <select
                 required
                 value={studentFormData.etiqueta_cor}
@@ -271,61 +266,57 @@ const StudentModal = ({
                 <option value="vermelho">Risco</option>
                 <option value="roxo">AEE</option>
               </select>
-            </div>
+            </FormField>
 
-            <div className="input-group">
-              {studentFormData.etiqueta_cor === 'roxo' ? (
-                <>
-                  <label>Deficiência/Condição/CID</label>
-                  <input
-                    type="text"
-                    value={
-                      studentFormData.aee_deficiencia || studentFormData.aee_cid
-                        ? `${studentFormData.aee_deficiencia || ''}${studentFormData.aee_cid ? (studentFormData.aee_deficiencia ? ' - ' : '') + `CID: ${studentFormData.aee_cid}` : ''}`
-                        : ''
+            {studentFormData.etiqueta_cor === 'roxo' ? (
+              <FormField label="Deficiência/Condição/CID">
+                <input
+                  type="text"
+                  value={
+                    studentFormData.aee_deficiencia || studentFormData.aee_cid
+                      ? `${studentFormData.aee_deficiencia || ''}${studentFormData.aee_cid ? (studentFormData.aee_deficiencia ? ' - ' : '') + `CID: ${studentFormData.aee_cid}` : ''}`
+                      : ''
+                  }
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    const cidMatch = value.match(/CID:\s*([A-Z0-9.]+)/i);
+                    let cid = '';
+                    let deficiencia = value;
+
+                    if (cidMatch) {
+                      cid = cidMatch[1].trim();
+                      deficiencia = value.replace(/CID:\s*[A-Z0-9.]+/i, '').replace(/\s*-\s*$/, '').trim();
                     }
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      const cidMatch = value.match(/CID:\s*([A-Z0-9.]+)/i);
-                      let cid = '';
-                      let deficiencia = value;
 
-                      if (cidMatch) {
-                        cid = cidMatch[1].trim();
-                        deficiencia = value.replace(/CID:\s*[A-Z0-9.]+/i, '').replace(/\s*-\s*$/, '').trim();
-                      }
-
-                      setStudentFormData({
-                        ...studentFormData,
-                        aee_deficiencia: deficiencia,
-                        aee_cid: cid,
-                      });
-                    }}
-                    placeholder="Ex: Autismo, Síndrome de Down - CID: F84.0"
-                  />
-                </>
-              ) : (
-                <>
-                  <label>Motivo</label>
-                  <input
-                    type="text"
-                    value={studentFormData.motivo_etiqueta}
-                    onChange={(e) => setStudentFormData({ ...studentFormData, motivo_etiqueta: e.target.value })}
-                    placeholder={
-                      studentFormData.etiqueta_cor === 'vermelho'
-                        ? 'Ex: Frequência, Nota baixa...'
-                        : studentFormData.etiqueta_cor === 'amarelo'
-                        ? 'Ex: Dificuldade de aprendizagem...'
-                        : studentFormData.etiqueta_cor === 'azul'
-                        ? 'Ex: Desempenho regular...'
-                        : studentFormData.etiqueta_cor === 'verde'
-                        ? 'Ex: Bom desempenho...'
-                        : 'Motivo da etiqueta'
-                    }
-                  />
-                </>
-              )}
-            </div>
+                    setStudentFormData({
+                      ...studentFormData,
+                      aee_deficiencia: deficiencia,
+                      aee_cid: cid,
+                    });
+                  }}
+                  placeholder="Ex: Autismo, Síndrome de Down - CID: F84.0"
+                />
+              </FormField>
+            ) : (
+              <FormField label="Motivo">
+                <input
+                  type="text"
+                  value={studentFormData.motivo_etiqueta}
+                  onChange={(e) => setStudentFormData({ ...studentFormData, motivo_etiqueta: e.target.value })}
+                  placeholder={
+                    studentFormData.etiqueta_cor === 'vermelho'
+                      ? 'Ex: Frequência, Nota baixa...'
+                      : studentFormData.etiqueta_cor === 'amarelo'
+                      ? 'Ex: Dificuldade de aprendizagem...'
+                      : studentFormData.etiqueta_cor === 'azul'
+                      ? 'Ex: Desempenho regular...'
+                      : studentFormData.etiqueta_cor === 'verde'
+                      ? 'Ex: Bom desempenho...'
+                      : 'Motivo da etiqueta'
+                  }
+                />
+              </FormField>
+            )}
           </div>
 
           <div className="modal-actions">

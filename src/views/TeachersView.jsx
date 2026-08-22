@@ -16,7 +16,7 @@ const TeachersView = ({
   handleDeleteTeacher,
 }) => {
   return (
-    <div id="view-teachers" className="view-section">
+    <section id="view-teachers" className="view-section">
       <div className="page-toolbar">
         <h2>
           Professores {activeSchool ? `- ${activeSchool.nome}` : ''}
@@ -76,10 +76,13 @@ const TeachersView = ({
               <div
                 key={p.id}
                 className="list-item"
-                onClick={() => selectTeacher(p)}
-                title="Abrir perfil do professor"
               >
-                <div className="list-item__main">
+                <button
+                  type="button"
+                  className="list-item__main btn-unstyled"
+                  onClick={() => selectTeacher(p)}
+                  title="Abrir perfil do professor"
+                >
                   <i className="fas fa-chalkboard-teacher" style={{ color: 'var(--primary)', fontSize: '1.2em', width: 24, textAlign: 'center', flexShrink: 0 }} />
                   <div style={{ minWidth: 0 }}>
                     <strong>{p.nome}</strong>
@@ -88,7 +91,7 @@ const TeachersView = ({
                       {turmaNomes.length > 0 ? ` • Turmas: ${turmaNomes.join(', ')}` : ' • Turmas: -'}
                     </div>
                   </div>
-                </div>
+                </button>
                 <div className="list-item-actions">
                   <button
                     type="button"
@@ -117,7 +120,7 @@ const TeachersView = ({
             );
           })}
       </div>
-    </div>
+    </section>
   );
 };
 

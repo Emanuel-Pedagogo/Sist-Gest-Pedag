@@ -1,4 +1,4 @@
-import { sortNiveisPorOrdemPedagogica } from './sondagemNiveis';
+import { sortNiveisPorOrdemPedagogica, formatNivel } from './sondagemNiveis';
 
 /** Retorna chave YYYY-MM para um Date (padrão: hoje). */
 export function formatMonthKey(date = new Date()) {
@@ -32,11 +32,13 @@ export function pickLatestSondagemPerAlunoInMonth(sondagens, monthKey) {
   return Array.from(byAluno.values());
 }
 
-/** Conta registros por campo de nível (leitura ou escrita). */
+/** Conta registros por campo de nível (leitura ou escrita).
+ * Agrupa pelo rótulo formatado (formatNivel) para fundir variações de caixa
+ * do mesmo nível ("PRÉ-LEITOR" e "Pré-Leitor" viram uma única barra). */
 export function countByNivel(records, field, fallback = 'Não informado') {
   const counts = {};
   for (const s of records || []) {
-    const nivel = String(s[field] || '').trim() || fallback;
+    const nivel = formatNivel(s[field]) || fallback;
     counts[nivel] = (counts[nivel] || 0) + 1;
   }
   const rows = Object.keys(counts).map((name) => ({ name, value: counts[name] }));

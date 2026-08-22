@@ -1,5 +1,6 @@
 import React from 'react';
 import ModalShell from '../ModalShell';
+import FormField from '../FormField';
 
 const EntregaModal = ({
   showEntregaModal,
@@ -29,8 +30,7 @@ const EntregaModal = ({
     >
       <h2>{editingEntrega ? 'Editar exigência' : 'Nova exigência de entrega'}</h2>
       <form onSubmit={handleSaveEntrega}>
-        <div className="input-group">
-          <label>Tipo de documento *</label>
+        <FormField label="Tipo de documento" required>
           <input
             type="text"
             required
@@ -39,16 +39,15 @@ const EntregaModal = ({
             onChange={(e) => setEntregaFormData({ ...entregaFormData, tipo_documento: e.target.value })}
             placeholder="Ex.: Plano de Aula, Diário de Classe..."
           />
-          <datalist id="tipos-entrega-docente">
-            <option value="Plano de Aula" />
-            <option value="Plano de Curso" />
-            <option value="Sondagem Alfabetiza Pará" />
-            <option value="Diário de Classe" />
-            <option value="Planejamento anual" />
-          </datalist>
-        </div>
-        <div className="input-group">
-          <label>Referência *</label>
+        </FormField>
+        <datalist id="tipos-entrega-docente">
+          <option value="Plano de Aula" />
+          <option value="Plano de Curso" />
+          <option value="Sondagem Alfabetiza Pará" />
+          <option value="Diário de Classe" />
+          <option value="Planejamento anual" />
+        </datalist>
+        <FormField label="Referência" required>
           <input
             type="text"
             required
@@ -56,10 +55,9 @@ const EntregaModal = ({
             onChange={(e) => setEntregaFormData({ ...entregaFormData, referencia: e.target.value })}
             placeholder="Ex.: 2º Bimestre - Turma 5º A"
           />
-        </div>
+        </FormField>
         <div className="modal-form-grid">
-          <div className="input-group">
-            <label>Status</label>
+          <FormField label="Status">
             <select
               value={entregaFormData.status}
               onChange={(e) => setEntregaFormData({ ...entregaFormData, status: e.target.value })}
@@ -68,18 +66,16 @@ const EntregaModal = ({
               <option value="entregue">Entregue</option>
               <option value="atrasado">Atrasado</option>
             </select>
-          </div>
-          <div className="input-group">
-            <label>Prazo (opcional)</label>
+          </FormField>
+          <FormField label="Prazo (opcional)">
             <input
               type="date"
               value={entregaFormData.prazo}
               onChange={(e) => setEntregaFormData({ ...entregaFormData, prazo: e.target.value })}
             />
-          </div>
+          </FormField>
         </div>
-        <div className="input-group">
-          <label>Observações</label>
+        <FormField label="Observações">
           <textarea
             value={entregaFormData.observacoes}
             onChange={(e) => setEntregaFormData({ ...entregaFormData, observacoes: e.target.value })}
@@ -87,7 +83,7 @@ const EntregaModal = ({
             placeholder="Notas internas..."
             style={{ resize: 'vertical' }}
           />
-        </div>
+        </FormField>
         <div className="modal-actions">
           <button type="button" className="btn-secondary" disabled={savingEntrega} onClick={closeModal}>
             Cancelar

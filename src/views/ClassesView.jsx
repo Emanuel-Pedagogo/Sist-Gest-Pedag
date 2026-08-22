@@ -4,6 +4,7 @@ import ImportarSondagemFoto from '../ImportarSondagemFoto';
 import ImportarBoletimTurma from '../ImportarBoletimTurma';
 import ClassDashboardView from './ClassDashboardView';
 import DiarioFrequenciaEspecialView from './DiarioFrequenciaEspecialView';
+import NotasComponentesView from '../components/NotasComponentesView';
 import { isTurmaEspecial } from '../utils/turmas';
 import AlunoListSubtitle from '../components/AlunoListSubtitle';
 import EtiquetaIcon from '../components/EtiquetaIcon';
@@ -55,6 +56,7 @@ const ClassesView = ({
   reavaliarCorAluno,
   canManageCadastro = true,
   professorProfile = null,
+  isProfessor = false,
 }) => {
   const [showImportLista, setShowImportLista] = useState(false);
   const [showImportSondagem, setShowImportSondagem] = useState(false);
@@ -73,7 +75,7 @@ const ClassesView = ({
     (classesList || []).find((c) => String(c.id) === String(turmaId))?.nome || 'Turma';
 
   return (
-    <div id="view-classes" className="view-section">
+    <section id="view-classes" className="view-section">
       {selectedClassId ? (
         <React.Fragment key="alunos-da-turma">
           {/* Linha 1: Voltar | Turma | Importar lista | Editar aluno | Novo Aluno */}
@@ -273,6 +275,12 @@ const ClassesView = ({
             >
               Diário de Classe
             </button>
+            <button
+              className={`tab ${activeTab === 'notas' ? 'active' : ''}`}
+              onClick={() => setActiveTab('notas')}
+            >
+              Notas
+            </button>
           </div>
 
           {activeTab === 'diario' && (
@@ -283,6 +291,16 @@ const ClassesView = ({
               classesList={classesList}
               professorProfile={professorProfile}
               selectedYear={selectedYear}
+            />
+          )}
+
+          {activeTab === 'notas' && (
+            <NotasComponentesView
+              turmaId={selectedClassId}
+              turmaNome={selectedClassName}
+              students={students}
+              professorProfile={professorProfile}
+              isProfessor={isProfessor}
             />
           )}
 
@@ -464,7 +482,9 @@ const ClassesView = ({
                       paddingLeft: aluno.etiqueta_cor === 'roxo' ? '12px' : undefined,
                     }}
                   >
-                    <div
+                    <button
+                      type="button"
+                      className="btn-unstyled"
                       style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, cursor: 'pointer' }}
                       onClick={() => selectStudent(aluno)}
                     >
@@ -483,7 +503,7 @@ const ClassesView = ({
                           }
                         />
                       </div>
-                    </div>
+                    </button>
                     <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                       <span className={`badge ${badgeClass}`}>
                         {getEtiquetaLabel(aluno.etiqueta_cor)}
@@ -618,7 +638,9 @@ const ClassesView = ({
                 const etiquetas = turmaEtiquetasCount[turma.id] || { verde: 0, amarelo: 0, vermelho: 0, azul: 0 };
                 return (
                 <div key={turma.id} className="list-item">
-                  <div
+                  <button
+                    type="button"
+                    className="btn-unstyled"
                     style={{ flex: 1, cursor: 'pointer' }}
                     onClick={() => selectClass(turma)}
                   >
@@ -678,7 +700,7 @@ const ClassesView = ({
                         )}
                       </div>
                     </div>
-                  </div>
+                  </button>
                   <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                     {canManageCadastro && (
                       <>
@@ -724,7 +746,7 @@ const ClassesView = ({
           </div>
         </React.Fragment>
       )}
-    </div>
+    </section>
   );
 };
 

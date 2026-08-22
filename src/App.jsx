@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -39,6 +39,7 @@ import {
   getAgendaExportRange,
   getEventsForExport,
   exportAgendaPDF,
+  exportAgendaPDFMeses,
   exportAgendaWord,
 } from './utils/agendaExport';
 import {
@@ -59,6 +60,7 @@ import SettingsView from './views/SettingsView';
 import ChatIAView from './views/ChatIAView';
 import MobileBottomNav from './components/MobileBottomNav';
 import ProfessorEntregasView from './components/ProfessorEntregasView';
+import OnboardingAutonomo from './components/OnboardingAutonomo';
 import {
   USER_ROLE,
   PROFESSOR_BOTTOM_NAV,
@@ -71,6 +73,7 @@ import {
 } from './utils/userRole';
 
 import { evaluateStudentColor, getMotivoOrigemEtiqueta } from './utils/studentColorEvaluator';
+import { normalizeNivelKey } from './utils/sondagemNiveis';
 import { enrichAlunosEtiquetaMotivo } from './utils/alunosEtiquetaMotivo';
 import { Capacitor } from '@capacitor/core';
 import { getAuthRedirectUrl } from './utils/authRedirect';
@@ -106,6 +109,8 @@ function App() {
   const [authUser, setAuthUser] = useState(null); // usuário logado (Supabase auth)
   const [userRole, setUserRole] = useState(null); // null | 'coordenador' | 'professor'
   const [professorProfile, setProfessorProfile] = useState(null);
+  // 'autonomo' | 'institucional' | null — tipo da conta que o usuário coordena
+  const [contaTipo, setContaTipo] = useState(null);
   const [, setNavHydrated] = useState(false);
   const isLoggedInRef = useRef(false);
   // Inicializar estados - serão carregados do localStorage quando houver sessão
@@ -123,6 +128,9 @@ function App() {
   const [schools, setSchools] = useState([]);
   const [schoolsLoading, setSchoolsLoading] = useState(false);
   const [schoolsError, setSchoolsError] = useState(null);
+  // true assim que a primeira busca de escolas terminar (evita mostrar a tela
+  // de boas-vindas do professor autônomo por engano antes do carregamento real)
+  const [schoolsChecked, setSchoolsChecked] = useState(false);
 
   const [classes, setClasses] = useState([]);
   const [classesLoading, setClassesLoading] = useState(false);
@@ -146,6 +154,8 @@ function App() {
   const [totalAzul, setTotalAzul] = useState(0);
   const [totalRoxo, setTotalRoxo] = useState(0);
   const [dashboardLoading, setDashboardLoading] = useState(false);
+  // Alertas do painel do professor: { faltosos, notaBaixa, semSondagem }
+  const [alertasTurma, setAlertasTurma] = useState({ faltosos: [], notaBaixa: [], semSondagem: [] });
   const [dashboardSelectedDate, setDashboardSelectedDate] = useState(() => new Date());
   const [dashboardWeekStart, setDashboardWeekStart] = useState(() => {
     const d = new Date();
@@ -188,7 +198,7 @@ function App() {
   const [frequencyFormData, setFrequencyFormData] = useState({
     mes_referencia: '',
     ano: new Date().getFullYear(),
-    porcentagem: '',
+    percentual: '',
   });
   const [savingFrequency, setSavingFrequency] = useState(false);
 
@@ -392,6 +402,7 @@ function App() {
       if (!authUser) {
         setUserRole(null);
         setProfessorProfile(null);
+        setContaTipo(null);
         return;
       }
 
@@ -400,6 +411,16 @@ function App() {
         if (cancelled) return;
         setUserRole(role);
         setProfessorProfile(professor);
+
+        // Descobre se é uma conta autônoma (professor usando sozinho, sem
+        // coordenação): a RLS de "contas" já devolve só a conta do próprio
+        // usuário, e professor vinculado não coordena nenhuma conta.
+        if (role === USER_ROLE.COORDENADOR) {
+          const { data: conta } = await supabase.from('contas').select('tipo').limit(1).maybeSingle();
+          if (!cancelled) setContaTipo(conta?.tipo || null);
+        } else if (!cancelled) {
+          setContaTipo(null);
+        }
 
         if (role === USER_ROLE.PROFESSOR && professor) {
           if (professor.escola_id) {
@@ -418,6 +439,7 @@ function App() {
         if (!cancelled) {
           setUserRole(USER_ROLE.COORDENADOR);
           setProfessorProfile(null);
+          setContaTipo(null);
         }
       }
     };
@@ -825,19 +847,31 @@ function App() {
   };
 
   const isProfessor = isProfessorRole(userRole);
+  // Professor usando a ferramenta sozinho: tecnicamente é coordenador da
+  // própria conta (mantém poder de cadastrar escola/turma/aluno), mas a
+  // interface se apresenta como "Área do Professor" e enxuga o menu.
+  const isAutonomo = !isProfessor && contaTipo === 'autonomo';
+
+  // Mostra a tela de boas-vindas (criar escola/turma do zero) só quando:
+  // já sabemos o papel do usuário, ele não é professor vinculado, a busca de
+  // escolas já terminou (evita flash) e ela voltou vazia (nenhum espaço ainda).
+  const showOnboardingAutonomo = Boolean(
+    userRole && !isProfessor && schoolsChecked && !schoolsLoading && schools.length === 0,
+  );
 
   // Guard contínuo: URL/localStorage podem setar a view direto (bypass de navigate)
   useEffect(() => {
-    if (!userRole || !isProfessorRole(userRole)) return;
-    if (!isViewAllowedForRole(userRole, currentView)) {
-      toast.warn('Esta área é exclusiva da coordenação.');
+    if (!userRole) return;
+    if (!isProfessorRole(userRole) && !isAutonomo) return;
+    if (!isViewAllowedForRole(userRole, currentView, { isAutonomo })) {
+      if (!isAutonomo) toast.warn('Esta área é exclusiva da coordenação.');
       setCurrentView('dashboard');
     }
-  }, [userRole, currentView]);
+  }, [userRole, currentView, isAutonomo]);
 
   const navigate = (viewId) => {
-    if (userRole && !isViewAllowedForRole(userRole, viewId)) {
-      toast.warn('Esta área é exclusiva da coordenação.');
+    if (userRole && !isViewAllowedForRole(userRole, viewId, { isAutonomo })) {
+      if (!isAutonomo) toast.warn('Esta área é exclusiva da coordenação.');
       setCurrentView('dashboard');
       return;
     }
@@ -879,7 +913,7 @@ function App() {
     // Mantém a aba Turmas selecionada; a lista de alunos da turma será exibida na própria view de turmas
   };
 
-  const selectStudent = (aluno, options = {}) => {
+  const selectStudent = useCallback((aluno, options = {}) => {
     if (isProfessor && !professorHasTurma(professorProfile, aluno?.turma_id)) {
       toast.warn('Você não tem acesso a este aluno.');
       return;
@@ -894,7 +928,7 @@ function App() {
       aee_mediadora: aluno.aee_mediadora || '',
       aee_plano_individual: aluno.aee_plano_individual || '',
     });
-  };
+  }, [isProfessor, professorProfile]);
 
   // Fechar modal só quando o clique foi no backdrop (não ao arrastar para selecionar texto)
   const backdropMouseDownRef = useRef(false);
@@ -912,12 +946,13 @@ function App() {
   };
 
   const getPageTitle = () => {
+    const visaoProfessor = isProfessor || isAutonomo;
     const titles = {
-      dashboard: isProfessor ? 'Minha área' : 'Visão Geral',
+      dashboard: visaoProfessor ? 'Minha área' : 'Visão Geral',
       agenda: 'Agenda e Planejamento',
       schools: 'Gestão de Escolas',
-      classes: isProfessor ? 'Minhas Turmas' : 'Gestão de Turmas',
-      students: isProfessor ? 'Meus Alunos' : 'Gestão de Alunos',
+      classes: visaoProfessor ? 'Minhas Turmas' : 'Gestão de Turmas',
+      students: visaoProfessor ? 'Meus Alunos' : 'Gestão de Alunos',
       teachers: 'Gestão de Professores',
       'teacher-detail': 'Perfil do Professor',
       'student-detail': 'Detalhes do Aluno',
@@ -939,7 +974,7 @@ function App() {
 
   // Nome e função do usuário para o header e perfil
   const userName = authUser?.user_metadata?.full_name || authUser?.email?.split('@')[0] || 'Usuário';
-  const userRoleLabel = isProfessor
+  const userRoleLabel = isProfessor || isAutonomo
     ? 'Professor'
     : authUser?.user_metadata?.role || 'Coordenador';
   const userInitial = (userName && userName[0]) ? userName[0].toUpperCase() : 'U';
@@ -1018,10 +1053,13 @@ function App() {
         }
       }
       setSchoolsLoading(false);
+      setSchoolsChecked(true);
     };
 
     if (isLoggedIn) {
       fetchSchools();
+    } else {
+      setSchoolsChecked(false);
     }
   }, [isLoggedIn]);
 
@@ -1070,11 +1108,13 @@ function App() {
 
     // Carregar turmas na view Turmas/Alunos/Professores (para modais terem lista)
     // Professor: também no dashboard (resumo das minhas turmas)
+    // Agenda: o modal de evento precisa da lista para vincular a turma
     if (
       (currentView === 'classes' ||
         currentView === 'students' ||
         currentView === 'teachers' ||
         currentView === 'dashboard' ||
+        currentView === 'agenda' ||
         currentView === 'entregas') &&
       (activeSchoolId || selectedSchoolId)
     ) {
@@ -1090,6 +1130,7 @@ function App() {
         currentView === 'students' ||
         currentView === 'teachers' ||
         currentView === 'dashboard' ||
+        currentView === 'agenda' ||
         currentView === 'entregas')
     ) {
       const fetchClasses = async () => {
@@ -1400,6 +1441,42 @@ function App() {
     }
   }, [currentView, activeSchoolId, selectedSchoolId, selectedClassId, selectedStudent?.turma_id, selectedYear, classes, userRole, professorProfile]);
 
+  /**
+   * Monta os três alertas do painel do professor a partir dos alunos já
+   * carregados pelo dashboard: quem está faltando muito, quem tem nota
+   * abaixo de 5 e quem ainda não tem nenhuma sondagem registrada.
+   */
+  const carregarAlertasTurma = async (alunos) => {
+    if (!alunos.length) {
+      setAlertasTurma({ faltosos: [], notaBaixa: [], semSondagem: [] });
+      return;
+    }
+    const alunoIds = alunos.map((a) => a.id);
+    const nomePorId = Object.fromEntries(alunos.map((a) => [a.id, a.nome]));
+    const resumo = (id) => ({ id, nome: nomePorId[id] || 'Aluno' });
+
+    try {
+      const [{ data: notas }, { data: sondagens }] = await Promise.all([
+        supabase.from('notas_boletim').select('aluno_id, nota').in('aluno_id', alunoIds).lt('nota', 5),
+        supabase.from('sondagens').select('aluno_id').in('aluno_id', alunoIds),
+      ]);
+
+      const comNotaBaixa = new Set((notas || []).map((n) => n.aluno_id));
+      const comSondagem = new Set((sondagens || []).map((s) => s.aluno_id));
+
+      setAlertasTurma({
+        faltosos: alunos
+          .filter((a) => a.frequencia_percentual != null && Number(a.frequencia_percentual) < 85)
+          .map((a) => resumo(a.id)),
+        notaBaixa: alunos.filter((a) => comNotaBaixa.has(a.id)).map((a) => resumo(a.id)),
+        semSondagem: alunos.filter((a) => !comSondagem.has(a.id)).map((a) => resumo(a.id)),
+      });
+    } catch (err) {
+      console.warn('Não foi possível montar os alertas da turma:', err);
+      setAlertasTurma({ faltosos: [], notaBaixa: [], semSondagem: [] });
+    }
+  };
+
   // Carregar dados do Dashboard
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -1449,7 +1526,7 @@ function App() {
 
         const { data: alunos, error: alunosError } = await supabase
           .from('alunos')
-          .select('id, etiqueta_cor')
+          .select('id, nome, turma_id, etiqueta_cor, frequencia_percentual')
           .in('turma_id', turmaIds);
 
         if (alunosError) {
@@ -1466,6 +1543,8 @@ function App() {
         setTotalVerde(alunos?.filter((a) => a.etiqueta_cor === 'verde').length || 0);
         setTotalAzul(alunos?.filter((a) => a.etiqueta_cor === 'azul').length || 0);
         setTotalRoxo(alunos?.filter((a) => a.etiqueta_cor === 'roxo').length || 0);
+
+        await carregarAlertasTurma(alunos || []);
       } catch (error) {
         console.error('Erro ao carregar dados do dashboard:', error);
       } finally {
@@ -1539,6 +1618,13 @@ function App() {
       setCurrentTab('resumo');
     }
   }, [currentView, selectedStudent?.etiqueta_cor, currentTab]);
+
+  // Professor não usa a aba Boletim (lança notas na aba "Notas" da turma) — evita ficar preso nela
+  useEffect(() => {
+    if (currentView === 'student-detail' && isProfessor && currentTab === 'boletim') {
+      setCurrentTab('resumo');
+    }
+  }, [currentView, isProfessor, currentTab]);
 
   // Carregar sondagens na aba Sondagens ou no Resumo (prévia)
   useEffect(() => {
@@ -1896,7 +1982,11 @@ function App() {
           nivel_leitura: latestByAluno[a.id]?.nivel_leitura || '-',
           nivel_escrita: latestByAluno[a.id]?.nivel_escrita || '-',
         }))
-        .filter((a) => !reportNivelLeitura || a.nivel_leitura === reportNivelLeitura);
+        .filter(
+          (a) =>
+            !reportNivelLeitura ||
+            normalizeNivelKey(a.nivel_leitura) === normalizeNivelKey(reportNivelLeitura),
+        );
     } else if (list.length > 0) {
       const alunoIds = list.map((a) => a.id);
       const { data: sonds } = await supabase
@@ -2209,7 +2299,7 @@ function App() {
         aluno_id: selectedStudentId,
         mes_referencia: frequencyFormData.mes_referencia,
         ano: parseInt(frequencyFormData.ano),
-        porcentagem: parseFloat(frequencyFormData.porcentagem),
+        percentual: parseFloat(frequencyFormData.percentual),
       },
     ]);
 
@@ -2221,7 +2311,7 @@ function App() {
       setFrequencyFormData({
         mes_referencia: '',
         ano: new Date().getFullYear(),
-        porcentagem: '',
+        percentual: '',
       });
       setSavingFrequency(false);
 
@@ -2243,7 +2333,7 @@ function App() {
     setFrequencyFormData({
       mes_referencia: '',
       ano: new Date().getFullYear(),
-      porcentagem: '',
+      percentual: '',
     });
   };
 
@@ -2542,9 +2632,14 @@ function App() {
         .eq('id', schoolId);
       error = updateError;
     } else {
-       
+      // Nova escola entra na mesma conta (espaço) do coordenador logado —
+      // necessário para o isolamento entre contas funcionar (ver
+      // supabase_contas_multitenancy.sql).
+
       // eslint-disable-next-line no-unused-vars
-      const { data: insertData, error: insertError } = await supabase.from('escolas').insert([schoolData]);
+      const { data: insertData, error: insertError } = await supabase
+        .from('escolas')
+        .insert([{ ...schoolData, conta_id: schools[0]?.conta_id }]);
       error = insertError;
     }
 
@@ -3486,7 +3581,10 @@ function App() {
       titulo: eventFormData.titulo,
       descricao: eventFormData.descricao || null,
       cor_etiqueta: eventFormData.cor_etiqueta,
-      turma_id: null,
+      // escola_id é obrigatório para o isolamento por conta (RLS) reconhecer
+      // o evento como sendo desta escola.
+      escola_id: activeSchoolId || null,
+      turma_id: eventFormData.turma_id || null,
       nivel_planejamento: null,
       anexo_url: editingEvent?.anexo_url || null,
       ...USUARIO_EVENT_EXTRAS,
@@ -3869,6 +3967,7 @@ function App() {
       ...INITIAL_EVENT_FORM_DATA,
       titulo: ev.titulo || '',
       descricao: ev.descricao || '',
+      turma_id: ev.turma_id || '',
       data_inicio: inicio.date,
       hora_inicio: inicio.time,
       data_fim: fim.date,
@@ -3907,14 +4006,62 @@ function App() {
     return filterAgendaEvents(agendaEvents, { onlyUsuario: true });
   };
 
-  const exportAgendaPlanejamentoPDF = async (selectedCategoryIds) => {
+  /**
+   * @param {string[]} selectedCategoryIds
+   * @param {Array<{ano:number, mes:number}>|null} meses  Quando informado,
+   *        exporta um mês por página em vez do período visível na tela.
+   */
+  const exportAgendaPlanejamentoPDF = async (selectedCategoryIds, meses = null) => {
     const { range, ...meta } = getAgendaExportMeta(selectedCategoryIds);
+    const eventosBase = getAgendaEventsForExport();
+    const opcoesSemed = { includeSemedMarcos: semedAgenda.showSemedMarcos };
+
+    // --- Vários meses: uma página por mês ---
+    if (meses?.length) {
+      const paginas = meses.map(({ ano, mes }) => {
+        const inicio = new Date(ano, mes, 1, 0, 0, 0);
+        const fim = new Date(ano, mes + 1, 0, 23, 59, 59);
+        const rangeMes = {
+          start: inicio,
+          end: fim,
+          label: inicio.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
+        };
+        return {
+          currentDate: inicio,
+          periodLabel: rangeMes.label,
+          events: getEventsForExport(
+            eventosBase,
+            rangeMes,
+            selectedCategoryIds,
+            getBirthdayEventsForDay,
+            opcoesSemed,
+          ),
+        };
+      });
+
+      if (paginas.every((p) => p.events.length === 0)) {
+        toast.warn('Nenhum evento das categorias selecionadas nos meses escolhidos.');
+        return;
+      }
+
+      setExportingAgenda(true);
+      try {
+        await exportAgendaPDFMeses(paginas, meta);
+      } catch (err) {
+        toast.error('Erro ao exportar PDF: ' + (err?.message || err));
+      } finally {
+        setExportingAgenda(false);
+      }
+      return;
+    }
+
+    // --- Período visível na tela (comportamento original) ---
     const events = getEventsForExport(
-      getAgendaEventsForExport(),
+      eventosBase,
       range,
       selectedCategoryIds,
       getBirthdayEventsForDay,
-      { includeSemedMarcos: semedAgenda.showSemedMarcos }
+      opcoesSemed
     );
     if (events.length === 0) {
       toast.warn('Não há eventos das categorias selecionadas no período visível para exportar.');
@@ -4689,7 +4836,21 @@ function App() {
         </div>
       )}
 
-      {!showRecoveryPasswordForm && isLoggedIn && (
+      {!showRecoveryPasswordForm && isLoggedIn && showOnboardingAutonomo && (
+        <OnboardingAutonomo
+          onCreated={(escola) => {
+            setSchools([escola]);
+            setActiveSchoolId(escola.id);
+            setActiveSchool(escola);
+            // A conta acabou de nascer (sacp_criar_conta_autonoma cria sempre
+            // como 'autonomo'); o efeito que lê contas.tipo já rodou antes dela
+            // existir, então marcamos aqui para o menu enxuto valer de imediato.
+            setContaTipo('autonomo');
+          }}
+        />
+      )}
+
+      {!showRecoveryPasswordForm && isLoggedIn && !showOnboardingAutonomo && (
         <div className="app-container">
           {/* Overlay para fechar menu no mobile */}
           {mobileMenuOpen && (
@@ -4702,7 +4863,7 @@ function App() {
           <aside id="main-navigation" className={mobileMenuOpen ? 'mobile-open' : ''}>
             <div className="brand">
               <h3>SACP</h3>
-              <span>{isProfessor ? 'Área do Professor' : 'Coordenação Pedagógica'}</span>
+              <span>{isProfessor || isAutonomo ? 'Área do Professor' : 'Coordenação Pedagógica'}</span>
             </div>
             <nav>
               <ul>
@@ -4724,7 +4885,7 @@ function App() {
                 >
                   <i className="fas fa-calendar-alt" /> Agenda
                 </li>
-                {!isProfessor && (
+                {!isProfessor && !isAutonomo && (
                   <li
                     onClick={() => {
                       navigate('schools');
@@ -4769,7 +4930,7 @@ function App() {
                     <i className="fas fa-folder-open" /> Minhas entregas
                   </li>
                 )}
-                {!isProfessor && (
+                {!isProfessor && !isAutonomo && (
                   <li
                     onClick={() => {
                       setSelectedTeacherId(null);
@@ -4783,7 +4944,7 @@ function App() {
                     <i className="fas fa-chalkboard-teacher" /> Professores
                   </li>
                 )}
-                {!isProfessor && (
+                {!isProfessor && !isAutonomo && (
                   <li
                     onClick={() => {
                       navigate('emprestimos');
@@ -4794,7 +4955,7 @@ function App() {
                     <i className="fas fa-book" /> Biblioteca
                   </li>
                 )}
-                {!isProfessor && (
+                {!isProfessor && !isAutonomo && (
                   <li
                     onClick={() => {
                       navigate('reports');
@@ -4805,7 +4966,7 @@ function App() {
                     <i className="fas fa-chart-bar" /> Relatórios
                   </li>
                 )}
-                {!isProfessor && (
+                {!isProfessor && !isAutonomo && (
                   <li
                     onClick={() => {
                       navigate('graficos');
@@ -4816,18 +4977,16 @@ function App() {
                     <i className="fas fa-chart-pie" /> Gráficos
                   </li>
                 )}
-                {!isProfessor && (
-                  <li
-                    onClick={() => {
-                      navigate('chat-ia');
-                      setMobileMenuOpen(false);
-                    }}
-                    className={getActiveNav() === 'chat-ia' ? 'active' : ''}
-                  >
-                    <i className="fas fa-comments" /> Chat IA
-                  </li>
-                )}
-                {!isProfessor && (
+                <li
+                  onClick={() => {
+                    navigate('chat-ia');
+                    setMobileMenuOpen(false);
+                  }}
+                  className={getActiveNav() === 'chat-ia' ? 'active' : ''}
+                >
+                  <i className="fas fa-comments" /> Chat IA
+                </li>
+                {!isProfessor && !isAutonomo && (
                   <li
                     onClick={() => {
                       navigate('settings');
@@ -4967,6 +5126,22 @@ function App() {
                 onOpenEventDetail={openAgendaEventDetail}
                 userRole={userRole || USER_ROLE.COORDENADOR}
                 professorProfile={professorProfile}
+                isAutonomo={isAutonomo}
+                alertasTurma={alertasTurma}
+                onAbrirAluno={async (alunoId) => {
+                  // A lista `students` não é carregada no dashboard, então o
+                  // aluno é buscado na hora do clique.
+                  const { data: aluno, error } = await supabase
+                    .from('alunos')
+                    .select('*')
+                    .eq('id', alunoId)
+                    .maybeSingle();
+                  if (error || !aluno) {
+                    toast.error('Não foi possível abrir este aluno.');
+                    return;
+                  }
+                  selectStudent(aluno);
+                }}
               />
             )}
 
@@ -5099,6 +5274,8 @@ function App() {
                   }
                 }}
                 canManageCadastro={!isProfessor}
+                isProfessor={isProfessor}
+                professorProfile={professorProfile}
               />
             )}
 
@@ -5212,6 +5389,10 @@ function App() {
                 handleDownloadDocument={handleDownloadDocument}
                 handleDeleteDocument={handleDeleteDocument}
                 reavaliarCorAluno={reavaliarCorAluno}
+                isProfessor={isProfessor}
+                escolaNome={activeSchool?.nome || ''}
+                anoLetivo={selectedYear}
+                professorNome={userName}
               />
             )}
 
@@ -5384,7 +5565,7 @@ function App() {
             )}
 
             {/* Chat IA */}
-            {currentView === 'chat-ia' && !isProfessor && (
+            {currentView === 'chat-ia' && (
               <ChatIAView
                 isProfessor={isProfessor}
                 activeSchoolId={activeSchoolId}
@@ -5583,6 +5764,7 @@ function App() {
         handleDeleteAgendaEvent={handleDeleteAgendaEvent}
         handleBackdropMouseDown={handleBackdropMouseDown}
         handleBackdropClick={handleBackdropClick}
+        classesList={classesList}
       />
     </>
   );

@@ -299,7 +299,7 @@ export async function sincronizarFrequenciaHistorico(
       aluno_id: aluno.id,
       mes_referencia: mesReferencia,
       ano,
-      porcentagem: pct,
+      percentual: pct,
     });
   });
 
